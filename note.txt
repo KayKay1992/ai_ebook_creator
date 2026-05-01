@@ -1,0 +1,59 @@
+## Backend Setup & Project Structure
+
+### 1. Initialized the Project
+- Created the `backend/` folder and ran `npm init` to generate `package.json`.
+- Set `"type": "commonjs"` since the backend uses `require/module.exports` (CommonJS).
+
+### 2. Installed Dependencies
+Core packages:
+- `express` — web framework for building the REST API
+- `mongoose` — ODM for interacting with MongoDB
+- `dotenv` — loads environment variables from `.env`
+- `cors` — handles Cross-Origin Resource Sharing
+- `bcryptjs` — hashes passwords before saving to DB
+- `jsonwebtoken` — generates and verifies JWT tokens for auth
+- `multer` — handles file uploads
+- `@google/genai` — Google Generative AI SDK for AI features
+- `docx`, `pdfkit`, `markdown-it` — eBook export utilities
+
+Dev dependency:
+- `nodemon` — auto-restarts server on file changes during development
+
+### 3. Entry Point — server.js
+- Loads `.env` variables via `dotenv.config()`.
+- Creates an Express app and applies middleware:
+  - `cors` configured to allow all origins with GET/POST/PUT/DELETE methods.
+  - `express.json()` to parse incoming JSON request bodies.
+- Serves uploaded files statically from the `uploads/` folder.
+- Calls `connectDB()` to establish the MongoDB connection.
+- Starts the server on `process.env.PORT` or defaults to port 5000.
+
+### 4. MongoDB Connection — config/db.js
+- Exports an async `connectDB` function.
+- Uses `mongoose.connect()` with the `MONGO_URI` from the `.env` file.
+- Logs success or exits the process on connection failure.
+
+### 5. Project Structure
+backend/
+├── config/
+│   └── db.js              # MongoDB connection logic
+├── controller/
+│   ├── authController.js  # Register/login logic
+│   ├── bookController.js  # CRUD for eBooks
+│   ├── aiController.js    # AI content generation
+│   └── exportController.js# PDF/DOCX export logic
+├── middleware/
+│   ├── authMiddleware.js  # JWT token verification
+│   └── uploadMiddleware.js# Multer file upload config
+├── models/
+│   ├── User.js            # Mongoose User schema
+│   └── Book.js            # Mongoose Book schema
+├── routes/
+│   ├── authRoute.js       # /api/auth routes
+│   ├── bookRoute.js       # /api/books routes
+│   ├── aiRoute.js         # /api/ai routes
+│   └── exportRoute.js     # /api/export routes
+├── uploads/               # Stored uploaded files
+├── .env                   # Environment variables (MONGO_URI, JWT_SECRET, PORT)
+├── .gitignore
+└── server.js              # App entry point
