@@ -1,97 +1,120 @@
-
-## User Schema — models/User.js
+## Book Schema — models/Book.js
 
 ### Overview
-The `User` model is a Mongoose schema that defines the structure of a user document stored in MongoDB. It handles user identity, authentication credentials, and subscription status.
-
-### Dependencies
-- `mongoose` — provides the schema/model layer on top of MongoDB.
-- `bcryptjs` — used to hash passwords before saving and to compare passwords on login.
+The `Book` model defines the MongoDB document structure for an eBook. It is composed of two Mongoose schemas:
+1. `chapterSchema` — a sub-document schema embedded inside `bookSchema`.
+2. `bookSchema` — the top-level schema that represents the full eBook document.
 
 ---
 
-### Schema Fields
+### Dependencies
+- `mongoose` — provides the schema/model layer on top of MongoDB.
 
-| Field      | Type    | Required | Default | Notes                                      |
-|------------|---------|----------|---------|--------------------------------------------|
-| `name`     | String  | Yes      | —       | User's display name                        |
-| `email`    | String  | Yes      | —       | Must be unique; auto-lowercased on save    |
-| `password` | String  | Yes      | —       | Min 6 chars; excluded from queries by default |
-| `avatar`   | String  | No       | `''`    | URL or path to the user's profile picture  |
-| `isPro`    | Boolean | No       | `false` | Tracks whether user has a Pro subscription |
+---
+
+### 1. chapterSchema (Sub-Document)
+
+```js
+const chapterSchema = new mongoose.Schema({
+    title:       { type: String, required: true },
+    description: { type: String, default: '' },
+    content:     { type: String, default: '' },
+});
+```
+
+A chapter is not a standalone MongoDB collection — it is embedded directly inside a book document as a **sub-document array**. Each chapter has:
+
+| Field         | Type   | Required | Default | Notes                                         |
+|---------------|--------|----------|---------|-----------------------------------------------|
+| `title`       | String | Yes      | —       | The chapter heading / title                   |
+| `description` | String | No       | `''`    | A short summary or description of the chapter |
+| `content`     | String | No       | `''`    | The full written body/content of the chapter  |
+
+- Because `chapterSchema` is defined without `{ _id: false }`, Mongoose automatically assigns a unique `_id` to each chapter sub-document. This allows individual chapters to be referenced or updated by their `_id`.
+- `description` and `content` default to empty strings so a chapter can be created as a placeholder and filled in later (useful for AI-generated content workflows).
+
+---
+
+### 2. bookSchema (Top-Level Document)
+
+```js
+const bookSchema = new mongoose.Schema({
+    userId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    title:      { type: String, required: true },
+    subtitle:   { type: String, default: '' },
+    author:     { type: String, required: true },
+    coverImage: { type: String, default: '' },
+    chapters:   [chapterSchema],
+    status:     { type: String, enum: ['draft', 'published'], default: 'draft' },
+}, { timestamps: true });
+```
+
+| Field        | Type       | Required | Default   | Notes                                                  |
+|--------------|------------|----------|-----------|--------------------------------------------------------|
+| `userId`     | ObjectId   | Yes      | —         | References the `User` who owns this book               |
+| `title`      | String     | Yes      | —         | Main title of the eBook                                |
+| `subtitle`   | String     | No       | `''`      | Optional subtitle                                      |
+| `author`     | String     | Yes      | —         | Author name displayed in/on the book                   |
+| `coverImage` | String     | No       | `''`      | URL or file path of the cover image                    |
+| `chapters`   | Array      | No       | `[]`      | Array of embedded `chapterSchema` sub-documents        |
+| `status`     | String     | No       | `'draft'` | Publication state; constrained to `draft` or `published` |
 
 #### Field Details
 
-1. **name**
-   - Type: `String`, required.
-   - Stores the user's full name or display name.
+1. **userId**
+   - Type: `mongoose.Schema.Types.ObjectId` with `ref: 'User'`.
+   - Creates a **reference (foreign key)** to the `User` collection.
+   - Allows Mongoose's `.populate('userId')` to fetch the full user document when querying a book.
+   - Required, so every book must be owned by a registered user.
 
-2. **email**
-   - Type: `String`, required and unique.
-   - `lowercase: true` ensures all emails are stored in lowercase, preventing duplicate registrations with different cases (e.g., `User@mail.com` vs `user@mail.com`).
+2. **title / subtitle / author**
+   - `title` and `author` are required strings — the minimum metadata needed to create a book.
+   - `subtitle` is optional and defaults to `''`.
 
-3. **password**
-   - Type: `String`, required, minimum length of 6 characters.
-   - `select: false` means this field is **never returned** in query results by default. You must explicitly request it with `.select('+password')`. This is a security measure to prevent accidental password exposure in API responses.
+3. **coverImage**
+   - Stores a URL or upload path (handled by `multer` via `uploadMiddleware.js`).
+   - Defaults to `''` so the book can be created before a cover is uploaded.
 
-4. **avatar**
-   - Type: `String`, optional, defaults to an empty string `''`.
-   - Intended to hold a URL or file path for the user's profile image.
+4. **chapters**
+   - Defined as `[chapterSchema]` — an array of embedded chapter sub-documents.
+   - Stored directly inside the book document (no separate `chapters` collection).
+   - Defaults to an empty array `[]` when no chapters are provided at creation time.
+   - Each chapter carries its own auto-generated `_id`, `title`, `description`, and `content`.
 
-5. **isPro**
-   - Type: `Boolean`, defaults to `false`.
-   - A flag used to gate premium/pro features in the application. Set to `true` when a user upgrades.
+5. **status**
+   - Uses `enum: ['draft', 'published']` to restrict the value to only two valid states.
+   - Defaults to `'draft'` so newly created books are not immediately visible as published.
+   - Mongoose will throw a `ValidationError` if any other value is assigned.
 
 ---
 
 ### Schema Options
 
-- `timestamps: true` — Mongoose automatically adds two fields to every document:
-  - `createdAt` — the date/time the document was first saved.
-  - `updatedAt` — the date/time the document was last modified.
+- `timestamps: true` — Mongoose automatically adds:
+  - `createdAt` — when the book document was first created.
+  - `updatedAt` — when the book document was last modified (including chapter edits).
 
 ---
 
-### Middleware (Pre-Save Hook)
+### Model Export
 
 ```js
-userSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) return next();
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-});
+module.exports = mongoose.model('Book', bookSchema);
 ```
 
-- Runs **before** every `save()` call.
-- `this.isModified('password')` — skips hashing if the password field hasn't changed (e.g., when updating only name or avatar). This prevents double-hashing on unrelated updates.
-- `bcrypt.genSalt(10)` — generates a salt with cost factor 10 (a good balance between security and performance).
-- `bcrypt.hash(this.password, salt)` — replaces the plain-text password with its hashed version before it hits the database.
+- Compiles the schema into a Mongoose model named `'Book'`.
+- Mongoose maps this to the `books` collection in MongoDB (auto-pluralized, lowercased).
+- Exported for use in controllers (`bookController.js`, `aiController.js`, `exportController.js`).
 
 ---
 
-### Instance Method
+### Relationship Summary
 
-```js
-userSchema.methods.matchPassword = async function(enteredPassword) {
-    return await bcrypt.compare(enteredPassword, this.password);
-};
+```
+User (users collection)
+ └── has many Books (books collection)
+        └── each Book embeds many Chapters (sub-documents, no separate collection)
 ```
 
-- Attached directly to every `User` document instance.
-- Used during login: compares the plain-text password entered by the user against the hashed password stored in the DB.
-- `bcrypt.compare()` returns `true` if they match, `false` otherwise.
-- Since `password` has `select: false`, the calling code must explicitly fetch the password field before using this method (e.g., `User.findOne({ email }).select('+password')`).
-
----
-
-### Note — Bug in Current Code
-The last line reads:
-```js
-module.exports = Use;
-```
-This is a **typo** — it should be:
-```js
-module.exports = User;
-```
-`Use` is undefined, so importing this model anywhere will throw a `ReferenceError` at runtime.
+- `User` → `Book` is a **referenced relationship** (via `userId` ObjectId ref).
+- `Book` → `Chapter` is an **embedded relationship** (chapters live inside the book document).
