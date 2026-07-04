@@ -1,120 +1,88 @@
-## Book Schema — models/Book.js
+## Building Authentication APIs
 
-### Overview
-The `Book` model defines the MongoDB document structure for an eBook. It is composed of two Mongoose schemas:
-1. `chapterSchema` — a sub-document schema embedded inside `bookSchema`.
-2. `bookSchema` — the top-level schema that represents the full eBook document.
+### What was built
+Four API endpoints that handle everything related to user identity: signing up, logging in, viewing your profile, and updating it.
 
 ---
 
-### Dependencies
-- `mongoose` — provides the schema/model layer on top of MongoDB.
-
----
-
-### 1. chapterSchema (Sub-Document)
-
-```js
-const chapterSchema = new mongoose.Schema({
-    title:       { type: String, required: true },
-    description: { type: String, default: '' },
-    content:     { type: String, default: '' },
-});
-```
-
-A chapter is not a standalone MongoDB collection — it is embedded directly inside a book document as a **sub-document array**. Each chapter has:
-
-| Field         | Type   | Required | Default | Notes                                         |
-|---------------|--------|----------|---------|-----------------------------------------------|
-| `title`       | String | Yes      | —       | The chapter heading / title                   |
-| `description` | String | No       | `''`    | A short summary or description of the chapter |
-| `content`     | String | No       | `''`    | The full written body/content of the chapter  |
-
-- Because `chapterSchema` is defined without `{ _id: false }`, Mongoose automatically assigns a unique `_id` to each chapter sub-document. This allows individual chapters to be referenced or updated by their `_id`.
-- `description` and `content` default to empty strings so a chapter can be created as a placeholder and filled in later (useful for AI-generated content workflows).
-
----
-
-### 2. bookSchema (Top-Level Document)
-
-```js
-const bookSchema = new mongoose.Schema({
-    userId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    title:      { type: String, required: true },
-    subtitle:   { type: String, default: '' },
-    author:     { type: String, required: true },
-    coverImage: { type: String, default: '' },
-    chapters:   [chapterSchema],
-    status:     { type: String, enum: ['draft', 'published'], default: 'draft' },
-}, { timestamps: true });
-```
-
-| Field        | Type       | Required | Default   | Notes                                                  |
-|--------------|------------|----------|-----------|--------------------------------------------------------|
-| `userId`     | ObjectId   | Yes      | —         | References the `User` who owns this book               |
-| `title`      | String     | Yes      | —         | Main title of the eBook                                |
-| `subtitle`   | String     | No       | `''`      | Optional subtitle                                      |
-| `author`     | String     | Yes      | —         | Author name displayed in/on the book                   |
-| `coverImage` | String     | No       | `''`      | URL or file path of the cover image                    |
-| `chapters`   | Array      | No       | `[]`      | Array of embedded `chapterSchema` sub-documents        |
-| `status`     | String     | No       | `'draft'` | Publication state; constrained to `draft` or `published` |
-
-#### Field Details
-
-1. **userId**
-   - Type: `mongoose.Schema.Types.ObjectId` with `ref: 'User'`.
-   - Creates a **reference (foreign key)** to the `User` collection.
-   - Allows Mongoose's `.populate('userId')` to fetch the full user document when querying a book.
-   - Required, so every book must be owned by a registered user.
-
-2. **title / subtitle / author**
-   - `title` and `author` are required strings — the minimum metadata needed to create a book.
-   - `subtitle` is optional and defaults to `''`.
-
-3. **coverImage**
-   - Stores a URL or upload path (handled by `multer` via `uploadMiddleware.js`).
-   - Defaults to `''` so the book can be created before a cover is uploaded.
-
-4. **chapters**
-   - Defined as `[chapterSchema]` — an array of embedded chapter sub-documents.
-   - Stored directly inside the book document (no separate `chapters` collection).
-   - Defaults to an empty array `[]` when no chapters are provided at creation time.
-   - Each chapter carries its own auto-generated `_id`, `title`, `description`, and `content`.
-
-5. **status**
-   - Uses `enum: ['draft', 'published']` to restrict the value to only two valid states.
-   - Defaults to `'draft'` so newly created books are not immediately visible as published.
-   - Mongoose will throw a `ValidationError` if any other value is assigned.
-
----
-
-### Schema Options
-
-- `timestamps: true` — Mongoose automatically adds:
-  - `createdAt` — when the book document was first created.
-  - `updatedAt` — when the book document was last modified (including chapter edits).
-
----
-
-### Model Export
-
-```js
-module.exports = mongoose.model('Book', bookSchema);
-```
-
-- Compiles the schema into a Mongoose model named `'Book'`.
-- Mongoose maps this to the `books` collection in MongoDB (auto-pluralized, lowercased).
-- Exported for use in controllers (`bookController.js`, `aiController.js`, `exportController.js`).
-
----
-
-### Relationship Summary
+### How JWT works here (the key idea)
+When a user signs up or logs in, the server creates a **JWT token** — a small encrypted string that contains the user's ID. The frontend stores this token and sends it with every future request. The server reads the token to know who is making the request, without needing to hit the database every single time to check credentials.
 
 ```
-User (users collection)
- └── has many Books (books collection)
-        └── each Book embeds many Chapters (sub-documents, no separate collection)
+generateToken(id) → jwt.sign({ id }, JWT_SECRET, { expiresIn: '30d' })
 ```
+The token expires in 30 days. It is signed with `JWT_SECRET` from the `.env` file.
 
-- `User` → `Book` is a **referenced relationship** (via `userId` ObjectId ref).
-- `Book` → `Chapter` is an **embedded relationship** (chapters live inside the book document).
+---
+
+### 1. Signup — `POST /api/auth/register`
+**File:** `controller/authController.js` → `registerUser`
+
+Steps:
+1. Pull `name`, `email`, `password` from the request body.
+2. If any field is missing → return 400 error.
+3. Check if a user with that email already exists → if yes, return 400 "User already exists".
+4. Create the user with `User.create(...)`. The password is **automatically hashed** by the pre-save hook in the User model (bcrypt, salt rounds 10) before it is stored.
+5. Return a JWT token so the user is immediately logged in after registering.
+
+---
+
+### 2. Login — `POST /api/auth/login`
+**File:** `controller/authController.js` → `loginUser`
+
+Steps:
+1. Pull `email` and `password` from the request body.
+2. Find the user by email. Uses `.select('+password')` because the password field is hidden by default (`select: false` in the schema).
+3. Call `user.matchPassword(password)` — the instance method on the User model that uses `bcrypt.compare()` to check the plain password against the stored hash.
+4. If they match → return the user's info + a fresh JWT token.
+5. If they don't match → return 400 "Invalid credentials".
+
+---
+
+### 3. Protect Middleware — `middleware/authMiddleware.js`
+Before a private route runs, every request passes through the `protect` middleware first.
+
+Steps:
+1. Look for the `Authorization` header. It must start with `Bearer` (e.g. `Bearer eyJhbGc...`).
+2. Split off the token part and verify it with `jwt.verify(token, JWT_SECRET)`.
+3. If valid, decode it to get the user's `id` and attach the full user object to `req.user`.
+4. Call `next()` to pass the request on to the actual route handler.
+5. If the token is missing or invalid → return 401 "Not authorized".
+
+This means any route that uses `protect` knows exactly who is logged in via `req.user`.
+
+---
+
+### 4. Get Profile — `GET /api/auth/profile` (Private)
+**File:** `controller/authController.js` → `getProfile`
+
+Steps:
+1. The `protect` middleware already populated `req.user` with the logged-in user's ID.
+2. Look up the user in the database by `req.user.id`.
+3. Return their `_id`, `name`, `email`, `isPro`, and `avatar`.
+
+No password is ever returned because of `select: false` on the schema.
+
+---
+
+### 5. Update Profile — `PUT /api/auth/profile` (Private)
+**File:** `controller/authController.js` → `updateUserProfile`
+
+Steps:
+1. Find the user by `req.user.id`.
+2. Update `name` and `email` if new values were provided (falls back to existing values if not).
+3. If a new `password` was sent, set it — the pre-save hook will automatically hash it again on `user.save()`.
+4. Save the user and return updated info + a fresh JWT token.
+
+---
+
+### Route Map — `routes/authRoute.js`
+
+| Method | Endpoint              | Access  | Handler             |
+|--------|-----------------------|---------|---------------------|
+| POST   | /api/auth/register    | Public  | registerUser        |
+| POST   | /api/auth/login       | Public  | loginUser           |
+| GET    | /api/auth/profile     | Private | protect, getProfile |
+| PUT    | /api/auth/profile     | Private | protect, updateUserProfile |
+
+Public routes are open to anyone. Private routes require a valid JWT token in the `Authorization` header.
