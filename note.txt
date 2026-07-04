@@ -1,82 +1,61 @@
-## Building eBook APIs (CRUD + Cover Upload)
+## Building AI APIs (Generate Outline & Generate Chapter Content)
 
-All routes are private — every request must pass through the `protect` middleware first, which verifies the JWT token and attaches `req.user` to the request.
+### Setup
+- Uses `@google/genai` (Google's official Node.js SDK).
+- A single `GoogleGenAI` instance is created at the top of the file using `GEMINI_API_KEY` from `.env`.
+- Both routes are private — `router.use(protect)` in `aiRoute.js` covers all AI routes with JWT auth.
 
----
+### Route Map — `routes/aiRoute.js`
 
-### Route Map — `routes/bookRoute.js`
-
-| Method | Endpoint              | Handler         |
-|--------|-----------------------|-----------------|
-| GET    | /api/books            | getBooks        |
-| POST   | /api/books            | createBook      |
-| GET    | /api/books/:id        | getBookById     |
-| PUT    | /api/books/:id        | updateBook      |
-| DELETE | /api/books/:id        | deleteBook      |
-| PUT    | /api/books/cover/:id  | updateBookCover |
-
-`router.use(protect)` is applied once at the top, so every route in this file is automatically protected.
+| Method | Endpoint                          | Handler                 |
+|--------|-----------------------------------|-------------------------|
+| POST   | /api/ai/generate-outline          | generateOutline         |
+| POST   | /api/ai/generate-chapter-content  | generateChapterContent  |
 
 ---
 
-### 1. Create a Book — `POST /api/books`
+### 1. Generate Outline — `POST /api/ai/generate-outline`
 
-- Pulls `title`, `author`, `subtitle`, `chapters` from the request body.
-- Validates that `title` and `author` are present — returns 400 if missing.
-- Calls `Book.create(...)` with `userId: req.user._id` so the book is always linked to the logged-in user.
-- Returns the created book with status 201.
+**Input (req.body):** `topic` (required), `description`, `style`, `numChapters`
 
----
-
-### 2. Get All Books — `GET /api/books`
-
-- Runs `Book.find({ userId: req.user._id })` — only returns books that belong to the logged-in user. Other users' books are never exposed.
-- Results are sorted by `createdAt: -1` (newest first).
-- Returns the array of books with status 200.
+**What it does:**
+1. Validates that `topic` is present — returns 400 if missing.
+2. Builds a detailed prompt instructing Gemini to act as a "book outline generator". The prompt injects `topic`, `description`, `style`, and `numChapters` (defaults to 5 if not provided).
+3. The prompt explicitly tells Gemini to return **only a raw JSON array** — no markdown, no extra text — where each object has a `title` and `description` key.
+4. Calls `ai.models.generateContent({ model: 'gemini-2.5-flash-lite', contents: prompt })` and reads the text from `response.text`.
+5. Since AI responses can sometimes include extra text around the JSON, it uses `text.indexOf('[')` and `text.lastIndexOf(']')` to extract just the JSON array portion.
+6. Parses the extracted string with `JSON.parse()`. If parsing fails, returns 500. If it succeeds, returns `{ outline }` with status 200.
 
 ---
 
-### 3. Get One Book — `GET /api/books/:id`
+### 2. Generate Chapter Content — `POST /api/ai/generate-chapter-content`
 
-- Finds the book by `req.params.id`.
-- If not found → 404.
-- Checks `book.userId.toString() !== req.user._id.toString()` — if the book belongs to a different user → 401 Unauthorized. This ownership check appears in every single-book operation.
-- Returns the book with status 200.
+**Input (req.body):** `chapterTitle` (required), `chapterDescription`, `style`
 
----
-
-### 4. Update a Book — `PUT /api/books/:id`
-
-- Finds the book, runs the ownership check (same as above).
-- Calls `Book.findByIdAndUpdate(id, req.body, { new: true })` — passes the entire request body as the update and returns the updated document (`{ new: true }`).
-- Returns the updated book with status 200.
+**What it does:**
+1. Validates that `chapterTitle` is present — returns 400 if missing.
+2. Builds a prompt instructing Gemini to write a full chapter (1500–2500 words) in plain text (no markdown). The prompt injects `chapterTitle`, `chapterDescription`, and `style` to shape the tone and content.
+3. Calls `ai.models.generateContent({ model: 'gemini-2.5-flash-lite', contents: prompt })` and reads the plain text from `response.text`.
+4. Returns `{ content: text }` directly — no JSON parsing needed since the output is plain prose, not structured data.
 
 ---
 
-### 5. Delete a Book — `DELETE /api/books/:id`
+### Key Difference Between the Two
 
-- Finds the book, runs the ownership check.
-- Calls `book.deleteOne()` to remove it from the database.
-- Returns `{ message: 'Book removed' }` with status 200.
-
----
-
-### 6. Update Cover Image — `PUT /api/books/cover/:id`
-
-- Uses `uploadMiddleware` (multer) to handle the incoming file upload before this handler runs.
-- Finds the book, runs the ownership check.
-- If `req.file` exists, sets `book.coverImage` to the uploaded file path.
-- If no file was uploaded → 400 "No file uploaded".
-- Saves and returns the updated book.
+| | generateOutline | generateChapterContent |
+|---|---|---|
+| Output format | Structured JSON array | Plain text prose |
+| Post-processing | Extract + parse JSON | Return text directly |
+| Validation | topic required | chapterTitle required |
 
 ---
 
-### Ownership Check Pattern (used in every endpoint)
+### Bugs Found & Fixed
 
-```js
-if (book.userId.toString() !== req.user._id.toString()) {
-    return res.status(401).json({ message: 'Unauthorized' });
-}
-```
+1. **Wrong env variable name**
+   - Was: `process.env.GOOGLE_API_KEY`
+   - Fixed to: `process.env.GEMINI_API_KEY` (matching the actual key name in `.env`)
 
-Both sides are converted to strings before comparing because `userId` is a MongoDB ObjectId, not a plain string. This ensures one user can never read, edit, or delete another user's books.
+2. **Wrong SDK parameter key in `generateOutline`**
+   - Was: `content: prompt` (singular — not a valid SDK parameter)
+   - Fixed to: `contents: prompt` (correct key, consistent with `generateChapterContent`)
