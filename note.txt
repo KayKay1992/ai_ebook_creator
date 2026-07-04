@@ -1,88 +1,82 @@
-## Building Authentication APIs
+## Building eBook APIs (CRUD + Cover Upload)
 
-### What was built
-Four API endpoints that handle everything related to user identity: signing up, logging in, viewing your profile, and updating it.
+All routes are private — every request must pass through the `protect` middleware first, which verifies the JWT token and attaches `req.user` to the request.
 
 ---
 
-### How JWT works here (the key idea)
-When a user signs up or logs in, the server creates a **JWT token** — a small encrypted string that contains the user's ID. The frontend stores this token and sends it with every future request. The server reads the token to know who is making the request, without needing to hit the database every single time to check credentials.
+### Route Map — `routes/bookRoute.js`
 
+| Method | Endpoint              | Handler         |
+|--------|-----------------------|-----------------|
+| GET    | /api/books            | getBooks        |
+| POST   | /api/books            | createBook      |
+| GET    | /api/books/:id        | getBookById     |
+| PUT    | /api/books/:id        | updateBook      |
+| DELETE | /api/books/:id        | deleteBook      |
+| PUT    | /api/books/cover/:id  | updateBookCover |
+
+`router.use(protect)` is applied once at the top, so every route in this file is automatically protected.
+
+---
+
+### 1. Create a Book — `POST /api/books`
+
+- Pulls `title`, `author`, `subtitle`, `chapters` from the request body.
+- Validates that `title` and `author` are present — returns 400 if missing.
+- Calls `Book.create(...)` with `userId: req.user._id` so the book is always linked to the logged-in user.
+- Returns the created book with status 201.
+
+---
+
+### 2. Get All Books — `GET /api/books`
+
+- Runs `Book.find({ userId: req.user._id })` — only returns books that belong to the logged-in user. Other users' books are never exposed.
+- Results are sorted by `createdAt: -1` (newest first).
+- Returns the array of books with status 200.
+
+---
+
+### 3. Get One Book — `GET /api/books/:id`
+
+- Finds the book by `req.params.id`.
+- If not found → 404.
+- Checks `book.userId.toString() !== req.user._id.toString()` — if the book belongs to a different user → 401 Unauthorized. This ownership check appears in every single-book operation.
+- Returns the book with status 200.
+
+---
+
+### 4. Update a Book — `PUT /api/books/:id`
+
+- Finds the book, runs the ownership check (same as above).
+- Calls `Book.findByIdAndUpdate(id, req.body, { new: true })` — passes the entire request body as the update and returns the updated document (`{ new: true }`).
+- Returns the updated book with status 200.
+
+---
+
+### 5. Delete a Book — `DELETE /api/books/:id`
+
+- Finds the book, runs the ownership check.
+- Calls `book.deleteOne()` to remove it from the database.
+- Returns `{ message: 'Book removed' }` with status 200.
+
+---
+
+### 6. Update Cover Image — `PUT /api/books/cover/:id`
+
+- Uses `uploadMiddleware` (multer) to handle the incoming file upload before this handler runs.
+- Finds the book, runs the ownership check.
+- If `req.file` exists, sets `book.coverImage` to the uploaded file path.
+- If no file was uploaded → 400 "No file uploaded".
+- Saves and returns the updated book.
+
+---
+
+### Ownership Check Pattern (used in every endpoint)
+
+```js
+if (book.userId.toString() !== req.user._id.toString()) {
+    return res.status(401).json({ message: 'Unauthorized' });
+}
 ```
-generateToken(id) → jwt.sign({ id }, JWT_SECRET, { expiresIn: '30d' })
-```
-The token expires in 30 days. It is signed with `JWT_SECRET` from the `.env` file.
 
----
-
-### 1. Signup — `POST /api/auth/register`
-**File:** `controller/authController.js` → `registerUser`
-
-Steps:
-1. Pull `name`, `email`, `password` from the request body.
-2. If any field is missing → return 400 error.
-3. Check if a user with that email already exists → if yes, return 400 "User already exists".
-4. Create the user with `User.create(...)`. The password is **automatically hashed** by the pre-save hook in the User model (bcrypt, salt rounds 10) before it is stored.
-5. Return a JWT token so the user is immediately logged in after registering.
-
----
-
-### 2. Login — `POST /api/auth/login`
-**File:** `controller/authController.js` → `loginUser`
-
-Steps:
-1. Pull `email` and `password` from the request body.
-2. Find the user by email. Uses `.select('+password')` because the password field is hidden by default (`select: false` in the schema).
-3. Call `user.matchPassword(password)` — the instance method on the User model that uses `bcrypt.compare()` to check the plain password against the stored hash.
-4. If they match → return the user's info + a fresh JWT token.
-5. If they don't match → return 400 "Invalid credentials".
-
----
-
-### 3. Protect Middleware — `middleware/authMiddleware.js`
-Before a private route runs, every request passes through the `protect` middleware first.
-
-Steps:
-1. Look for the `Authorization` header. It must start with `Bearer` (e.g. `Bearer eyJhbGc...`).
-2. Split off the token part and verify it with `jwt.verify(token, JWT_SECRET)`.
-3. If valid, decode it to get the user's `id` and attach the full user object to `req.user`.
-4. Call `next()` to pass the request on to the actual route handler.
-5. If the token is missing or invalid → return 401 "Not authorized".
-
-This means any route that uses `protect` knows exactly who is logged in via `req.user`.
-
----
-
-### 4. Get Profile — `GET /api/auth/profile` (Private)
-**File:** `controller/authController.js` → `getProfile`
-
-Steps:
-1. The `protect` middleware already populated `req.user` with the logged-in user's ID.
-2. Look up the user in the database by `req.user.id`.
-3. Return their `_id`, `name`, `email`, `isPro`, and `avatar`.
-
-No password is ever returned because of `select: false` on the schema.
-
----
-
-### 5. Update Profile — `PUT /api/auth/profile` (Private)
-**File:** `controller/authController.js` → `updateUserProfile`
-
-Steps:
-1. Find the user by `req.user.id`.
-2. Update `name` and `email` if new values were provided (falls back to existing values if not).
-3. If a new `password` was sent, set it — the pre-save hook will automatically hash it again on `user.save()`.
-4. Save the user and return updated info + a fresh JWT token.
-
----
-
-### Route Map — `routes/authRoute.js`
-
-| Method | Endpoint              | Access  | Handler             |
-|--------|-----------------------|---------|---------------------|
-| POST   | /api/auth/register    | Public  | registerUser        |
-| POST   | /api/auth/login       | Public  | loginUser           |
-| GET    | /api/auth/profile     | Private | protect, getProfile |
-| PUT    | /api/auth/profile     | Private | protect, updateUserProfile |
-
-Public routes are open to anyone. Private routes require a valid JWT token in the `Authorization` header.
+Both sides are converted to strings before comparing because `userId` is a MongoDB ObjectId, not a plain string. This ensures one user can never read, edit, or delete another user's books.
