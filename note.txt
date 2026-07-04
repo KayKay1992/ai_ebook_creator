@@ -1,59 +1,97 @@
-## Backend Setup & Project Structure
 
-### 1. Initialized the Project
-- Created the `backend/` folder and ran `npm init` to generate `package.json`.
-- Set `"type": "commonjs"` since the backend uses `require/module.exports` (CommonJS).
+## User Schema — models/User.js
 
-### 2. Installed Dependencies
-Core packages:
-- `express` — web framework for building the REST API
-- `mongoose` — ODM for interacting with MongoDB
-- `dotenv` — loads environment variables from `.env`
-- `cors` — handles Cross-Origin Resource Sharing
-- `bcryptjs` — hashes passwords before saving to DB
-- `jsonwebtoken` — generates and verifies JWT tokens for auth
-- `multer` — handles file uploads
-- `@google/genai` — Google Generative AI SDK for AI features
-- `docx`, `pdfkit`, `markdown-it` — eBook export utilities
+### Overview
+The `User` model is a Mongoose schema that defines the structure of a user document stored in MongoDB. It handles user identity, authentication credentials, and subscription status.
 
-Dev dependency:
-- `nodemon` — auto-restarts server on file changes during development
+### Dependencies
+- `mongoose` — provides the schema/model layer on top of MongoDB.
+- `bcryptjs` — used to hash passwords before saving and to compare passwords on login.
 
-### 3. Entry Point — server.js
-- Loads `.env` variables via `dotenv.config()`.
-- Creates an Express app and applies middleware:
-  - `cors` configured to allow all origins with GET/POST/PUT/DELETE methods.
-  - `express.json()` to parse incoming JSON request bodies.
-- Serves uploaded files statically from the `uploads/` folder.
-- Calls `connectDB()` to establish the MongoDB connection.
-- Starts the server on `process.env.PORT` or defaults to port 5000.
+---
 
-### 4. MongoDB Connection — config/db.js
-- Exports an async `connectDB` function.
-- Uses `mongoose.connect()` with the `MONGO_URI` from the `.env` file.
-- Logs success or exits the process on connection failure.
+### Schema Fields
 
-### 5. Project Structure
-backend/
-├── config/
-│   └── db.js              # MongoDB connection logic
-├── controller/
-│   ├── authController.js  # Register/login logic
-│   ├── bookController.js  # CRUD for eBooks
-│   ├── aiController.js    # AI content generation
-│   └── exportController.js# PDF/DOCX export logic
-├── middleware/
-│   ├── authMiddleware.js  # JWT token verification
-│   └── uploadMiddleware.js# Multer file upload config
-├── models/
-│   ├── User.js            # Mongoose User schema
-│   └── Book.js            # Mongoose Book schema
-├── routes/
-│   ├── authRoute.js       # /api/auth routes
-│   ├── bookRoute.js       # /api/books routes
-│   ├── aiRoute.js         # /api/ai routes
-│   └── exportRoute.js     # /api/export routes
-├── uploads/               # Stored uploaded files
-├── .env                   # Environment variables (MONGO_URI, JWT_SECRET, PORT)
-├── .gitignore
-└── server.js              # App entry point
+| Field      | Type    | Required | Default | Notes                                      |
+|------------|---------|----------|---------|--------------------------------------------|
+| `name`     | String  | Yes      | —       | User's display name                        |
+| `email`    | String  | Yes      | —       | Must be unique; auto-lowercased on save    |
+| `password` | String  | Yes      | —       | Min 6 chars; excluded from queries by default |
+| `avatar`   | String  | No       | `''`    | URL or path to the user's profile picture  |
+| `isPro`    | Boolean | No       | `false` | Tracks whether user has a Pro subscription |
+
+#### Field Details
+
+1. **name**
+   - Type: `String`, required.
+   - Stores the user's full name or display name.
+
+2. **email**
+   - Type: `String`, required and unique.
+   - `lowercase: true` ensures all emails are stored in lowercase, preventing duplicate registrations with different cases (e.g., `User@mail.com` vs `user@mail.com`).
+
+3. **password**
+   - Type: `String`, required, minimum length of 6 characters.
+   - `select: false` means this field is **never returned** in query results by default. You must explicitly request it with `.select('+password')`. This is a security measure to prevent accidental password exposure in API responses.
+
+4. **avatar**
+   - Type: `String`, optional, defaults to an empty string `''`.
+   - Intended to hold a URL or file path for the user's profile image.
+
+5. **isPro**
+   - Type: `Boolean`, defaults to `false`.
+   - A flag used to gate premium/pro features in the application. Set to `true` when a user upgrades.
+
+---
+
+### Schema Options
+
+- `timestamps: true` — Mongoose automatically adds two fields to every document:
+  - `createdAt` — the date/time the document was first saved.
+  - `updatedAt` — the date/time the document was last modified.
+
+---
+
+### Middleware (Pre-Save Hook)
+
+```js
+userSchema.pre('save', async function(next) {
+    if (!this.isModified('password')) return next();
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+});
+```
+
+- Runs **before** every `save()` call.
+- `this.isModified('password')` — skips hashing if the password field hasn't changed (e.g., when updating only name or avatar). This prevents double-hashing on unrelated updates.
+- `bcrypt.genSalt(10)` — generates a salt with cost factor 10 (a good balance between security and performance).
+- `bcrypt.hash(this.password, salt)` — replaces the plain-text password with its hashed version before it hits the database.
+
+---
+
+### Instance Method
+
+```js
+userSchema.methods.matchPassword = async function(enteredPassword) {
+    return await bcrypt.compare(enteredPassword, this.password);
+};
+```
+
+- Attached directly to every `User` document instance.
+- Used during login: compares the plain-text password entered by the user against the hashed password stored in the DB.
+- `bcrypt.compare()` returns `true` if they match, `false` otherwise.
+- Since `password` has `select: false`, the calling code must explicitly fetch the password field before using this method (e.g., `User.findOne({ email }).select('+password')`).
+
+---
+
+### Note — Bug in Current Code
+The last line reads:
+```js
+module.exports = Use;
+```
+This is a **typo** — it should be:
+```js
+module.exports = User;
+```
+`Use` is undefined, so importing this model anywhere will throw a `ReferenceError` at runtime.
