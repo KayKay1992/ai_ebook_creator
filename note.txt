@@ -1,61 +1,13 @@
-## Building AI APIs (Generate Outline & Generate Chapter Content)
+Building Export APIs (Export as pdf or word document)
 
-### Setup
-- Uses `@google/genai` (Google's official Node.js SDK).
-- A single `GoogleGenAI` instance is created at the top of the file using `GEMINI_API_KEY` from `.env`.
-- Both routes are private — `router.use(protect)` in `aiRoute.js` covers all AI routes with JWT auth.
+ In the exportController.js file, the exportAsPDF function is responsible for exporting a book as a PDF. It first checks if the book exists and if the user is authorized to export it. If the book is not found or the user is not authorized, it returns an appropriate error response.
 
-### Route Map — `routes/aiRoute.js`
+The function then generates the PDF using the PDFDocument library. It creates a new PDF document and adds the necessary content, such as the cover page, chapters, and other elements. The cover page is added if there is an image available for the book. The chapters are added by iterating over the book.chapters array and rendering each chapter's content.
 
-| Method | Endpoint                          | Handler                 |
-|--------|-----------------------------------|-------------------------|
-| POST   | /api/ai/generate-outline          | generateOutline         |
-| POST   | /api/ai/generate-chapter-content  | generateChapterContent  |
+In the exportRoute.js file, the exportAsPDF and 
+exportAsDocument
+ routes are defined. These routes handle the requests to export the book as a PDF or a document, respectively. The exportAsPDF route is protected and requires authentication using the protect middleware.
 
----
+In the server.js file, the app.use() middleware is used to handle the routes defined in exportRoute.js. The express.json() middleware is also used to parse the JSON data in the request body.
 
-### 1. Generate Outline — `POST /api/ai/generate-outline`
-
-**Input (req.body):** `topic` (required), `description`, `style`, `numChapters`
-
-**What it does:**
-1. Validates that `topic` is present — returns 400 if missing.
-2. Builds a detailed prompt instructing Gemini to act as a "book outline generator". The prompt injects `topic`, `description`, `style`, and `numChapters` (defaults to 5 if not provided).
-3. The prompt explicitly tells Gemini to return **only a raw JSON array** — no markdown, no extra text — where each object has a `title` and `description` key.
-4. Calls `ai.models.generateContent({ model: 'gemini-2.5-flash-lite', contents: prompt })` and reads the text from `response.text`.
-5. Since AI responses can sometimes include extra text around the JSON, it uses `text.indexOf('[')` and `text.lastIndexOf(']')` to extract just the JSON array portion.
-6. Parses the extracted string with `JSON.parse()`. If parsing fails, returns 500. If it succeeds, returns `{ outline }` with status 200.
-
----
-
-### 2. Generate Chapter Content — `POST /api/ai/generate-chapter-content`
-
-**Input (req.body):** `chapterTitle` (required), `chapterDescription`, `style`
-
-**What it does:**
-1. Validates that `chapterTitle` is present — returns 400 if missing.
-2. Builds a prompt instructing Gemini to write a full chapter (1500–2500 words) in plain text (no markdown). The prompt injects `chapterTitle`, `chapterDescription`, and `style` to shape the tone and content.
-3. Calls `ai.models.generateContent({ model: 'gemini-2.5-flash-lite', contents: prompt })` and reads the plain text from `response.text`.
-4. Returns `{ content: text }` directly — no JSON parsing needed since the output is plain prose, not structured data.
-
----
-
-### Key Difference Between the Two
-
-| | generateOutline | generateChapterContent |
-|---|---|---|
-| Output format | Structured JSON array | Plain text prose |
-| Post-processing | Extract + parse JSON | Return text directly |
-| Validation | topic required | chapterTitle required |
-
----
-
-### Bugs Found & Fixed
-
-1. **Wrong env variable name**
-   - Was: `process.env.GOOGLE_API_KEY`
-   - Fixed to: `process.env.GEMINI_API_KEY` (matching the actual key name in `.env`)
-
-2. **Wrong SDK parameter key in `generateOutline`**
-   - Was: `content: prompt` (singular — not a valid SDK parameter)
-   - Fixed to: `contents: prompt` (correct key, consistent with `generateChapterContent`)
+The changes made in server.js include adding the express.json() middleware and updating the routes to use the exportRoute.js file. This allows the /api/books/:id/pdf and /api/books/:id/doc routes to be handled by the appropriate functions in exportController.js.
