@@ -1,13 +1,25 @@
-Building Export APIs (Export as pdf or word document)
+ "Explanation of AuthContext, API Paths, Axios Instance, Data, and Helper Files, and Changes in Main.jsx File"
 
- In the exportController.js file, the exportAsPDF function is responsible for exporting a book as a PDF. It first checks if the book exists and if the user is authorized to export it. If the book is not found or the user is not authorized, it returns an appropriate error response.
+In the AuthContext file, we have a AuthProvider component that provides authentication context to its children components. It uses the useState and useEffect hooks to manage the authentication state. The user state represents the logged-in user's data, the isAuthenticated state indicates whether the user is authenticated or not, and the loading state is used to show a loading spinner while authentication is in progress.
 
-The function then generates the PDF using the PDFDocument library. It creates a new PDF document and adds the necessary content, such as the cover page, chapters, and other elements. The cover page is added if there is an image available for the book. The chapters are added by iterating over the book.chapters array and rendering each chapter's content.
+The login function is used to set the user data and authentication state when a user logs in. The logout function removes the user data from local storage and sets the authentication state to false. The updateUser function updates the user data in local storage and sets the user state.
 
-In the exportRoute.js file, the exportAsPDF and 
-exportAsDocument
- routes are defined. These routes handle the requests to export the book as a PDF or a document, respectively. The exportAsPDF route is protected and requires authentication using the protect middleware.
+The 
+checkAuthStatus
+ function is used to check the authentication status when the component mounts. It retrieves the token and user data from local storage and sets the authentication state accordingly. If there is an error, it calls the logout function.
 
-In the server.js file, the app.use() middleware is used to handle the routes defined in exportRoute.js. The express.json() middleware is also used to parse the JSON data in the request body.
+The value object contains the user, loading, isAuthenticated, login, logout, updateUser, and 
+checkAuthStatus
+ functions. This object is passed as the value prop to the AuthContext.Provider component, making the authentication context available to all the child components.
 
-The changes made in server.js include adding the express.json() middleware and updating the routes to use the exportRoute.js file. This allows the /api/books/:id/pdf and /api/books/:id/doc routes to be handled by the appropriate functions in exportController.js.
+In the apiPaths.js file, we have a constant API_PATHS that contains the API paths for different endpoints. It includes paths for authentication, books, AI services, and export. These paths are used to make API requests to the backend server.
+
+In the axiosInstance.js file, we create an instance of the Axios library with the base URL and headers defined. We also add request and response interceptors to handle token authentication and global error handling. The axiosInstance is exported for use in other parts of the application.
+
+The data.js file contains sample data used for testing or demonstration purposes. It includes an array of books with their details such as title, author, description, and cover image.
+
+The helper.js file contains utility functions that can be used throughout the application. It may include functions for formatting data, handling errors, or performing common tasks.
+
+In the main.jsx file, we import the necessary dependencies and components. We wrap the App component with the AuthProvider component to provide the authentication context to the entire application. We also import the Toaster component from the react-hot-toast library for displaying toast notifications. The StrictMode component is used for detecting potential problems in the application's code. The createRoot function from react-dom/client is used to render the application to the root element of the HTML document.
+
+The changes made in the main.jsx file include adding the AuthProvider component to provide authentication context, importing the Toaster component for displaying toast notifications, and wrapping the application with the StrictMode component for detecting potential problems.
