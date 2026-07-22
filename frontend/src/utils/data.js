@@ -1,6 +1,6 @@
 import {Lightbulb, BookOpen, Download, Library} from 'lucide-react';
 
-export const features = [
+export const FEATURES = [
   {
     title: 'AI-Powered Book Creation',
     description: 'Unlock the power of AI to generate captivating books effortlessly.',
