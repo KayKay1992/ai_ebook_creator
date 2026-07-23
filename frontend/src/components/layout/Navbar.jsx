@@ -76,7 +76,7 @@ const Navbar = () => {
 
           {/* Desktop Auth */}
           <div className="hidden lg:flex items-center gap-3">
-            {!isAuthenticated ? (
+            {isAuthenticated ? (
               <div ref={dropdownRef}>
                 <ProfileDropdown
                   isOpen={profileDropdownOpen}
