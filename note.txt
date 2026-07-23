@@ -1,0 +1,47 @@
+1. Dashboard Layout
+This is the main wrapper for the entire dashboard.
+It creates a clean and professional structure that every page inside the dashboard shares.
+Purpose
+It provides a consistent header, logo, and user profile area so users always know where they are and can quickly access their account.
+Key Elements
+
+A sticky top navigation bar with a modern glassmorphism effect
+Your brand logo and name on the left
+User profile dropdown on the right
+A spacious content area below the header
+
+Design Feel
+Soft, light background with a premium header that stays fixed while scrolling. The overall atmosphere feels calm, organized, and professional.
+
+2. Dashboard Page
+This is the main content area where users manage their eBooks.
+Purpose
+It shows all the books a user has created and allows them to create new ones or delete existing ones.
+Key Sections
+
+Header Section: Clear title (“My eBooks”) and a primary “Create New eBook” button
+Loading State: Soft skeleton cards that appear while books are being fetched
+Empty State: Friendly message and illustration when the user has no books yet
+Books Grid: Beautiful card layout of all existing eBooks
+Confirmation Modal: A clean popup that asks for confirmation before deleting a book
+
+User Experience Goal
+Make book management feel simple, fast, and enjoyable. The empty state encourages action, while the grid gives a sense of progress and ownership.
+
+3. Book Card
+This is the individual card that represents a single eBook inside the grid.
+Purpose
+It displays the book’s cover, title, and author, while offering quick actions (edit and delete).
+Key Features
+
+Attractive book cover image with a subtle zoom effect on hover
+Edit and Delete buttons that only appear when the user hovers over the card
+Clean title and author information
+Soft shadow and lift animation when hovered
+
+Design Feel
+Modern, minimal, and premium. The card feels like a digital book cover that invites interaction without being cluttered.
+
+Overall Design Philosophy
+These three components work together to create a cohesive, high-quality dashboard experience.
+The design language is consistent with the rest of your application — soft violet accents, rounded corners, gentle animations, and plenty of white space.The result is a dashboard that feels professional, trustworthy, and delightful to use.
