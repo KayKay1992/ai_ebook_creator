@@ -1,47 +1,42 @@
-1. Dashboard Layout
-This is the main wrapper for the entire dashboard.
-It creates a clean and professional structure that every page inside the dashboard shares.
-Purpose
-It provides a consistent header, logo, and user profile area so users always know where they are and can quickly access their account.
-Key Elements
+Create eBook Popup Modal – Component Explanation & Implementation Flow
+Overview
+The Create eBook feature is implemented as a multi-step popup modal. Instead of navigating to a separate page, the user stays on the dashboard and a beautiful modal appears when they click “Create New eBook”. This creates a smooth, modern experience.
 
-A sticky top navigation bar with a modern glassmorphism effect
-Your brand logo and name on the left
-User profile dropdown on the right
-A spacious content area below the header
+Main Components Involved
+1. CreateBookModal
+This is the core component. It manages the entire creation flow and contains two main steps:
 
-Design Feel
-Soft, light background with a premium header that stays fixed while scrolling. The overall atmosphere feels calm, organized, and professional.
+Step 1 – Book Details
+The user enters the book title, number of chapters, optional topic, and writing style. When they click “Generate Outline with AI”, the modal sends this information to the backend.
+Step 2 – Review Outline
+After the AI generates the outline, the user sees a list of chapters. They can edit chapter titles and descriptions, delete chapters, or add new ones. Once satisfied, they click “Create Book”.
 
-2. Dashboard Page
-This is the main content area where users manage their eBooks.
-Purpose
-It shows all the books a user has created and allows them to create new ones or delete existing ones.
-Key Sections
+The component also handles loading states, form validation, and resetting the form when the modal is closed.
+2. Modal (Base Component)
+A reusable wrapper that creates the dark backdrop, centers the content, and provides a clean header with a close button. It handles opening and closing animations and prevents the background from scrolling.
+3. InputField & SelectField
+These are shared form components used inside the modal. They provide consistent styling, icons, and focus states that match the rest of the application.
+4. Button
+A reusable button component that supports loading spinners and different visual styles (primary, secondary, etc.).
 
-Header Section: Clear title (“My eBooks”) and a primary “Create New eBook” button
-Loading State: Soft skeleton cards that appear while books are being fetched
-Empty State: Friendly message and illustration when the user has no books yet
-Books Grid: Beautiful card layout of all existing eBooks
-Confirmation Modal: A clean popup that asks for confirmation before deleting a book
+How the Flow Works
 
-User Experience Goal
-Make book management feel simple, fast, and enjoyable. The empty state encourages action, while the grid gives a sense of progress and ownership.
+On the Dashboard page, a state variable (isCreateModalOpen) controls whether the modal is visible.
+When the user clicks “Create New eBook”, the state is set to true, and the modal appears.
+Inside the modal, the user fills out Step 1 and triggers the AI outline generation.
+The frontend sends a request to the backend AI endpoint. The backend uses Gemini to create a structured list of chapters.
+The response is received and the modal automatically switches to Step 2, displaying the generated chapters.
+The user can refine the outline. When they click “Create Book”, the final data is sent to the backend to create a new book in the database.
+After successful creation, the modal closes and the user is redirected to the book editor.
 
-3. Book Card
-This is the individual card that represents a single eBook inside the grid.
-Purpose
-It displays the book’s cover, title, and author, while offering quick actions (edit and delete).
-Key Features
 
-Attractive book cover image with a subtle zoom effect on hover
-Edit and Delete buttons that only appear when the user hovers over the card
-Clean title and author information
-Soft shadow and lift animation when hovered
+Design Approach
+The modal follows the same premium design language used throughout the app:
 
-Design Feel
-Modern, minimal, and premium. The card feels like a digital book cover that invites interaction without being cluttered.
+Soft violet and purple accents
+Large rounded corners
+Clean progress indicator showing Step 1 and Step 2
+Smooth transitions between steps
+Hover effects and clear visual hierarchy
 
-Overall Design Philosophy
-These three components work together to create a cohesive, high-quality dashboard experience.
-The design language is consistent with the rest of your application — soft violet accents, rounded corners, gentle animations, and plenty of white space.The result is a dashboard that feels professional, trustworthy, and delightful to use.
+This creates a cohesive and professional experience that feels modern and polished.

@@ -9,6 +9,7 @@ import { useAuth } from "../context/AuthContext";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import BookCard from "../components/cards/BookCard";
+import CreateBookModal from "../components/modals/CreateBookModal";
 
 // Skeleton Loader
 const BookCardSkeleton = () => (
@@ -25,10 +26,13 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
-      
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      ></div>
+
       <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-        <button 
+        <button
           onClick={onClose}
           className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors"
         >
@@ -46,8 +50,8 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
           <Button variant="secondary" className="flex-1" onClick={onClose}>
             Cancel
           </Button>
-          <Button 
-            className="flex-1 bg-red-600 hover:bg-red-700" 
+          <Button
+            className="flex-1 bg-red-600 hover:bg-red-700"
             onClick={onConfirm}
           >
             Delete eBook
@@ -62,6 +66,7 @@ const DashboardPage = () => {
   const [books, setBooks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [bookToDelete, setBookToDelete] = useState(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -84,7 +89,9 @@ const DashboardPage = () => {
   const handleDeleteBook = async () => {
     if (!bookToDelete) return;
     try {
-      await axiosInstance.delete(`${API_PATHS.BOOKS.DELETE_BOOK}/${bookToDelete}`);
+      await axiosInstance.delete(
+        `${API_PATHS.BOOKS.DELETE_BOOK}/${bookToDelete}`,
+      );
       setBooks(books.filter((book) => book._id !== bookToDelete));
       toast.success("Book deleted successfully");
     } catch (error) {
@@ -114,9 +121,9 @@ const DashboardPage = () => {
             </p>
           </div>
 
-          <Button 
-            onClick={handleCreateBookClick} 
-            className="flex items-center gap-2 px-6 py-3"
+          <Button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2"
           >
             <Plus className="w-5 h-5" />
             Create New eBook
@@ -140,10 +147,13 @@ const DashboardPage = () => {
               No eBooks yet
             </h3>
             <p className="text-gray-500 max-w-md mb-8">
-              Start your writing journey by creating your first AI-powered ebook. 
-              It only takes a few minutes.
+              Start your writing journey by creating your first AI-powered
+              ebook. It only takes a few minutes.
             </p>
-            <Button onClick={handleCreateBookClick} className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-2"
+            >
               <Plus className="w-5 h-5" />
               Create Your First eBook
             </Button>
@@ -168,6 +178,16 @@ const DashboardPage = () => {
           onConfirm={handleDeleteBook}
           title="Delete this eBook?"
           message="This action cannot be undone. The book and all its content will be permanently deleted."
+        />
+
+        {/* Create Book Modal */}
+        <CreateBookModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onBookCreated={(bookId) => {
+            setIsCreateModalOpen(false);
+            navigate(`/editor/${bookId}`);
+          }}
         />
       </div>
     </DashboardLayout>
