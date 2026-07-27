@@ -170,9 +170,8 @@ const EditorPage = () => {
   const handleExportPDF = async () => {
     const toastId = toast.loading("Generating PDF...");
     try {
-      const response = await axiosInstance.post(
+      const response = await axiosInstance.get(
         `${API_PATHS.EXPORT.PDF}/${bookId}/pdf`,
-        {},
         { responseType: "blob" }
       );
 

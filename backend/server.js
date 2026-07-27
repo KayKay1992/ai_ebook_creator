@@ -19,14 +19,18 @@ app.use(cors({
 
 ));
 
+app.use(express.json({ limit: "50mb" }));               // ← Add this
+app.use(express.urlencoded({ extended: true, limit: "50mb" })); // ← Add this
+
 //connect Database
 connectDB();
+
 
 //init middleware
 app.use(express.json());
 
 //static folder for uploads 
-app.use('/backend/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 //define routes

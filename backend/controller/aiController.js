@@ -9,41 +9,57 @@ const ai = new GoogleGenAI({
 //@access Private
 const generateOutline = async (req, res) => {
   try {
-    const { topic, style, numChapters, description } = req.body;
+    const { topic, style, numChapters, description, title } = req.body;
 
-    if (!topic) {
-      return res.status(400).json({ message: "Topic is required" });
+    if (!topic && !title) {
+      return res.status(400).json({ message: "Topic or title is required" });
     }
-    const prompt = `You are an expert book outline generator. create a comprehensive book outline based on the following details:
-    
-    Topic: "${topic}"
-    ${description ? `Description: "${description}"` : ""}
-    Writing Style: ${style}
-    Number of Chapters: ${numChapters || 5}
 
-    Requirements:
-    1. Generate exactly ${numChapters || 5} chapters.
-    2. Each chapter title should be clear, engaging, and follow a logical progression.
-    3. Each chapter description should be 2-3 sentences explaining what the chapter covers.
-    4. Ensure chapters build upon each other coherently, providing a structured flow of information.
-    5. Match the "${style}" writing style in your titles and descriptions.
-    6. Avoid any unnecessary information or details in the chapter descriptions.
-    7. Use the provided topic and description to guide the outline. Do not generate chapters unrelated to the topic or description.
+    const prompt = `
+You are an elite book architect and professional non-fiction outline designer.
 
-    Output Format:
-    Return ONLY a valid JSON array with no additional text, markdown, or formatting. Each object must have exactly two keys: "title" and "description". The JSON array should look like this:
-    [
-      {
-        "title": "Chapter 1:  Introduction to the Topic",
-        "description": "A comprehensive overview of the topic, its significance, and what readers can expect to learn in the book. Introducing the main concepts. Sets the foundation for understanding the subject matter."
-      },
-      {
-        "title": "Chapter 2:  Core Concepts and Principles",
-        "description": "Explores the fundamental concepts and principles related to the topic. Provides detailed explanations, examples, and practical applications. Helps readers grasp the essential knowledge needed for deeper understanding.Provides a detailed examples and real-world applications to illustrate the concepts. Offers insights into how these principles can be applied in various contexts."
-      },
-    ]
-      Generate the outline now:
-    `;
+Create a high-quality, modern, and well-structured book outline based on the following details:
+
+Book Title / Topic: "${title || topic}"
+${description ? `Description: "${description}"` : ""}
+Writing Style: ${style || "Informative"}
+Number of Chapters: ${numChapters || 5}
+
+### Outline Requirements:
+1. Generate exactly ${numChapters || 5} chapters.
+2. Chapter titles must be clear, elegant, and engaging.
+3. Each chapter must build logically on the previous one.
+4. Create a natural progression from introduction → core ideas → deeper insights → conclusion.
+5. Match the "${style || "Informative"}" tone in the titles and descriptions.
+6. Make the outline feel premium, modern, and professional (like a published non-fiction book).
+7. Avoid generic or boring titles.
+8. Do not include any extra text outside the JSON.
+
+### Chapter Description Rules:
+- Each description must be 2–3 well-written sentences
+- Clearly explain what the reader will learn
+- Make it specific and valuable
+- Avoid filler language
+- Never use the em dash symbol (—). Use a comma, period, or colon instead.
+
+### Output Format:
+Return ONLY a valid JSON array. No markdown, no explanations, no extra text.
+
+Example format:
+[
+  {
+    "title": "Chapter 1: The Foundation of Modern Thinking",
+    "description": "This chapter introduces the core ideas that shape the entire book. It explores the importance of the subject and prepares the reader for the journey ahead. Key concepts are introduced in a clear and engaging way."
+  },
+  {
+    "title": "Chapter 2: Building Clarity and Direction",
+    "description": "Readers will discover the essential principles that create long-term progress. Practical insights and real-world relevance are introduced. This chapter strengthens the foundation for deeper understanding."
+  }
+]
+
+Generate the outline now:
+`;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
@@ -51,17 +67,17 @@ const generateOutline = async (req, res) => {
 
     const text = response.text;
 
-    //Find and extract the JSON array from the response text
+    // Extract JSON array
     const startIndex = text.indexOf("[");
     const endIndex = text.lastIndexOf("]");
 
     if (startIndex === -1 || endIndex === -1) {
-      console.error("JSON array not found in the AI response text:", text);
+      console.error("JSON array not found in AI response:", text);
       return res.status(500).json({ message: "Failed to generate outline" });
     }
+
     const jsonString = text.substring(startIndex, endIndex + 1);
 
-    //validate if response is a valid JSON
     try {
       const outline = JSON.parse(jsonString);
       res.status(200).json({ outline });
@@ -85,38 +101,58 @@ const generateChapterContent = async (req, res) => {
     if (!chapterTitle) {
       return res.status(400).json({ message: "Chapter title is required" });
     }
+
     const prompt = `
-           You are an expert writer specializing in ${style} content. Write a complete chapter for a book with the following specifications:
+You are a premium modern ebook author known for writing elegant, insightful, and highly readable content (similar to books published by major publishers).
 
-            Chapter Title: "${chapterTitle}"
-            ${chapterDescription ? `Chapter Description: "${chapterDescription}"` : ""}
-            Writing Style: ${style}
-            Target Length: Comprehensive and detailed, approximately 1500-2500 words.
+Write a complete chapter with these details:
 
-            Requirements:
-            1. Write in a ${style.toLowerCase()} tone throughout the chapter.
-            2. Structure the chapter with clear sections and smooth transitions between ideas.
-            3. Include relevant examples, explanations, or anecdotes to illustrate key points as appropriate for the style.
-            4. Ensure the content is original, engaging, and free from plagiarism.
-            5. Avoid any unnecessary filler content; every paragraph should contribute to the chapter's purpose.
-            6. Ensure the content flows logically and maintains the reader's interest from start to finish.
-            7. Make the content informative, educational, and valuable to the reader, providing insights or actionable takeaways where relevant.
-            8. Make the content engaging and valuable to the readers ${chapterDescription ? `6. Cover all points mentioned in the chapter description` : ""}.
+Chapter Title: "${chapterTitle}"
+${chapterDescription ? `Chapter Description: "${chapterDescription}"` : ""}
+Writing Style: ${style || "Informative"}
+Length: 1600–2200 words
 
-            Output Guidelines:
-            - Start with a compelling opening paragraph that sets the tone and introduces the chapter's main idea.
-            - Use clear paragraph breaks for readability 
-            - Include subheadings if appropriate to organize the content and enhance clarity.
-            - Conclude with a strong closing paragraph that summarizes the key points and reinforces the chapter's main message or transition to the next chapter.
-            - Write ain plain text without markdown formatting.
+### Premium Writing Guidelines:
+- Write in a modern, elegant, and sophisticated tone
+- Use short, readable paragraphs (maximum 4–5 lines)
+- Start with a powerful opening hook
+- Make the writing flow smoothly with natural transitions
+- Include practical insights and real-world relevance
+- Add emotional depth and human connection
+- Use real-world examples or relatable insights
+- Vary sentence length for better rhythm
+- Avoid sounding robotic, academic, or overly formal
+- Avoid clichés, filler, and generic statements
+- Make every paragraph valuable and purposeful
+- Make the content feel premium and valuable
+- Never use the em dash symbol (—). Use a comma, period, or colon instead.
 
-            Generate the chapter content now:
-           `;
+### Formatting Rules (Markdown):
+1. Use ## for section headings
+2. Format key concepts like this:
+   *Concept Name:* Explanation continues here...
+3. Put all direct quotes in italics:
+   *"This is a powerful quote."*
+4. Occasionally use short standalone italic lines as pull quotes for emphasis
+5. Do not include the chapter title at the top
+6. End the chapter with a strong, memorable conclusion
+
+### Structure:
+- Strong opening
+- Clear sections with headings
+- Smooth flow between ideas
+- Valuable insights throughout
+- Practical examples where relevant
+- Powerful closing
+
+Return only the clean Markdown content. No extra commentary.
+`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
+
     const text = response.text;
     res.status(200).json({ content: text });
   } catch (error) {

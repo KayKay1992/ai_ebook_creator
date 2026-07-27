@@ -68,7 +68,7 @@ const updateBook = async (req, res) => {
         if (book.userId.toString() !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
-        const updatedBook = await Book.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const updatedBook = await Book.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
         res.status(200).json(updatedBook);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
@@ -98,24 +98,31 @@ const deleteBook = async (req, res) => {
 //@route PUT /api/books/cover/:id
 //@access Private
 const updateBookCover = async (req, res) => {
-    try {
-        const book = await Book.findById(req.params.id);
-        if (!book) {
-            return res.status(404).json({ message: 'Book not found' });
-        }
-        if (book.userId.toString() !== req.user._id.toString()) {
-            return res.status(401).json({ message: 'Unauthorized' });
-        }
-       if(req.file) {
-            book.coverImage = `/${req.file.path}`;
-        }else {
-            return res.status(400).json({ message: 'No file uploaded' });
-        }
-        const updatedBook = await book.save();
-        res.status(200).json(updatedBook);
-    } catch (error) {
-        res.status(500).json({ message: 'Server Error' });
+  try {
+    const book = await Book.findById(req.params.id);
+    
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
     }
+
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Clean and consistent path
+    // This will always save as: /uploads/filename.jpg
+    book.coverImage = `/uploads/${req.file.filename}`;
+
+    const updatedBook = await book.save();
+    res.status(200).json(updatedBook);
+  } catch (error) {
+    console.error("Cover upload error:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
 };
 
 module.exports = {

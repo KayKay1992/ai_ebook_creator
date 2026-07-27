@@ -293,203 +293,240 @@ const processInlineContent = (children) => {
     return textRuns;
 };
 const exportAsDocument = async (req, res) => {
-    try {
-        const book = await Book.findById(req.params.id);
-        if (!book) {
-            return res.status(404).json({ message: "Book not found" });
-        }
-        if (book.userId.toString() !== req.user._id.toString()) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        const sections = [];
-
-        //Cover page with image if available
-        const coverImage = [];
-        if(book.coverImage && !book.coverImage.includes('pravatar')) {
-            const imagePath = book.coverImage.substring(1); // Remove leading slash
-
-            try{
-                if(fs.existsSync(imagePath)) {
-                    const imageBuffer = fs.readFileSync(imagePath);
-                    
-                    //add some top spacing
-                    coverPage.push(new Paragraph({ text: "", spacing: { before: 1000 } }));
-
-                    //Add image centered on page
-                    coverPage.push(
-                        new Paragraph({
-                            children: [
-                                new ImageRun({
-                                    data: imageBuffer,
-                                    transformation: {
-                                        width: 400,
-                                        height: 550,
-                                    },
-                                }),
-                            ],
-                            alignment: AlignmentType.CENTER,
-                            spacing: { before: 200, after: 400 },
-                        })
-                    );
-
-                    // Page break after cover
-                    coverPage.push(new Paragraph({ text: "", pageBreakBefore: true }));
-                }
-            } catch (imgErr) {
-                console.error(`could not embed image: ${imagePath}`, imgErr);
-            }
-                }
-
-                sections.push({...coverPage });
-
-                // Title page section
-                const titlePage = [];
-
-                //main title
-                titlePage.push(
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: book.title,
-                                bold: true,
-                                font: DOCX_STYLES.fonts.heading,
-                                size: DOCX_STYLES.sizes.title * 2, // docx uses half-points
-                                color: "1A202C",
-                            }),
-                        ],
-                        alignment: AlignmentType.CENTER,
-                        spacing: { before: 2000, after: 400 },
-                    })
-                );
-
-                //subtitle if exists
-                if (book.subtitle && book.subtitle.trim() ) {
-                    titlePage.push(
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: book.subtitle,
-                                    font: DOCX_STYLES.fonts.heading,
-                                    size: DOCX_STYLES.sizes.subtitle * 2, // docx uses half-points
-                                    color: "4A5568",
-                                }),
-                            ],
-                            alignment: AlignmentType.CENTER,
-                            spacing: {after: 400 },
-                        })
-                    );
-                }
-
-                //author
-                titlePage.push(
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: `by ${book.author}`,
-                                font: DOCX_STYLES.fonts.heading,
-                                size: DOCX_STYLES.sizes.author * 2, // docx uses half-points
-                                color: "2D3748",
-                            }),
-                        ],
-                        alignment: AlignmentType.CENTER,
-                        spacing: {after: 200 },
-                    })
-                );
-
-                //Decorative line
-                titlePage.push(
-                    new Paragraph({
-                                text: "",
-                                border: {
-                                    bottom: {
-                                        color: "4F46E5",
-                                        space: 1,
-                                        value: "single",
-                                        size: 12,
-                                    },
-                                },
-                        alignment: AlignmentType.CENTER,
-                        spacing: {before: 400},
-                    })
-                );
-
-                sections.push({...titlePage});
-
-                //Process Chapters
-                book.chapters.forEach((chapter, index) => {
-                   try {
-                    //page break before each chapter except the first
-                    if (index > 0) {
-                        sections.push(
-                            new Paragraph({ 
-                            text: "",
-                             pageBreakBefore: true,
-                        })
-                    );
-                    }
-
-                    //chapter title
-                    sections.push(
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: chapter.title,
-                                    bold: true,
-                                    font: DOCX_STYLES.fonts.heading,
-                                    size: DOCX_STYLES.sizes.chapterTitle * 2, // docx uses half-points
-                                    color: "1A202C",
-                                }),
-                            ],
-                            spacing: { before: DOCX_STYLES.spacing.chapterBefore, after: DOCX_STYLES.spacing.chapterAfter },
-                        })
-                    );
-
-                    //chapter content
-                const contentParagraphs = processMarkdownToDocx(chapter.content || "");
-                sections.push(...contentParagraphs);
-
-                   } catch (chapterError) {
-                    console.error(`could not process chapter ${index}:`, chapterError);
-                   }
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
     }
-);
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    // Create the document
-    const doc = new Document({
-        sections: [
-            {
-                properties: {
-                    page: {
-                        margin: {
-                            top: 1440,
-                            right: 1440,
-                            bottom: 1440,
-                            left: 1440,
-                        },
-                    },
-                },
-                children: sections,
-            },
+    const sections = [];
+
+    // ========== 1. Cover Image ==========
+    if (book.coverImage && !book.coverImage.includes("pravatar")) {
+      const imagePath = path.join(
+        __dirname,
+        "..",
+        book.coverImage.replace(/^\//, "").replace(/\\/g, "/")
+      );
+
+      try {
+        if (fs.existsSync(imagePath)) {
+          const imageBuffer = fs.readFileSync(imagePath);
+
+          // Top spacing
+          sections.push(new Paragraph({ text: "", spacing: { before: 1200 } }));
+
+          // Cover image
+          sections.push(
+            new Paragraph({
+              children: [
+                new ImageRun({
+                  data: imageBuffer,
+                  transformation: {
+                    width: 400,
+                    height: 550,
+                  },
+                }),
+              ],
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 400 },
+            })
+          );
+
+          // Page break after cover
+          sections.push(
+            new Paragraph({
+              children: [],
+              pageBreakBefore: true,
+            })
+          );
+        }
+      } catch (err) {
+        console.error("Could not embed cover image:", err.message);
+      }
+    }
+
+    // ========== 2. Title Page ==========
+    // Main Title
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: book.title || "Untitled Book",
+            bold: true,
+            size: 56, // 28pt
+            font: "Arial",
+            color: "1A202C",
+          }),
         ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 2000, after: 300 },
+      })
+    );
+
+    // Subtitle
+    if (book.subtitle && book.subtitle.trim()) {
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: book.subtitle,
+              size: 32, // 16pt
+              font: "Arial",
+              color: "4A5568",
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 300 },
+        })
+      );
+    }
+
+    // Author
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `by ${book.author || "Unknown Author"}`,
+            size: 28, // 14pt
+            font: "Arial",
+            color: "2D3748",
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      })
+    );
+
+    // Decorative line
+    sections.push(
+      new Paragraph({
+        border: {
+          bottom: {
+            color: "4F46E5",
+            space: 1,
+            value: "single",
+            size: 12,
+          },
+        },
+        spacing: { before: 200, after: 600 },
+      })
+    );
+
+    // ========== 3. Chapters ==========
+    book.chapters.forEach((chapter, index) => {
+      // Page break before every chapter except the first
+      if (index > 0) {
+        sections.push(
+          new Paragraph({
+            children: [],
+            pageBreakBefore: true,
+          })
+        );
+      }
+
+      // Chapter Title
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: chapter.title || `Chapter ${index + 1}`,
+              bold: true,
+              size: 36, // 18pt
+              font: "Arial",
+              color: "1A202C",
+            }),
+          ],
+          spacing: { before: 200, after: 300 },
+        })
+      );
+
+      // Chapter Content
+      const content = chapter.content || "";
+
+      if (content.trim()) {
+        // Split into paragraphs (simple & reliable)
+        const paragraphs = content
+          .split(/\n\s*\n/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+
+        paragraphs.forEach((para) => {
+          // Clean basic markdown
+          const cleanText = para
+            .replace(/^#{1,6}\s+/gm, "")
+            .replace(/\*\*(.*?)\*\*/g, "$1")
+            .replace(/\*(.*?)\*/g, "$1")
+            .replace(/`(.*?)`/g, "$1")
+            .replace(/^\s*[-*+]\s+/gm, "• ")
+            .trim();
+
+          if (cleanText) {
+            sections.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: cleanText,
+                    size: 24, // 12pt
+                    font: "Times New Roman",
+                  }),
+                ],
+                spacing: { after: 200 },
+                alignment: AlignmentType.JUSTIFIED,
+              })
+            );
+          }
+        });
+      }
     });
 
-    // Generate the document buffer
+    // ========== 4. Create Document ==========
+    const doc = new Document({
+      sections: [
+        {
+          properties: {
+            page: {
+              margin: {
+                top: 1440, // 1 inch
+                right: 1440,
+                bottom: 1440,
+                left: 1440,
+              },
+            },
+          },
+          children: sections,
+        },
+      ],
+    });
+
     const buffer = await Packer.toBuffer(doc);
 
-    // Send the document as a response
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    res.setHeader("Content-Disposition", `attachment; filename="${book.title.replace(/[^a-zA-Z0-9]/g, "_")}.docx"`);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${(book.title || "book").replace(
+        /[^a-zA-Z0-9]/g,
+        "_"
+      )}.docx"`
+    );
     res.setHeader("Content-Length", buffer.length);
     res.send(buffer);
-
-    } catch (error) {
-        console.error("Error exporting book:", error);
-       if(!res.headersSent) {
-        res.status(500).json({ message: "Server Error During Document Export", error: error.message });
-       }
+  } catch (error) {
+    console.error("Error exporting document:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: "Server Error During Document Export",
+        error: error.message,
+      });
     }
-}
+  }
+};
 
 //Typography configuration for modern ebook styling
 const TYPOGRAPHY = {
@@ -706,110 +743,134 @@ const renderMarkdown = (doc, markdown) => {
 
 
 const exportAsPDF = async (req, res) => {
-    try {
-        const book = await Book.findById(req.params.id);
-        if (!book) {
-            return res.status(404).json({ message: "Book not found" });
-        }
-        if (book.userId.toString() !== req.user._id.toString()) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        // Create a new PDF document with safe settings
-        const doc = new PDFDocument({
-            margins: { top: 72, bottom: 72, left: 72, right: 72 },
-            bufferPages: true,
-            autoFirstPage: true,
-        });
-
-        // set headers before piping
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${book.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf"`);
-
-        // Pipe the PDF document to the response
-        doc.pipe(res);
-
-        // Add the cover page with image if available
-        if (book.coverImage && !book.coverImage.includes('pravatar')) {
-            const imagePath = book.coverImage.substring(1); // Remove leading slash
-
-            try {
-                if (fs.existsSync(imagePath)) {
-                    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-                    const pageHeight = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
-
-                    doc.image(imagePath, doc.page.margins.left, doc.page.margins.top, {
-                        fit: [pageWidth * 0.8, pageHeight * 0.8], // 80% of page width and height
-                        align: 'center',
-                        valign: 'center',
-                    });
-                    doc.addPage(); // Add a new page after the cover
-                }
-            } catch (imgErr) {
-                console.error(`Error adding cover image to PDF: ${imagePath}`, imgErr);
-            }
-        }
-
-        // Title page
-        doc
-        .font(TYPOGRAPHY.fonts.sansBold)
-        .fontSize(TYPOGRAPHY.sizes.title)
-        .fillColor(TYPOGRAPHY.colors.heading)
-        .text(book.title, { align: 'center' });
-
-        doc.moveDown(2);
-
-        if (book.subtitle && book.subtitle.trim()) {
-            doc
-            .font(TYPOGRAPHY.fonts.sans)
-            .fontSize(TYPOGRAPHY.sizes.h2)
-            .fillColor(TYPOGRAPHY.colors.text)
-            .text(book.subtitle, { align: 'center' });
-            doc.moveDown(1);
-        }
-
-        doc
-        .font(TYPOGRAPHY.fonts.sans)
-        .fontSize(TYPOGRAPHY.sizes.author)
-        .fillColor(TYPOGRAPHY.colors.text)
-        .text(`by ${book.author}`, { align: 'center' });
-
-        //process chapters
-        if (book.chapters && book.chapters.length > 0) {
-            book.chapters.forEach((chapter, index) => {
-                try {
-                    doc.addPage();
-                    doc
-                    .font(TYPOGRAPHY.fonts.sansBold)
-                    .fontSize(TYPOGRAPHY.sizes.chapterTitle)
-                    .fillColor(TYPOGRAPHY.colors.heading)
-                    .text(chapter.title || `Chapter ${index + 1}`, { align: 'left' });
-
-                    doc.moveDown(
-                        TYPOGRAPHY.spacing.chapterSpacing / TYPOGRAPHY.sizes.body // Convert twips to points
-                    );
-
-                    // Process chapter content
-                    if (chapter.content && chapter.content.trim()) {
-                        renderMarkdown(doc, chapter.content);
-                    } // Close if chapter.content
-                } catch (chapterErr) {
-                    console.error(`Error processing chapter ${index + 1}:`, chapterErr);
-                }
-            }); // Close forEach
-        } // Close if book.chapters
-
-
-        // Finalize the PDF and end the stream
-        doc.end();
-
-    } catch (error) {
-        console.error("Error exporting PDF book:", error);
-       if(!res.headersSent) {
-        res.status(500).json({ message: "Server Error During PDF Export", error: error.message });
-       }
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
     }
-}
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const doc = new PDFDocument({
+      margins: { top: 72, bottom: 72, left: 72, right: 72 },
+      bufferPages: true,
+      autoFirstPage: true,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${book.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf"`
+    );
+
+    doc.pipe(res);
+
+    // ========== Cover Image ==========
+    if (book.coverImage && !book.coverImage.includes("pravatar")) {
+      const imagePath = path.join(
+        __dirname,
+        "..",
+        book.coverImage.replace(/^\//, "").replace(/\\/g, "/")
+      );
+
+      try {
+        if (fs.existsSync(imagePath)) {
+          const pageWidth =
+            doc.page.width - doc.page.margins.left - doc.page.margins.right;
+          const pageHeight =
+            doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
+
+          doc.image(imagePath, {
+            fit: [pageWidth * 0.85, pageHeight * 0.85],
+            align: "center",
+            valign: "center",
+          });
+          doc.addPage();
+        }
+      } catch (err) {
+        console.error("Cover image error:", err.message);
+      }
+    }
+
+    // ========== Title Page ==========
+    doc.moveDown(8);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(28)
+      .fillColor("#1A1A1A")
+      .text(book.title || "Untitled", { align: "center" });
+
+    doc.moveDown(1.5);
+
+    if (book.subtitle && book.subtitle.trim()) {
+      doc
+        .font("Helvetica")
+        .fontSize(16)
+        .fillColor("#4A5568")
+        .text(book.subtitle, { align: "center" });
+      doc.moveDown(1);
+    }
+
+    doc
+      .font("Helvetica")
+      .fontSize(14)
+      .fillColor("#2D3748")
+      .text(`by ${book.author || "Unknown Author"}`, { align: "center" });
+
+    // ========== Chapters ==========
+    if (book.chapters && book.chapters.length > 0) {
+      book.chapters.forEach((chapter, index) => {
+        doc.addPage();
+
+        // Chapter Title
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(20)
+          .fillColor("#1A1A1A")
+          .text(chapter.title || `Chapter ${index + 1}`, {
+            align: "left",
+          });
+
+        doc.moveDown(1.5);
+
+        // Chapter Content (simple & reliable)
+        const content = chapter.content || "";
+        if (content.trim()) {
+          // Convert basic markdown to plain text for reliability
+          const plainText = content
+            .replace(/^#{1,6}\s+/gm, "") // remove headings
+            .replace(/\*\*(.*?)\*\*/g, "$1") // bold
+            .replace(/\*(.*?)\*/g, "$1") // italic
+            .replace(/`(.*?)`/g, "$1") // inline code
+            .replace(/^\s*[-*+]\s+/gm, "• ") // bullets
+            .replace(/^\s*\d+\.\s+/gm, "") // ordered lists
+            .trim();
+
+          doc
+            .font("Times-Roman")
+            .fontSize(11)
+            .fillColor("#333333")
+            .text(plainText, {
+              align: "justify",
+              lineGap: 4,
+              paragraphGap: 8,
+            });
+        }
+      });
+    }
+
+    doc.end();
+  } catch (error) {
+    console.error("Error exporting PDF:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: "Server Error During PDF Export",
+        error: error.message,
+      });
+    }
+  }
+};
 module.exports = {
     exportAsDocument,
     exportAsPDF
