@@ -1,4 +1,4 @@
-import InputField from "../ui/InputField";
+import InputField from "../ui/inputField";
 import Button from "../ui/Button";
 import { UploadCloud, Image as ImageIcon } from "lucide-react";
 import { BASE_URL } from "../../utils/apiPaths";

@@ -32,12 +32,30 @@ function checkFileType(file, cb) {
 }
 
 //initialize upload
-const upload = multer({
+const uploadCoverImage = multer({
     storage: storage,
-    limits: { fileSize: 3 * 1024 * 1024 }, // 3MB limit
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     fileFilter: function (req, file, cb) {
         checkFileType(file, cb);
     }
 }).single('coverImage'); //file name for the uploaded file
+
+//wrap multer so upload errors return clean JSON instead of falling through to
+//Express's default HTML/stack-trace error handler
+const upload = (req, res, next) => {
+    uploadCoverImage(req, res, function (err) {
+        if (err instanceof multer.MulterError) {
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ message: 'Image must be smaller than 5MB.' });
+            }
+            return res.status(400).json({ message: err.message });
+        }
+        if (err) {
+            // fileFilter rejects with a plain string, not an Error instance
+            return res.status(400).json({ message: typeof err === 'string' ? err : 'Upload failed. Please try again.' });
+        }
+        next();
+    });
+};
 
 module.exports = upload;

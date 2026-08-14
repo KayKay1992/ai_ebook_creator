@@ -54,7 +54,7 @@ const ViewBook = ({ book }) => {
       {/* Sidebar */}
       <ViewChapterSidebar
         book={book}
-        selectChapterIndex={selectedChapterIndex}
+        selectedChapterIndex={selectedChapterIndex}
         onSelectChapter={setSelectedChapterIndex}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}

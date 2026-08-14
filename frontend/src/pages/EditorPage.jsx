@@ -128,7 +128,7 @@ const EditorPage = () => {
       setBook(response.data);
       toast.success("Cover image updated!");
     } catch (error) {
-      toast.error("Failed to upload cover");
+      toast.error(error.response?.data?.message || "Failed to upload cover");
     } finally {
       setIsUploading(false);
     }

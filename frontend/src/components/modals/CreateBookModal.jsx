@@ -11,7 +11,7 @@ import {
   Check,
 } from "lucide-react";
 import Modal from "../ui/Modal";
-import InputField from "../ui/InputField";
+import InputField from "../ui/inputField";
 import Button from "../ui/Button";
 import SelectField from "../ui/SelectField";
 import axiosInstance from "../../utils/axiosInstance";
