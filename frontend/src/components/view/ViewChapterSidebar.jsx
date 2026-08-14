@@ -91,7 +91,7 @@ const ViewChapterSidebar = ({
 
                     <div className="min-w-0">
                       <p
-                        className={`text-sm font-medium truncate leading-snug
+                        className={`text-sm font-serif font-medium truncate leading-snug
                         ${isActive ? "text-accent-900" : "text-gray-800"}`}
                       >
                         {chapter.title || `Chapter ${index + 1}`}

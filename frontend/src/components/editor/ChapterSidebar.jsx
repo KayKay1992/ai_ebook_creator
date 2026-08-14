@@ -74,7 +74,7 @@ const SortableItem = ({
             {index + 1}
           </span>
           <span
-            className={`truncate text-sm font-medium ${
+            className={`truncate text-sm font-serif font-medium ${
               isSelected ? "text-accent-900" : "text-gray-700"
             }`}
           >

@@ -107,7 +107,7 @@ const ViewBook = ({ book }) => {
           <div className="max-w-3xl mx-auto px-5 sm:px-8 py-12 sm:py-16">
             {selectedChapter ? (
               <>
-                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-10 leading-tight">
+                <h1 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-10 leading-tight">
                   {selectedChapter.title || `Chapter ${selectedChapterIndex + 1}`}
                 </h1>
 

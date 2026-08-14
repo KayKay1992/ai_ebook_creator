@@ -57,7 +57,7 @@ const BookCard = ({ book, onDelete }) => {
 
       {/* Book Info */}
       <div className="p-5">
-        <h3 className="font-semibold text-gray-900 text-lg leading-tight line-clamp-2 mb-1">
+        <h3 className="font-serif font-semibold text-gray-900 text-lg leading-tight line-clamp-2 mb-1">
           {book.title || "Untitled Book"}
         </h3>
         <p className="text-sm text-gray-500">

@@ -29,7 +29,7 @@ const Hero = () => {
               </span>
             </div>
 
-            <h1 className="text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight tracking-tighter">
+            <h1 className="font-serif text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 leading-tight tracking-tighter">
               Create Stunning{" "}
               <span className="bg-gradient-to-r from-accent to-accent-secondary bg-clip-text text-transparent">
                 Digital Books
