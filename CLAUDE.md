@@ -28,7 +28,7 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 
 ## Environment
 
-Backend expects a `.env` file in `backend/` (gitignored) with at least: `PORT` (8000 in dev), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`.
+Backend expects a `.env` file in `backend/` (gitignored) with at least: `PORT` (8000 in dev), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL` (the allowed CORS origin — defaults to `http://localhost:5173` if unset).
 
 The frontend's API base URL is **hardcoded** in `frontend/src/utils/apiPaths.js` (`BASE_URL`), not read from a Vite env var — it must be kept in sync with the backend's actual port/URL manually, including for production.
 
@@ -58,6 +58,6 @@ Standard Express MVC-ish layering: `routes/` → `controller/` → `models/`, wi
 
 ### Cross-cutting notes
 
-- CORS is wide open (`origin: '*'`) in `server.js` — tighten before any real deployment.
-- `express.json()` is registered twice in `server.js` (once with a 50mb limit, once default); harmless but redundant if touching that file.
+- CORS in `server.js` is restricted to `FRONTEND_URL` (defaults to `http://localhost:5173`).
+- AI generation routes (`/api/ai/generate-outline`, `/api/ai/generate-chapter-content`) are rate-limited to 20 requests/user/hour (`backend/routes/aiRoute.js`), keyed on `req.user._id`.
 - There's no shared types/schema between frontend and backend — chapter/book shapes are duplicated implicitly (Mongoose schema vs. JS object literals in React state). Keep them in sync by hand when changing the `Book`/chapter shape.

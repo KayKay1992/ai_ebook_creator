@@ -42,11 +42,8 @@ const registerUser = async (req, res) => {
             res.status(400).json({ message: 'Invalid user data' });
         }
     } catch (error) {
-        console.error("REGISTER ERROR →", error);   // ← Add this line
-        res.status(500).json({ 
-            message: 'Server Error', 
-            error: error.message     // temporary – remove later
-        });
+        console.error("REGISTER ERROR →", error);
+        res.status(500).json({ message: 'Registration failed. Please try again.' });
     }
 };
 
@@ -78,17 +75,21 @@ const loginUser = async (req, res) => {
 //@route GET /api/auth/profile
 //@access Private
 const getProfile = async (req, res) => {
-    const user = await User.findById(req.user.id);
-    if (user) {
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            isPro: user.isPro,
-            avatar: user.avatar,
-        });
-    } else {
-        res.status(404).json({ message: 'User not found' });
+    try {
+        const user = await User.findById(req.user.id);
+        if (user) {
+            res.json({
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                isPro: user.isPro,
+                avatar: user.avatar,
+            });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
     }
 };
 
@@ -96,24 +97,28 @@ const getProfile = async (req, res) => {
 //@route PUT /api/auth/profile
 //@access Private
 const updateUserProfile = async (req, res) => {
-    const user = await User.findById(req.user.id);
-    if (user) {
-        user.name = req.body.name || user.name;
-        user.email = req.body.email || user.email;
-        if (req.body.password) {
-            user.password = req.body.password;
+    try {
+        const user = await User.findById(req.user.id);
+        if (user) {
+            user.name = req.body.name || user.name;
+            user.email = req.body.email || user.email;
+            if (req.body.password) {
+                user.password = req.body.password;
+            }
+            const updatedUser = await user.save();
+            res.json({
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                isPro: updatedUser.isPro,
+                avatar: updatedUser.avatar,
+                token: generateToken(updatedUser._id),
+            });
+        } else {
+            res.status(404).json({ message: 'User not found' });
         }
-        const updatedUser = await user.save();
-        res.json({
-            _id: updatedUser._id,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            isPro: updatedUser.isPro,
-            avatar: updatedUser.avatar,
-            token: generateToken(updatedUser._id),
-        });
-    } else {
-        res.status(404).json({ message: 'User not found' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
     }
 };
 

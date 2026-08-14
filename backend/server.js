@@ -10,26 +10,22 @@ const exportRoutes = require('./routes/exportRoute');
 
 const app = express();
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
 //middleware to handle CORS
 app.use(cors({
-    origin: '*', // allow all origins
+    origin: FRONTEND_URL,
     methods: ['GET', 'POST', 'PUT', 'DELETE'], // allow specific HTTP methods
     allowedHeaders: ['Content-Type', 'Authorization'] // allow specific headers
-}
+}));
 
-));
-
-app.use(express.json({ limit: "50mb" }));               // ← Add this
-app.use(express.urlencoded({ extended: true, limit: "50mb" })); // ← Add this
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 //connect Database
 connectDB();
 
-
-//init middleware
-app.use(express.json());
-
-//static folder for uploads 
+//static folder for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
