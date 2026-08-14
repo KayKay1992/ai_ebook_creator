@@ -28,9 +28,13 @@ const DOCX_STYLES = {
         subtitle: 20,
         author: 18,
         chapterTitle: 24,
-        h1: 20,
-        h2: 18,
-        h3: 16,
+        // Chapter-body headings (rendered via processMarkdownToDocx) must stay
+        // visually subordinate to the 18pt chapter title Paragraph below, so
+        // h1/h2/h3 here are scaled below 18 rather than mirroring standard
+        // document heading sizes.
+        h1: 16,
+        h2: 14,
+        h3: 13,
         body: 12,
     },
     spacing: {
@@ -80,15 +84,16 @@ const processMarkdownToDocx = (markdown) => {
                    }
                    paragraphs.push(
                        new Paragraph({
-                           text: nextToken.content,
                            heading: headingLevel,
                            spacing: { before: DOCX_STYLES.spacing.headingBefore, after: DOCX_STYLES.spacing.headingAfter },
-                           style: {
-                             
+                           children: [
+                               new TextRun({
+                                   text: nextToken.content,
+                                   bold: true,
                                    font: DOCX_STYLES.fonts.heading,
                                    size: fontSize * 2, // docx uses half-points
-                              
-                           },
+                               }),
+                           ],
                        })
                    );
                    i += 2; // Skip the heading text and closing tag
@@ -448,38 +453,7 @@ const exportAsDocument = async (req, res) => {
       const content = chapter.content || "";
 
       if (content.trim()) {
-        // Split into paragraphs (simple & reliable)
-        const paragraphs = content
-          .split(/\n\s*\n/)
-          .map((p) => p.trim())
-          .filter((p) => p.length > 0);
-
-        paragraphs.forEach((para) => {
-          // Clean basic markdown
-          const cleanText = para
-            .replace(/^#{1,6}\s+/gm, "")
-            .replace(/\*\*(.*?)\*\*/g, "$1")
-            .replace(/\*(.*?)\*/g, "$1")
-            .replace(/`(.*?)`/g, "$1")
-            .replace(/^\s*[-*+]\s+/gm, "• ")
-            .trim();
-
-          if (cleanText) {
-            sections.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: cleanText,
-                    size: 24, // 12pt
-                    font: "Times New Roman",
-                  }),
-                ],
-                spacing: { after: 200 },
-                alignment: AlignmentType.JUSTIFIED,
-              })
-            );
-          }
-        });
+        sections.push(...processMarkdownToDocx(content));
       }
     });
 
