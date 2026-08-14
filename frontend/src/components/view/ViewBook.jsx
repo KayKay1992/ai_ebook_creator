@@ -36,7 +36,7 @@ const ViewBook = ({ book }) => {
           .replace(/\*\*(.*?)\*\*/g, "<strong class='font-semibold text-gray-900'>$1</strong>")
           .replace(/\*(.*?)\*/g, "<em class='italic text-gray-800'>$1</em>");
 
-        return `<p class="mb-5 leading-relaxed text-gray-700">${formatted}</p>`;
+        return `<p class="mb-6 leading-loose text-gray-700">${formatted}</p>`;
       })
       .join("");
   };
@@ -50,7 +50,7 @@ const ViewBook = ({ book }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf9f7] flex">
+    <div className="min-h-screen bg-surface-warm flex">
       {/* Sidebar */}
       <ViewChapterSidebar
         book={book}
@@ -104,7 +104,7 @@ const ViewBook = ({ book }) => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-5 sm:px-8 py-12 sm:py-16">
+          <div className="max-w-[70ch] mx-auto px-5 sm:px-8 py-12 sm:py-16">
             {selectedChapter ? (
               <>
                 <h1 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-10 leading-tight">
@@ -112,11 +112,9 @@ const ViewBook = ({ book }) => {
                 </h1>
 
                 <div
-                  className="prose-content"
+                  className="prose-content font-serif leading-relaxed"
                   style={{
                     fontSize: `${fontSize}px`,
-                    lineHeight: 1.8,
-                    fontFamily: 'Charter, Georgia, "Times New Roman", serif',
                   }}
                   dangerouslySetInnerHTML={{
                     __html: formatContent(selectedChapter.content),

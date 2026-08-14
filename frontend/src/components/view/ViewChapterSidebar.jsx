@@ -1,4 +1,5 @@
-import { BookOpen, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, BookOpen, X } from "lucide-react";
 
 const ViewChapterSidebar = ({
   book,
@@ -7,6 +8,7 @@ const ViewChapterSidebar = ({
   isOpen,
   onClose,
 }) => {
+  const navigate = useNavigate();
   const chapters = book?.chapters || [];
 
   return (
@@ -27,7 +29,24 @@ const ViewChapterSidebar = ({
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100">
+          <div className="px-5 py-5 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-accent transition-colors group"
+              >
+                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                Back to Dashboard
+              </button>
+
+              <button
+                onClick={onClose}
+                className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-secondary flex items-center justify-center shadow-lg shadow-accent-500/20">
                 <BookOpen className="w-5 h-5 text-white" />
@@ -39,13 +58,6 @@ const ViewChapterSidebar = ({
                 </p>
               </div>
             </div>
-
-            <button
-              onClick={onClose}
-              className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
 
           {/* Book Title */}
