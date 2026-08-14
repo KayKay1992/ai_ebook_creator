@@ -56,7 +56,7 @@ const BookDetailsTab = ({
         <div className="flex flex-col md:flex-row gap-8 items-start">
           {/* Cover Preview */}
           <div className="w-full md:w-48 flex-shrink-0">
-            <div className="aspect-[2/3] rounded-2xl overflow-hidden border border-gray-200 bg-gradient-to-br from-violet-50 to-purple-50 flex items-center justify-center shadow-sm">
+            <div className="aspect-[2/3] rounded-2xl overflow-hidden border border-gray-200 bg-gradient-to-br from-accent-50 to-accent-secondary-50 flex items-center justify-center shadow-sm">
               {coverImageUrl ? (
                 <img
                   src={coverImageUrl}
@@ -68,7 +68,7 @@ const BookDetailsTab = ({
                 />
               ) : (
                 <div className="text-center p-4">
-                  <ImageIcon className="w-12 h-12 text-violet-300 mx-auto mb-3" />
+                  <ImageIcon className="w-12 h-12 text-accent-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-400">No cover yet</p>
                 </div>
               )}

@@ -16,7 +16,7 @@ const BookCard = ({ book, onDelete }) => {
       className="group bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
     >
       {/* Cover Image */}
-      <div className="relative aspect-[3/4] bg-gradient-to-br from-violet-50 to-purple-50 overflow-hidden">
+      <div className="relative aspect-[3/4] bg-gradient-to-br from-accent-50 to-accent-secondary-50 overflow-hidden">
         {coverImageUrl ? (
           <img
             src={coverImageUrl}
@@ -28,7 +28,7 @@ const BookCard = ({ book, onDelete }) => {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <BookOpen className="w-16 h-16 text-violet-300" />
+            <BookOpen className="w-16 h-16 text-accent-300" />
           </div>
         )}
 
@@ -39,7 +39,7 @@ const BookCard = ({ book, onDelete }) => {
               e.stopPropagation();
               navigate(`/editor/${book._id}`);
             }}
-            className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-xl flex items-center justify-center text-gray-700 hover:bg-violet-600 hover:text-white shadow-md transition-all"
+            className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-xl flex items-center justify-center text-gray-700 hover:bg-accent hover:text-white shadow-md transition-all"
           >
             <Edit className="w-4 h-4" />
           </button>
@@ -67,7 +67,7 @@ const BookCard = ({ book, onDelete }) => {
         {/* Optional: Progress or status */}
         {book.status && (
           <div className="mt-4">
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-violet-50 text-violet-700">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-accent-50 text-accent-hover">
               {book.status}
             </span>
           </div>

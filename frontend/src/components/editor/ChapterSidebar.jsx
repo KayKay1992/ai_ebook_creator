@@ -49,7 +49,7 @@ const SortableItem = ({
       style={style}
       className={`group relative flex items-center gap-2 p-2 rounded-2xl transition-all duration-200 ${
         isDragging ? "opacity-80 shadow-2xl scale-[1.02]" : ""
-      } ${isSelected ? "bg-violet-50 ring-1 ring-violet-200" : "hover:bg-gray-50"}`}
+      } ${isSelected ? "bg-accent-muted ring-1 ring-accent-200" : "hover:bg-gray-50"}`}
     >
       <button
         {...listeners}
@@ -67,7 +67,7 @@ const SortableItem = ({
           <span
             className={`flex-shrink-0 w-7 h-7 rounded-xl flex items-center justify-center text-xs font-semibold ${
               isSelected
-                ? "bg-violet-600 text-white"
+                ? "bg-accent text-white"
                 : "bg-gray-100 text-gray-600"
             }`}
           >
@@ -75,7 +75,7 @@ const SortableItem = ({
           </span>
           <span
             className={`truncate text-sm font-medium ${
-              isSelected ? "text-violet-900" : "text-gray-700"
+              isSelected ? "text-accent-900" : "text-gray-700"
             }`}
           >
             {chapter.title || `Chapter ${index + 1}`}
@@ -87,11 +87,11 @@ const SortableItem = ({
         <button
           onClick={() => onGenerateChapterContent(index)}
           disabled={isGeneratingThis}
-          className="p-2 rounded-xl text-violet-600 hover:bg-violet-100 transition-colors disabled:opacity-50"
+          className="p-2 rounded-xl text-accent hover:bg-accent-100 transition-colors disabled:opacity-50"
           title="Generate content with AI"
         >
           {isGeneratingThis ? (
-            <div className="w-4 h-4 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           ) : (
             <Sparkles className="w-4 h-4" />
           )}
@@ -143,14 +143,14 @@ const ChapterSidebar = ({
       <div className="p-5 border-b border-gray-100">
         <button
           onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-violet-600 transition-colors mb-4 group"
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-accent transition-colors mb-4 group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
           Back to Dashboard
         </button>
 
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-violet-500/20">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-secondary flex items-center justify-center flex-shrink-0 shadow-lg shadow-accent-500/20">
             <BookOpen className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">

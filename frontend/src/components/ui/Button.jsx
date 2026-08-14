@@ -9,7 +9,7 @@ const Button = ({
   ...props
 }) => {
   const variants = {
-    primary: "bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-lg shadow-violet-500/30",
+    primary: "bg-gradient-to-r from-accent to-accent-secondary hover:from-accent-hover hover:to-accent-secondary-hover text-white shadow-lg shadow-accent-500/30",
     secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200",
   };
 

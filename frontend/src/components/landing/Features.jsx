@@ -9,14 +9,14 @@ const Features = () => {
         
         {/* Header */}
         <div className="text-center mb-20 max-w-3xl mx-auto space-y-6">
-          <div className="inline-flex items-center gap-2 bg-white border border-violet-100 rounded-full px-5 py-2 shadow-sm">
-            <span className="w-2 h-2 bg-violet-500 rounded-full animate-pulse"></span>
-            <span className="text-sm font-semibold text-violet-700 tracking-widest">POWERFUL FEATURES</span>
+          <div className="inline-flex items-center gap-2 bg-white border border-accent-100 rounded-full px-5 py-2 shadow-sm">
+            <span className="w-2 h-2 bg-accent-500 rounded-full animate-pulse"></span>
+            <span className="text-sm font-semibold text-accent-hover tracking-widest">POWERFUL FEATURES</span>
           </div>
 
           <h2 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 tracking-tighter leading-tight">
             Everything you need to{" "}
-            <span className="bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-accent to-accent-secondary bg-clip-text text-transparent">
               Create Your Ebook
             </span>
           </h2>
@@ -34,10 +34,10 @@ const Features = () => {
             return (
               <div
                 key={index}
-                className="group bg-white border border-gray-100 hover:border-violet-200 rounded-3xl p-8 transition-all duration-500 hover:shadow-xl hover:-translate-y-2"
+                className="group bg-white border border-gray-100 hover:border-accent-200 rounded-3xl p-8 transition-all duration-500 hover:shadow-xl hover:-translate-y-2"
               >
                 <div className="mb-8">
-                  <div className={`w-16 h-16 bg-gradient-to-br ${feature.gradient} rounded-2xl flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-110 transition-transform duration-500`}>
+                  <div className={`w-16 h-16 bg-gradient-to-br ${feature.gradient} rounded-2xl flex items-center justify-center shadow-lg shadow-accent-500/20 group-hover:scale-110 transition-transform duration-500`}>
                     <Icon className="w-9 h-9 text-white" />
                   </div>
                 </div>
@@ -50,7 +50,7 @@ const Features = () => {
                   {feature.description}
                 </p>
 
-                <div className="mt-8 flex items-center gap-2 text-violet-600 font-medium group-hover:gap-3 transition-all">
+                <div className="mt-8 flex items-center gap-2 text-accent font-medium group-hover:gap-3 transition-all">
                   Learn More
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
@@ -73,7 +73,7 @@ const Features = () => {
             <p className="text-gray-600 mb-4 text-lg">Ready to bring your story to life?</p>
             <a
               href="/signup"
-              className="group inline-flex items-center gap-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white px-10 py-4 rounded-2xl font-semibold text-lg shadow-xl shadow-violet-500/30 hover:shadow-2xl hover:scale-105 transition-all duration-300"
+              className="group inline-flex items-center gap-3 bg-gradient-to-r from-accent to-accent-secondary text-white px-10 py-4 rounded-2xl font-semibold text-lg shadow-xl shadow-accent-500/30 hover:shadow-2xl hover:scale-105 transition-all duration-300"
             >
               Start Creating Today
               <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />

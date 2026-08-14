@@ -47,10 +47,10 @@ const Navbar = () => {
           {/* Logo */}
           <a
             href="/"
-            className="flex items-center space-x-2.5 group focus:outline-none focus:ring-2 focus:ring-violet-500 rounded-xl"
+            className="flex items-center space-x-2.5 group focus:outline-none focus:ring-2 focus:ring-accent-500 rounded-xl"
             aria-label="AI Book Creator Home"
           >
-            <div className="w-9 h-9 bg-gradient-to-r from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-violet-500/30 transition-all group-hover:scale-105">
+            <div className="w-9 h-9 bg-gradient-to-r from-accent-500 to-accent-secondary rounded-xl flex items-center justify-center text-white shadow-lg shadow-accent-500/30 transition-all group-hover:scale-105">
               <BookOpen className="w-5 h-5" />
             </div>
             <span className="text-xl font-semibold text-gray-900 tracking-tight">
@@ -65,7 +65,7 @@ const Navbar = () => {
                 <li key={link.name}>
                   <a
                     href={link.href}
-                    className="hover:text-violet-600 transition-colors py-2"
+                    className="hover:text-accent transition-colors py-2"
                   >
                     {link.name}
                   </a>
@@ -101,7 +101,7 @@ const Navbar = () => {
                 </a>
                 <a
                   href="/signup"
-                  className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 rounded-2xl shadow-md shadow-violet-500/30 transition-all active:scale-95"
+                  className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary hover:from-accent-hover hover:to-accent-secondary-hover rounded-2xl shadow-md shadow-accent-500/30 transition-all active:scale-95"
                 >
                   Get Started
                 </a>
@@ -112,7 +112,7 @@ const Navbar = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="lg:hidden p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
             aria-label="Toggle menu"
             aria-expanded={isOpen}
           >
@@ -142,7 +142,7 @@ const Navbar = () => {
               <div className="space-y-4">
                 {/* User Info */}
                 <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-2xl">
-                  <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center font-semibold text-lg">
+                  <div className="w-10 h-10 bg-accent-100 text-accent rounded-full flex items-center justify-center font-semibold text-lg">
                     {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </div>
                   <div>
@@ -171,7 +171,7 @@ const Navbar = () => {
                 </a>
                 <a
                   href="/signup"
-                  className="block px-4 py-3 text-center font-semibold text-white bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all"
+                  className="block px-4 py-3 text-center font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary rounded-xl hover:from-accent-hover hover:to-accent-secondary-hover transition-all"
                   onClick={() => setIsOpen(false)}
                 >
                   Get Started

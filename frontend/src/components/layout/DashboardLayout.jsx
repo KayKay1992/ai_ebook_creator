@@ -38,7 +38,7 @@ const DashboardLayout = ({ children }) => {
               to="/dashboard" 
               className="flex items-center gap-3 group"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 bg-gradient-to-br from-accent to-accent-secondary rounded-2xl flex items-center justify-center shadow-lg shadow-accent-500/20 group-hover:scale-105 transition-transform">
                 <BookOpen className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900 tracking-tight">

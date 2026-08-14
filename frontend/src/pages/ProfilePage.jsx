@@ -60,8 +60,8 @@ const ProfilePage = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="flex items-center gap-3 text-violet-700">
-            <span className="h-5 w-5 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+          <div className="flex items-center gap-3 text-accent-hover">
+            <span className="h-5 w-5 border-2 border-accent-300 border-t-accent rounded-full animate-spin" />
             <span className="text-sm font-medium tracking-wide">Loading profile…</span>
           </div>
         </div>
@@ -74,7 +74,7 @@ const ProfilePage = () => {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-widest text-violet-600 uppercase mb-2">
+          <div className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-widest text-accent uppercase mb-2">
             <Sparkles className="w-3.5 h-3.5" />
             Account
           </div>
@@ -83,18 +83,18 @@ const ProfilePage = () => {
         </div>
 
         {/* Card */}
-        <div className="relative rounded-3xl bg-white shadow-[0_8px_30px_rgb(124,58,237,0.08)] border border-violet-100 overflow-hidden">
+        <div className="relative rounded-3xl bg-white shadow-[0_8px_30px_rgb(124,58,237,0.08)] border border-accent-100 overflow-hidden">
           {/* Gradient top accent */}
-          <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-violet-600" />
+          <div className="h-1.5 w-full bg-gradient-to-r from-accent-500 via-accent-secondary-500 to-accent" />
 
           <div className="p-8 sm:p-10">
             {/* Avatar row */}
-            <div className="flex items-center gap-4 mb-8 pb-8 border-b border-violet-100">
+            <div className="flex items-center gap-4 mb-8 pb-8 border-b border-accent-100">
               <div className="relative">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xl shadow-lg shadow-violet-200">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-secondary flex items-center justify-center text-white font-semibold text-xl shadow-lg shadow-accent-200">
                   {initials}
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow ring-1 ring-violet-100">
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow ring-1 ring-accent-100">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
                 </div>
               </div>
@@ -113,7 +113,7 @@ const ProfilePage = () => {
                 icon={User}
                 type="text"
                 required
-                className="focus:ring-violet-500 focus:border-violet-500"
+                className="focus:ring-accent-500 focus:border-accent-500"
               />
               <InputField
                 label="Email"
@@ -123,14 +123,14 @@ const ProfilePage = () => {
                 icon={Mail}
                 type="email"
                 disabled
-                className="bg-violet-50/50"
+                className="bg-accent-50/50"
               />
 
               <div className="pt-2">
                 <Button
                   type="submit"
                   loading={loading}
-                  className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-lg shadow-violet-200 rounded-xl px-6 py-2.5 font-medium transition-all duration-200 hover:shadow-violet-300 hover:-translate-y-0.5"
+                  className="bg-gradient-to-r from-accent to-accent-secondary hover:from-accent-hover hover:to-accent-secondary-hover text-white shadow-lg shadow-accent-200 rounded-xl px-6 py-2.5 font-medium transition-all duration-200 hover:shadow-accent-300 hover:-translate-y-0.5"
                 >
                   Update Profile
                 </Button>

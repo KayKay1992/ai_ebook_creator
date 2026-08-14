@@ -4,7 +4,7 @@ import { BookOpen, Twitter, Linkedin, Heart } from "lucide-react";
 const Footer = () => {
   return (
     <footer className="bg-gray-950 text-gray-400 pt-20 pb-12 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-t from-violet-600/10 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-accent/10 via-transparent to-transparent pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="grid lg:grid-cols-12 gap-12">
@@ -12,7 +12,7 @@ const Footer = () => {
           {/* Brand Column */}
           <div className="lg:col-span-5">
             <a href="/" className="flex items-center gap-3 mb-6 group">
-              <div className="w-11 h-11 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl flex items-center justify-center">
+              <div className="w-11 h-11 bg-gradient-to-br from-accent-500 to-accent-secondary rounded-2xl flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
               <span className="text-2xl font-bold text-white tracking-tight">AI Book Creator</span>

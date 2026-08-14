@@ -5,7 +5,7 @@ const SimpleMDEditor = ({ value, onChange }) => {
   return (
     <div className="h-full flex flex-col" data-color-mode="light">
       <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-gray-50/80">
-        <Type className="w-4 h-4 text-violet-600" />
+        <Type className="w-4 h-4 text-accent" />
         <span className="text-sm font-medium text-gray-700">Markdown Editor</span>
       </div>
 

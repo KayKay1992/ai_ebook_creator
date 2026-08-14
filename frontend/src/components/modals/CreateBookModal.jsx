@@ -131,13 +131,13 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
               step === 1
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30"
+                ? "bg-accent text-white shadow-lg shadow-accent-500/30"
                 : "bg-emerald-500 text-white"
             }`}
           >
             {step > 1 ? <Check className="w-5 h-5" /> : "1"}
           </div>
-          <span className={`text-sm font-medium ${step === 1 ? "text-violet-600" : "text-gray-500"}`}>
+          <span className={`text-sm font-medium ${step === 1 ? "text-accent" : "text-gray-500"}`}>
             Details
           </span>
         </div>
@@ -148,13 +148,13 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
               step === 2
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30"
+                ? "bg-accent text-white shadow-lg shadow-accent-500/30"
                 : "bg-gray-100 text-gray-400"
             }`}
           >
             2
           </div>
-          <span className={`text-sm font-medium ${step === 2 ? "text-violet-600" : "text-gray-400"}`}>
+          <span className={`text-sm font-medium ${step === 2 ? "text-accent" : "text-gray-400"}`}>
             Outline
           </span>
         </div>
@@ -247,10 +247,10 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
               chapters.map((chapter, index) => (
                 <div
                   key={index}
-                  className="bg-gray-50 border border-gray-100 rounded-2xl p-5 hover:border-violet-200 transition-colors"
+                  className="bg-gray-50 border border-gray-100 rounded-2xl p-5 hover:border-accent-200 transition-colors"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-8 h-8 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-accent-100 text-accent-hover flex items-center justify-center text-sm font-semibold flex-shrink-0">
                       {index + 1}
                     </div>
                     <input
@@ -273,7 +273,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
                     onChange={(e) => handleChapterChange(index, "description", e.target.value)}
                     placeholder="Brief description of this chapter..."
                     rows={2}
-                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-violet-500 resize-none"
+                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 resize-none"
                   />
                 </div>
               ))

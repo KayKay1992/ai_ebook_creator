@@ -19,7 +19,7 @@ const SelectField = ({ icon: Icon, label, options, ...props }) => {
         <select
           {...props}
           className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 pl-11 pr-12
-                     text-gray-900 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500
+                     text-gray-900 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500
                      transition-all duration-200"
         >
           {options.map((option) => (

@@ -55,8 +55,8 @@ const ViewBookPage = () => {
         <ViewBook book={book} />
       ) : (
         <div className="flex flex-col items-center justify-center py-32 text-center px-6">
-          <div className="w-20 h-20 bg-violet-50 rounded-3xl flex items-center justify-center mb-6">
-            <Book className="w-10 h-10 text-violet-500" />
+          <div className="w-20 h-20 bg-accent-50 rounded-3xl flex items-center justify-center mb-6">
+            <Book className="w-10 h-10 text-accent-500" />
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 mb-3">

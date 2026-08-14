@@ -33,7 +33,7 @@ export const DropdownItem = ({ children, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 transition-colors text-left"
+      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-accent-50 hover:text-accent-hover transition-colors text-left"
       role="menuitem"
     >
       {children}

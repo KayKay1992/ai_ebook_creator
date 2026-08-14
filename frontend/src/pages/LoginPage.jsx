@@ -47,12 +47,12 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-violet-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-accent-50 flex items-center justify-center p-6">
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-violet-600 to-purple-600 rounded-3xl flex items-center justify-center shadow-xl">
+            <div className="w-16 h-16 bg-gradient-to-br from-accent to-accent-secondary rounded-3xl flex items-center justify-center shadow-xl">
               <BookOpen className="w-9 h-9 text-white" />
             </div>
           </div>
@@ -101,7 +101,7 @@ const LoginPage = () => {
               Don't have an account?{" "}
               <Link
                 to="/signup"
-                className="text-violet-600 hover:text-violet-700 font-medium"
+                className="text-accent hover:text-accent-hover font-medium"
               >
                 Sign up for free
               </Link>

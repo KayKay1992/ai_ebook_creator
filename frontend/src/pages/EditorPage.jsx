@@ -268,7 +268,7 @@ const EditorPage = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-6"></div>
+          <div className="w-16 h-16 border-4 border-accent-200 border-t-accent rounded-full animate-spin mx-auto mb-6"></div>
           <p className="text-gray-500 font-medium">Loading your book...</p>
         </div>
       </div>
@@ -347,7 +347,7 @@ const EditorPage = () => {
                 onClick={() => setActiveTab("editor")}
                 className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium transition-all ${
                   activeTab === "editor"
-                    ? "bg-white text-violet-700 shadow-sm"
+                    ? "bg-white text-accent-hover shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
@@ -358,7 +358,7 @@ const EditorPage = () => {
                 onClick={() => setActiveTab("details")}
                 className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium transition-all ${
                   activeTab === "details"
-                    ? "bg-white text-violet-700 shadow-sm"
+                    ? "bg-white text-accent-hover shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
@@ -416,7 +416,7 @@ const EditorPage = () => {
               <Button
                 onClick={handleManualSave}
                 loading={isSaving}
-                className="flex items-center gap-2 shadow-lg shadow-violet-500/20"
+                className="flex items-center gap-2 shadow-lg shadow-accent-500/20"
               >
                 <Save className="w-4 h-4" />
                 <span className="hidden sm:inline">Save</span>

@@ -24,7 +24,7 @@ const ChapterEditorTab = ({
       .replace(/^# (.*$)/gim, "<h1 class='text-3xl font-bold mb-5 mt-8 text-gray-900'>$1</h1>")
       .replace(/\*\*(.*?)\*\*/g, "<strong class='font-semibold text-gray-900'>$1</strong>")
       .replace(/\*(.*?)\*/g, "<em class='italic'>$1</em>")
-      .replace(/^> (.*$)/gim, "<blockquote class='border-l-4 border-violet-500 pl-5 py-1 my-4 italic text-gray-600 bg-violet-50/50 rounded-r-xl'>$1</blockquote>")
+      .replace(/^> (.*$)/gim, "<blockquote class='border-l-4 border-accent-500 pl-5 py-1 my-4 italic text-gray-600 bg-accent-50/50 rounded-r-xl'>$1</blockquote>")
       .replace(/^\* (.*$)/gim, "<li class='ml-5 list-disc mb-1'>$1</li>")
       .replace(/^\d+\. (.*$)/gim, "<li class='ml-5 list-decimal mb-1'>$1</li>")
       .split("\n\n")
@@ -70,8 +70,8 @@ const ChapterEditorTab = ({
   if (selectedChapterIndex === null || !book?.chapters?.[selectedChapterIndex]) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <div className="w-20 h-20 bg-violet-50 rounded-3xl flex items-center justify-center mb-6">
-          <Type className="w-10 h-10 text-violet-400" />
+        <div className="w-20 h-20 bg-accent-50 rounded-3xl flex items-center justify-center mb-6">
+          <Type className="w-10 h-10 text-accent-400" />
         </div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">No chapter selected</h3>
         <p className="text-gray-500 max-w-sm">
@@ -100,7 +100,7 @@ const ChapterEditorTab = ({
           </h1>
           <p className="text-gray-500 mt-1">
             Editing:{" "}
-            <span className="font-medium text-violet-700">
+            <span className="font-medium text-accent-hover">
               {currentChapter.title || `Chapter ${selectedChapterIndex + 1}`}
             </span>
           </p>
@@ -113,7 +113,7 @@ const ChapterEditorTab = ({
               onClick={() => setIsPreviewMode(false)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                 !isPreviewMode
-                  ? "bg-white text-violet-700 shadow-sm"
+                  ? "bg-white text-accent-hover shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -124,7 +124,7 @@ const ChapterEditorTab = ({
               onClick={() => setIsPreviewMode(true)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                 isPreviewMode
-                  ? "bg-white text-violet-700 shadow-sm"
+                  ? "bg-white text-accent-hover shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -150,7 +150,7 @@ const ChapterEditorTab = ({
           <Button
             onClick={() => onGenerateChapterContent(selectedChapterIndex)}
             loading={isGenerating === selectedChapterIndex}
-            className="flex items-center gap-2 shadow-lg shadow-violet-500/20"
+            className="flex items-center gap-2 shadow-lg shadow-accent-500/20"
           >
             <Sparkles className="w-4 h-4" />
             Generate with AI
@@ -174,7 +174,7 @@ const ChapterEditorTab = ({
         {isPreviewMode ? (
           <div className="h-full overflow-y-auto p-8 lg:p-12">
             <div className="max-w-3xl mx-auto">
-              <div className="flex items-center gap-2 text-violet-600 mb-8">
+              <div className="flex items-center gap-2 text-accent mb-8">
                 <Eye className="w-5 h-5" />
                 <span className="text-sm font-medium tracking-wide">PREVIEW MODE</span>
               </div>

@@ -28,7 +28,7 @@ const ProfileDropdown = ({
               className="w-full h-full object-cover" 
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+            <div className="w-full h-full bg-gradient-to-br from-accent-500 to-accent-secondary flex items-center justify-center">
               <span className="text-white font-semibold text-lg">
                 {companyName ? companyName.charAt(0).toUpperCase() : "U"}
               </span>
@@ -58,7 +58,7 @@ const ProfileDropdown = ({
                 {avatar ? (
                   <img src={avatar} alt="User" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                  <div className="w-full h-full bg-gradient-to-br from-accent-500 to-accent-secondary flex items-center justify-center">
                     <span className="text-white font-semibold text-2xl">
                       {companyName?.charAt(0).toUpperCase() || "U"}
                     </span>

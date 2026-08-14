@@ -29,7 +29,7 @@ const ViewChapterSidebar = ({
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-secondary flex items-center justify-center shadow-lg shadow-accent-500/20">
                 <BookOpen className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -73,7 +73,7 @@ const ViewChapterSidebar = ({
                   className={`w-full text-left px-4 py-3 rounded-2xl transition-all duration-200 group
                     ${
                       isActive
-                        ? "bg-violet-50 ring-1 ring-violet-200"
+                        ? "bg-accent-muted ring-1 ring-accent-200"
                         : "hover:bg-gray-50"
                     }`}
                 >
@@ -82,7 +82,7 @@ const ViewChapterSidebar = ({
                       className={`flex-shrink-0 w-7 h-7 rounded-xl flex items-center justify-center text-xs font-semibold
                       ${
                         isActive
-                          ? "bg-violet-600 text-white"
+                          ? "bg-accent text-white"
                           : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
                       }`}
                     >
@@ -92,7 +92,7 @@ const ViewChapterSidebar = ({
                     <div className="min-w-0">
                       <p
                         className={`text-sm font-medium truncate leading-snug
-                        ${isActive ? "text-violet-900" : "text-gray-800"}`}
+                        ${isActive ? "text-accent-900" : "text-gray-800"}`}
                       >
                         {chapter.title || `Chapter ${index + 1}`}
                       </p>

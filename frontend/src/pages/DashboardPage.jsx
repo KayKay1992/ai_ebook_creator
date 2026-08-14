@@ -140,8 +140,8 @@ const DashboardPage = () => {
         ) : books.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-24 h-24 bg-violet-50 rounded-3xl flex items-center justify-center mb-8">
-              <Book className="w-12 h-12 text-violet-600" />
+            <div className="w-24 h-24 bg-accent-50 rounded-3xl flex items-center justify-center mb-8">
+              <Book className="w-12 h-12 text-accent" />
             </div>
             <h3 className="text-2xl font-semibold text-gray-900 mb-3">
               No eBooks yet

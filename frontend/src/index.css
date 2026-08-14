@@ -4,7 +4,36 @@
 @theme {
   --font-display: "Inter", sans-serif;
   --breakpoint-3xl: 1920px;
-  --color-primary: #ff9324;
+
+  /* Brand accent - violet. Aliased to Tailwind's own violet/purple palette
+     (not hand-copied hex values) so consolidating onto these tokens is a
+     pure rename with zero visual drift from the existing product. */
+  --color-accent-50: var(--color-violet-50);
+  --color-accent-100: var(--color-violet-100);
+  --color-accent-200: var(--color-violet-200);
+  --color-accent-300: var(--color-violet-300);
+  --color-accent-400: var(--color-violet-400);
+  --color-accent-500: var(--color-violet-500);
+  --color-accent: var(--color-violet-600);
+  --color-accent-hover: var(--color-violet-700);
+  --color-accent-900: var(--color-violet-900);
+  --color-accent-muted: var(--color-violet-100);
+
+  /* Gradient partner - purple, the second stop of the existing violet -> purple
+     two-stop brand gradient used on primary buttons, icon badges, and hero text. */
+  --color-accent-secondary-50: var(--color-purple-50);
+  --color-accent-secondary-200: var(--color-purple-200);
+  --color-accent-secondary-300: var(--color-purple-300);
+  --color-accent-secondary-400: var(--color-purple-400);
+  --color-accent-secondary-500: var(--color-purple-500);
+  --color-accent-secondary: var(--color-purple-600);
+  --color-accent-secondary-hover: var(--color-purple-700);
+
+  --color-surface: #ffffff;
+  --color-surface-warm: #faf9f7;
+
+  --color-ink: var(--color-gray-900);
+  --color-ink-muted: var(--color-gray-500);
 }
 
 @layer base {
