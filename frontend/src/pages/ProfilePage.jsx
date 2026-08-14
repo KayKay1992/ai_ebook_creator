@@ -7,6 +7,7 @@ import Button from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
 import axiosInstance from '../utils/axiosInstance'
 import { API_PATHS } from '../utils/apiPaths'
+import ProfileSkeleton from '../components/skeletons/ProfileSkeleton'
 
 const ProfilePage = () => {
   const { user, updateUser, loading: authLoading } = useAuth()
@@ -58,13 +59,8 @@ const ProfilePage = () => {
 
   if (authLoading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="flex items-center gap-3 text-accent-hover">
-            <span className="h-5 w-5 border-2 border-accent-300 border-t-accent rounded-full animate-spin" />
-            <span className="text-sm font-medium tracking-wide">Loading profile…</span>
-          </div>
-        </div>
+      <DashboardLayout activePage="profile">
+        <ProfileSkeleton />
       </DashboardLayout>
     )
   }

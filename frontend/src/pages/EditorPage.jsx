@@ -23,6 +23,7 @@ import Button from "../components/ui/Button";
 import ChapterSidebar from "../components/editor/ChapterSidebar";
 import ChapterEditorTab from "../components/editor/ChapterEditorTab";
 import BookDetailsTab from "../components/editor/BookDetailsTab";
+import EditorSkeleton from "../components/skeletons/EditorSkeleton";
 
 const EditorPage = () => {
   const { bookId } = useParams();
@@ -265,14 +266,7 @@ const EditorPage = () => {
   };
 
   if (isLoading || !book) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-accent-200 border-t-accent rounded-full animate-spin mx-auto mb-6"></div>
-          <p className="text-gray-500 font-medium">Loading your book...</p>
-        </div>
-      </div>
-    );
+    return <EditorSkeleton />;
   }
 
   return (
