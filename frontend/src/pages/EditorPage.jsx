@@ -12,6 +12,9 @@ import {
   ChevronDown,
   FileText,
   Edit3,
+  Check,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
 
@@ -33,8 +36,10 @@ const EditorPage = () => {
   const [activeTab, setActiveTab] = useState("editor");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(null); // null | number
+  const [saveStatus, setSaveStatus] = useState("saved"); // 'saved' | 'saving' | 'unsaved' | 'error'
 
   const fileInputRef = useRef(null);
+  const autosaveTimerRef = useRef(null);
 
   useEffect(() => {
     const fetchBook = async () => {
@@ -53,16 +58,50 @@ const EditorPage = () => {
     fetchBook();
   }, [bookId, navigate]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (saveStatus === "unsaved" || saveStatus === "saving") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveStatus]);
+
+  const scheduleAutosave = (updatedBook) => {
+    setSaveStatus("unsaved");
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = setTimeout(async () => {
+      setSaveStatus("saving");
+      try {
+        await handleSaveChanges(updatedBook, false);
+        setSaveStatus("saved");
+      } catch (error) {
+        setSaveStatus("error");
+      }
+    }, 2500);
+  };
+
   const handleBookChange = (e) => {
     const { name, value } = e.target;
-    setBook((prev) => ({ ...prev, [name]: value }));
+    const updatedBook = { ...book, [name]: value };
+    setBook(updatedBook);
+    scheduleAutosave(updatedBook);
   };
 
   const handleChapterChange = (e) => {
     const { name, value } = e.target;
     const updatedChapters = [...book.chapters];
-    updatedChapters[selectedChapterIndex][name] = value;
-    setBook((prev) => ({ ...prev, chapters: updatedChapters }));
+    updatedChapters[selectedChapterIndex] = {
+      ...updatedChapters[selectedChapterIndex],
+      [name]: value,
+    };
+    const updatedBook = { ...book, chapters: updatedChapters };
+    setBook(updatedBook);
+    scheduleAutosave(updatedBook);
   };
 
   const handleAddChapter = () => {
@@ -106,8 +145,23 @@ const EditorPage = () => {
       if (showToast) toast.success("Changes saved successfully!");
     } catch (error) {
       toast.error("Failed to save changes");
+      throw error;
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleManualSave = async () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    setSaveStatus("saving");
+    try {
+      await handleSaveChanges();
+      setSaveStatus("saved");
+    } catch (error) {
+      setSaveStatus("error");
     }
   };
 
@@ -334,8 +388,33 @@ const EditorPage = () => {
                 </DropdownItem>
               </Dropdown>
 
+              {saveStatus === "saved" && (
+                <span className="hidden sm:flex items-center gap-1.5 text-sm text-emerald-600">
+                  <Check className="w-4 h-4" />
+                  Saved
+                </span>
+              )}
+              {saveStatus === "saving" && (
+                <span className="hidden sm:flex items-center gap-1.5 text-sm text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving…
+                </span>
+              )}
+              {saveStatus === "unsaved" && (
+                <span className="hidden sm:flex items-center gap-1.5 text-sm text-gray-500">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  Unsaved changes
+                </span>
+              )}
+              {saveStatus === "error" && (
+                <span className="hidden sm:flex items-center gap-1.5 text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  Couldn't save
+                </span>
+              )}
+
               <Button
-                onClick={() => handleSaveChanges()}
+                onClick={handleManualSave}
                 loading={isSaving}
                 className="flex items-center gap-2 shadow-lg shadow-violet-500/20"
               >
