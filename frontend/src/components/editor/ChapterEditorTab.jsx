@@ -3,6 +3,7 @@ import { Sparkles, Type, Eye, Maximize2, Minimize2 } from "lucide-react";
 import Button from "../ui/Button";
 import InputField from "../ui/inputField";
 import SimpleMDEditor from "./SimpleMDEditor";
+import MarkdownContent from "../shared/MarkdownContent";
 
 const ChapterEditorTab = ({
   book,
@@ -13,34 +14,6 @@ const ChapterEditorTab = ({
 }) => {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // Simple markdown parser
-  const formatMarkdown = (content) => {
-    if (!content) return "<p class='text-gray-400 italic'>No content yet...</p>";
-
-    return content
-      .replace(/^### (.*$)/gim, "<h3 class='text-xl font-bold mb-3 mt-6 text-gray-900'>$1</h3>")
-      .replace(/^## (.*$)/gim, "<h2 class='text-2xl font-bold mb-4 mt-8 text-gray-900'>$1</h2>")
-      .replace(/^# (.*$)/gim, "<h1 class='text-3xl font-bold mb-5 mt-8 text-gray-900'>$1</h1>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong class='font-semibold text-gray-900'>$1</strong>")
-      .replace(/\*(.*?)\*/g, "<em class='italic'>$1</em>")
-      .replace(/^> (.*$)/gim, "<blockquote class='border-l-4 border-accent-500 pl-5 py-1 my-4 italic text-gray-600 bg-accent-50/50 rounded-r-xl'>$1</blockquote>")
-      .replace(/^\* (.*$)/gim, "<li class='ml-5 list-disc mb-1'>$1</li>")
-      .replace(/^\d+\. (.*$)/gim, "<li class='ml-5 list-decimal mb-1'>$1</li>")
-      .split("\n\n")
-      .map((paragraph) => {
-        if (!paragraph.trim()) return "";
-        if (
-          paragraph.startsWith("<h") ||
-          paragraph.startsWith("<li") ||
-          paragraph.startsWith("<blockquote")
-        ) {
-          return paragraph;
-        }
-        return `<p class='mb-5 leading-relaxed text-gray-700'>${paragraph}</p>`;
-      })
-      .join("");
-  };
 
   const mdeOptions = useMemo(
     () => ({
@@ -183,14 +156,13 @@ const ChapterEditorTab = ({
                 {currentChapter.title || "Untitled Chapter"}
               </h1>
 
-              <div
-                className="prose prose-lg max-w-none text-gray-700"
+              <MarkdownContent
+                content={currentChapter.content}
+                emptyMessage="No content yet..."
+                className="text-gray-700"
                 style={{
                   fontFamily: 'Charter, Georgia, "Times New Roman", serif',
                   lineHeight: "1.8",
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: formatMarkdown(currentChapter.content),
                 }}
               />
             </div>

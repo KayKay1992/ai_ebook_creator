@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
 import ViewChapterSidebar from "./ViewChapterSidebar";
+import MarkdownContent from "../shared/MarkdownContent";
 
 const ViewBook = ({ book }) => {
   const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
@@ -9,37 +10,6 @@ const ViewBook = ({ book }) => {
 
   const chapters = book?.chapters || [];
   const selectedChapter = chapters[selectedChapterIndex];
-
-  const formatContent = (content = "") => {
-    if (!content.trim()) {
-      return `<p class="text-gray-400 italic">No content available for this chapter.</p>`;
-    }
-
-    return content
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        // Headings
-        if (line.startsWith("### ")) {
-          return `<h3 class="text-xl font-bold text-gray-900 mt-8 mb-3">${line.slice(4)}</h3>`;
-        }
-        if (line.startsWith("## ")) {
-          return `<h2 class="text-2xl font-bold text-gray-900 mt-10 mb-4">${line.slice(3)}</h2>`;
-        }
-        if (line.startsWith("# ")) {
-          return `<h1 class="text-3xl font-bold text-gray-900 mt-10 mb-4">${line.slice(2)}</h1>`;
-        }
-
-        // Bold + Italic
-        let formatted = line
-          .replace(/\*\*(.*?)\*\*/g, "<strong class='font-semibold text-gray-900'>$1</strong>")
-          .replace(/\*(.*?)\*/g, "<em class='italic text-gray-800'>$1</em>");
-
-        return `<p class="mb-6 leading-loose text-gray-700">${formatted}</p>`;
-      })
-      .join("");
-  };
 
   if (!book) {
     return (
@@ -111,13 +81,12 @@ const ViewBook = ({ book }) => {
                   {selectedChapter.title || `Chapter ${selectedChapterIndex + 1}`}
                 </h1>
 
-                <div
-                  className="prose-content font-serif leading-relaxed"
+                <MarkdownContent
+                  content={selectedChapter.content}
+                  emptyMessage="No content available for this chapter."
+                  className="font-serif leading-loose text-gray-700"
                   style={{
                     fontSize: `${fontSize}px`,
-                  }}
-                  dangerouslySetInnerHTML={{
-                    __html: formatContent(selectedChapter.content),
                   }}
                 />
               </>
