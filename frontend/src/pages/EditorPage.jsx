@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axiosInstance from "../utils/axiosInstance";
-import { API_PATHS } from "../utils/apiPaths";
+import { API_PATHS, BASE_URL } from "../utils/apiPaths";
 import toast from "react-hot-toast";
 import {
   FileDown,
@@ -197,26 +197,90 @@ const EditorPage = () => {
     }
 
     setIsGenerating(index);
+
+    const applyContent = (content) => {
+      const updatedChapters = [...book.chapters];
+      updatedChapters[index] = { ...updatedChapters[index], content };
+      const updatedBook = { ...book, chapters: updatedChapters };
+      setBook(updatedBook);
+      return updatedBook;
+    };
+
+    let accumulated = "";
     try {
-      const response = await axiosInstance.post(
-        API_PATHS.AI.GENERATE_CHAPTER_CONTENT,
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${BASE_URL}${API_PATHS.AI.GENERATE_CHAPTER_CONTENT}`,
         {
-          chapterTitle: chapter.title,
-          chapterDescription: chapter.description || "",
-          style: "Informative",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            chapterTitle: chapter.title,
+            chapterDescription: chapter.description || "",
+            style: "Informative",
+          }),
         }
       );
 
-      const updatedChapters = [...book.chapters];
-      updatedChapters[index].content = response.data.content;
+      if (!response.ok || !response.body) {
+        let message = "Failed to generate content";
+        try {
+          const errJson = await response.json();
+          message = errJson.message || message;
+        } catch {
+          // response wasn't JSON (e.g. stream already started) — use default message
+        }
+        throw new Error(message);
+      }
 
-      const updatedBook = { ...book, chapters: updatedChapters };
-      setBook(updatedBook);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundary;
+        while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+          const rawEvent = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          let eventType = "message";
+          const dataLines = [];
+          for (const line of rawEvent.split("\n")) {
+            if (line.startsWith("event:")) eventType = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+          }
+          if (dataLines.length === 0) continue;
+          const data = JSON.parse(dataLines.join("\n"));
+
+          if (eventType === "chunk") {
+            accumulated += data.text;
+            applyContent(accumulated);
+          } else if (eventType === "error") {
+            throw new Error(data.message || "Generation failed");
+          } else if (eventType === "done") {
+            accumulated = data.content ?? accumulated;
+          }
+        }
+      }
+
+      const finalBook = applyContent(accumulated);
       toast.success(`Content generated for "${chapter.title}"`);
-
-      await handleSaveChanges(updatedBook, false);
+      await handleSaveChanges(finalBook, false);
     } catch (error) {
-      toast.error("Failed to generate content");
+      if (accumulated) {
+        const partialBook = applyContent(accumulated);
+        scheduleAutosave(partialBook);
+        toast.error("Generation interrupted — partial content kept");
+      } else {
+        toast.error(error.message || "Failed to generate content");
+      }
     } finally {
       setIsGenerating(null);
     }

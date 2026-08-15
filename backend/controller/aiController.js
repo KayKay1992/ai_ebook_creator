@@ -148,16 +148,57 @@ Length: 1600–2200 words
 Return only the clean Markdown content. No extra commentary.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
+    let clientDisconnected = false;
+    req.on("close", () => {
+      clientDisconnected = true;
     });
 
-    const text = response.text;
-    res.status(200).json({ content: text });
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    res.flushHeaders();
+
+    const sendEvent = (event, data) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    let fullText = "";
+    try {
+      const stream = await ai.models.generateContentStream({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      for await (const chunk of stream) {
+        if (clientDisconnected) break;
+        const chunkText = chunk.text;
+        if (chunkText) {
+          fullText += chunkText;
+          sendEvent("chunk", { text: chunkText });
+        }
+      }
+
+      if (!clientDisconnected) {
+        sendEvent("done", { content: fullText });
+      }
+    } catch (streamError) {
+      console.error("Error streaming chapter content:", streamError);
+      if (!clientDisconnected) {
+        sendEvent("error", { message: "Failed to generate content" });
+      }
+    } finally {
+      res.end();
+    }
   } catch (error) {
     console.error("Error generating chapter content:", error);
-    res.status(500).json({ message: "Server Error" });
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Server Error" });
+    } else {
+      res.end();
+    }
   }
 };
 
