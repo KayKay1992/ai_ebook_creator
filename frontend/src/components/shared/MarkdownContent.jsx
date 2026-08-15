@@ -1,4 +1,17 @@
 import MDEditor from "@uiw/react-md-editor";
+import { BASE_URL } from "../../utils/apiPaths";
+
+const resolveImageSrc = (src) => {
+  if (!src) return src;
+  if (/^(https?:)?\/\//.test(src) || src.startsWith("data:")) {
+    return src;
+  }
+  return `${BASE_URL}${src.startsWith("/") ? "" : "/"}${src}`.replace(/\\/g, "/");
+};
+
+const MarkdownImage = ({ src, ...props }) => (
+  <img {...props} src={resolveImageSrc(src)} />
+);
 
 const MarkdownContent = ({
   content = "",
@@ -24,6 +37,7 @@ const MarkdownContent = ({
         source={content}
         prefixCls=""
         style={{ background: "transparent" }}
+        components={{ img: MarkdownImage }}
       />
     </div>
   );

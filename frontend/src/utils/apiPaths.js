@@ -14,6 +14,7 @@ export const API_PATHS = {
     UPDATE_BOOK: "/api/books",
     DELETE_BOOK: "/api/books",
     UPDATE_COVER: "/api/books/cover",
+    UPLOAD_CHAPTER_IMAGE: "/api/books/chapter-image",
   },
   AI: {
     GENERATE_OUTLINE: "/api/ai/generate-outline",

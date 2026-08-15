@@ -175,6 +175,7 @@ const ChapterEditorTab = ({
                 onChapterChange({ target: { name: "content", value } })
               }
               options={mdeOptions}
+              bookId={book._id}
             />
           </div>
         )}

@@ -112,6 +112,13 @@ body {
 .markdown-content li > ul,
 .markdown-content li > ol { margin-top: 0.375em; margin-bottom: 0; }
 
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin: 1.25em 0;
+}
+
 .markdown-content code {
   background: var(--color-gray-100);
   color: var(--color-accent-hover);
