@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS, BASE_URL } from "../utils/apiPaths";
+import getErrorMessage from "../utils/getErrorMessage";
 import toast from "react-hot-toast";
 import {
   FileDown,
@@ -145,7 +146,7 @@ const EditorPage = () => {
       );
       if (showToast) toast.success("Changes saved successfully!");
     } catch (error) {
-      toast.error("Failed to save changes");
+      toast.error(getErrorMessage(error, "Failed to save changes"));
       throw error;
     } finally {
       setIsSaving(false);
@@ -183,7 +184,7 @@ const EditorPage = () => {
       setBook(response.data);
       toast.success("Cover image updated!");
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to upload cover");
+      toast.error(getErrorMessage(error, "Failed to upload cover"));
     } finally {
       setIsUploading(false);
     }
@@ -205,6 +206,12 @@ const EditorPage = () => {
       setBook(updatedBook);
       return updatedBook;
     };
+
+    if (!navigator.onLine) {
+      toast.error("You're offline — AI generation needs a connection.");
+      setIsGenerating(null);
+      return;
+    }
 
     let accumulated = "";
     try {
@@ -277,7 +284,13 @@ const EditorPage = () => {
       if (accumulated) {
         const partialBook = applyContent(accumulated);
         scheduleAutosave(partialBook);
-        toast.error("Generation interrupted — partial content kept");
+        toast.error(
+          !navigator.onLine
+            ? "You went offline — partial content kept, reconnect to continue."
+            : "Generation interrupted — partial content kept"
+        );
+      } else if (!navigator.onLine) {
+        toast.error("You're offline — AI generation needs a connection.");
       } else {
         toast.error(error.message || "Failed to generate content");
       }
@@ -304,7 +317,7 @@ const EditorPage = () => {
       window.URL.revokeObjectURL(url);
       toast.success("PDF exported!", { id: toastId });
     } catch (error) {
-      toast.error("Failed to export PDF", { id: toastId });
+      toast.error(getErrorMessage(error, "Failed to export PDF"), { id: toastId });
     }
   };
 
@@ -325,7 +338,7 @@ const EditorPage = () => {
       window.URL.revokeObjectURL(url);
       toast.success("DOCX exported!", { id: toastId });
     } catch (error) {
-      toast.error("Failed to export DOCX", { id: toastId });
+      toast.error(getErrorMessage(error, "Failed to export DOCX"), { id: toastId });
     }
   };
 
@@ -346,7 +359,7 @@ const EditorPage = () => {
       window.URL.revokeObjectURL(url);
       toast.success("EPUB exported!", { id: toastId });
     } catch (error) {
-      toast.error("Failed to export EPUB", { id: toastId });
+      toast.error(getErrorMessage(error, "Failed to export EPUB"), { id: toastId });
     }
   };
 

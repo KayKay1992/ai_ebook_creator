@@ -4,6 +4,7 @@ import MDEditor, { commands } from "@uiw/react-md-editor";
 import toast from "react-hot-toast";
 import axiosInstance from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
+import getErrorMessage from "../../utils/getErrorMessage";
 
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
 const MAX_IMAGE_SIZE = 8 * 1024 * 1024; // 8MB — matches the backend's chapter-image limit
@@ -53,7 +54,7 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
       api?.replaceSelection(`![${file.name}](${response.data.path})`);
       toast.success("Image inserted", { id: toastId });
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to upload image", {
+      toast.error(getErrorMessage(error, "Failed to upload image"), {
         id: toastId,
       });
     }

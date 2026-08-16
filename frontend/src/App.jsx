@@ -8,10 +8,12 @@ import DashboardPage from "./pages/DashboardPage";
 import ProfilePage from "./pages/ProfilePage";
 import EditorPage from "./pages/EditorPage";
 import ViewBookPage from "./pages/ViewBookPage";
+import OfflineBanner from "./components/shared/OfflineBanner";
 
 const App = () => {
   return (
     <div>
+      <OfflineBanner />
       <Routes>
         {/* public route */}
         <Route path="/" element={<LandingPage />} />
