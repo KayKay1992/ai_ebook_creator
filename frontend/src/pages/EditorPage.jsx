@@ -329,6 +329,27 @@ const EditorPage = () => {
     }
   };
 
+  const handleExportEPUB = async () => {
+    const toastId = toast.loading("Generating EPUB...");
+    try {
+      const response = await axiosInstance.get(
+        `${API_PATHS.EXPORT.EPUB}/${bookId}/epub`,
+        { responseType: "blob" }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${book.title || "book"}.epub`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("EPUB exported!", { id: toastId });
+    } catch (error) {
+      toast.error("Failed to export EPUB", { id: toastId });
+    }
+  };
+
   if (isLoading || !book) {
     return <EditorSkeleton />;
   }
@@ -443,6 +464,10 @@ const EditorPage = () => {
                 <DropdownItem onClick={handleExportDOC}>
                   <FileText className="w-4 h-4" />
                   Export as DOCX
+                </DropdownItem>
+                <DropdownItem onClick={handleExportEPUB}>
+                  <FileText className="w-4 h-4" />
+                  Export as EPUB
                 </DropdownItem>
               </Dropdown>
 

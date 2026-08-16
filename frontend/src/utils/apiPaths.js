@@ -23,5 +23,6 @@ export const API_PATHS = {
   EXPORT: {
     PDF: "/api/export",
     DOC: "/api/export",
+    EPUB: "/api/export",
   },
 };

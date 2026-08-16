@@ -10,12 +10,18 @@ const {
 } = require("docx");
 const PDFDocument = require("pdfkit");
 const MarkdownIt = require("markdown-it");
+const nodepub = require("nodepub");
+const { ZipArchive } = require("archiver");
 const Book = require("../models/Book");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 
 
 const md = new MarkdownIt();
+// xhtmlOut self-closes void elements (<img ... />, <br />) — EPUB content
+// documents are XHTML and reject the bare HTML5 form markdown-it emits by default.
+const mdEpub = new MarkdownIt({ xhtmlOut: true });
 
 //Typography configuration matching the PDF export
 const DOCX_STYLES = {
@@ -845,7 +851,239 @@ const exportAsPDF = async (req, res) => {
     }
   }
 };
+
+const escapeHtml = (str = "") =>
+  String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+// Rewrites <img src="/uploads/chapters/...jpg"> references in rendered chapter
+// HTML to the "../images/<file>" paths nodepub expects, collecting the
+// resolved on-disk source path for each into imageMap (basename -> abs path)
+// so it can be embedded. Images that don't actually exist on disk are
+// dropped from the markup entirely rather than left as broken internal links.
+const resolveChapterImagesForEpub = (html, imageMap) => {
+  return html.replace(
+    /<img([^>]*?)src="([^"]+)"([^>]*?)\/?>/g,
+    (match, before, src, after) => {
+      if (!src.startsWith("/uploads/")) {
+        return match; // leave any non-local reference alone
+      }
+
+      const diskPath = path.join(__dirname, "..", src.replace(/^\//, ""));
+      if (!fs.existsSync(diskPath)) {
+        console.warn("Skipping missing chapter image for EPUB:", diskPath);
+        return "";
+      }
+
+      const basename = path.basename(diskPath);
+      if (!imageMap.has(basename)) {
+        imageMap.set(basename, diskPath);
+      }
+      return `<img${before}src="../images/${basename}"${after}/>`;
+    }
+  );
+};
+
+const toArchiveContent = (content) => {
+  if (Buffer.isBuffer(content) || typeof content === "string") return content;
+  return Buffer.from(content);
+};
+
+const wrapText = (text, maxCharsPerLine) => {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxCharsPerLine && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  });
+  if (current) lines.push(current);
+  return lines;
+};
+
+// nodepub requires a cover image and throws if the metadata is missing one,
+// but a book's coverImage is optional in the schema. For books with no
+// uploaded cover (or a placeholder pravatar URL), build a simple on-brand
+// SVG cover on the fly instead of failing the export.
+const buildPlaceholderCoverSvg = (title, author) => {
+  const titleLines = wrapText(title || "Untitled Book", 18).slice(0, 4);
+  const titleStartY = 420 - (titleLines.length - 1) * 27;
+  const titleTspans = titleLines
+    .map(
+      (line, i) =>
+        `<tspan x="300" y="${titleStartY + i * 54}">${escapeHtml(line)}</tspan>`
+    )
+    .join("");
+  const authorY = titleStartY + titleLines.length * 54 + 40;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="900" fill="url(#bg)"/>
+  <text text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="42" font-weight="bold" fill="#ffffff">${titleTspans}</text>
+  <text x="300" y="${authorY}" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="24" fill="#e9d5ff">${escapeHtml(
+    author || "Unknown Author"
+  )}</text>
+</svg>`;
+};
+
+//@desc    Export a book as EPUB
+//@route   GET /api/export/:id/epub
+//@access  Private
+const exportAsEPUB = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // ========== Cover Image ==========
+    let coverPath;
+    if (book.coverImage && !book.coverImage.includes("pravatar")) {
+      const candidate = path.join(
+        __dirname,
+        "..",
+        book.coverImage.replace(/^\//, "").replace(/\\/g, "/")
+      );
+      if (fs.existsSync(candidate)) {
+        coverPath = candidate;
+      } else {
+        console.warn("Cover image not found on disk for EPUB:", candidate);
+      }
+    }
+
+    // nodepub requires a cover — fall back to a generated placeholder when
+    // the book has none, rather than failing the export.
+    let tempCoverPath;
+    if (!coverPath) {
+      tempCoverPath = path.join(
+        os.tmpdir(),
+        `epub-cover-${book._id.toString()}-${Date.now()}.svg`
+      );
+      fs.writeFileSync(
+        tempCoverPath,
+        buildPlaceholderCoverSvg(book.title, book.author)
+      );
+      coverPath = tempCoverPath;
+    }
+
+    // ========== Chapters ==========
+    const imageMap = new Map(); // basename -> absolute disk path
+    const chapterSections = (book.chapters || []).map((chapter, index) => {
+      const title = chapter.title || `Chapter ${index + 1}`;
+      const bodyHtml =
+        chapter.content && chapter.content.trim()
+          ? mdEpub.render(chapter.content)
+          : "<p><em>No content available for this chapter.</em></p>";
+      const resolvedHtml = resolveChapterImagesForEpub(bodyHtml, imageMap);
+      return {
+        title,
+        html: `<h1>${escapeHtml(title)}</h1>${resolvedHtml}`,
+      };
+    });
+
+    // ========== Metadata ==========
+    // nodepub emits an (invalid, per EPUBCheck) empty <dc:date> element when
+    // no `published` value is given, so fall back to the book's creation date.
+    const publishedDate = (book.createdAt ? new Date(book.createdAt) : new Date())
+      .toISOString()
+      .slice(0, 10);
+
+    const metadata = {
+      id: book._id.toString(),
+      title: book.title || "Untitled Book",
+      author: book.author || "Unknown Author",
+      language: "en",
+      description: book.subtitle || "",
+      published: publishedDate,
+      showContents: true,
+      cover: coverPath,
+      images: Array.from(imageMap.values()),
+    };
+
+    const epub = nodepub.document(metadata);
+    chapterSections.forEach((section) => {
+      epub.addSection(section.title, section.html);
+    });
+
+    let files;
+    try {
+      files = await epub.getFilesForEPUB();
+    } finally {
+      if (tempCoverPath) {
+        fs.unlink(tempCoverPath, () => {}); // best-effort cleanup
+      }
+    }
+
+    res.setHeader("Content-Type", "application/epub+zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${(book.title || "book").replace(
+        /[^a-zA-Z0-9]/g,
+        "_"
+      )}.epub"`
+    );
+
+    const archive = new ZipArchive();
+    archive.on("error", (archiveError) => {
+      console.error("EPUB archive error:", archiveError);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Server Error During EPUB Export" });
+      } else {
+        res.end();
+      }
+    });
+    archive.pipe(res);
+
+    // The mimetype entry must be first in the zip and stored (not
+    // compressed) per the EPUB spec — enforced explicitly here rather than
+    // trusting file ordering/flags from the library.
+    const mimetypeFile = files.find((file) => file.name === "mimetype");
+    const otherFiles = files.filter((file) => file.name !== "mimetype");
+
+    if (mimetypeFile) {
+      archive.append(toArchiveContent(mimetypeFile.content), {
+        name: path.posix.join(mimetypeFile.folder || "", mimetypeFile.name),
+        store: true,
+      });
+    }
+
+    otherFiles.forEach((file) => {
+      archive.append(toArchiveContent(file.content), {
+        name: path.posix.join(file.folder || "", file.name),
+        store: !file.compress,
+      });
+    });
+
+    await archive.finalize();
+  } catch (error) {
+    console.error("Error exporting EPUB:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: "Server Error During EPUB Export",
+        error: error.message,
+      });
+    }
+  }
+};
+
 module.exports = {
     exportAsDocument,
-    exportAsPDF
+    exportAsPDF,
+    exportAsEPUB,
 };
