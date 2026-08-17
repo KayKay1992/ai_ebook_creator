@@ -43,7 +43,12 @@ const bookSchema = new mongoose.Schema({
         type: String,
         enum: ['draft', 'published'],
         default: 'draft',
-    }, 
+    },
+    templateId: {
+        type: String,
+        enum: ['classic', 'modern', 'manuscript'],
+        default: 'classic',
+    },
 },
     {
         timestamps: true

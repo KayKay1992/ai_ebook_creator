@@ -2,6 +2,7 @@ import InputField from "../ui/inputField";
 import Button from "../ui/Button";
 import { UploadCloud, Image as ImageIcon } from "lucide-react";
 import { BASE_URL } from "../../utils/apiPaths";
+import ExportTemplatePicker from "./ExportTemplatePicker";
 
 const BookDetailsTab = ({
   book,
@@ -102,6 +103,20 @@ const BookDetailsTab = ({
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* ===== Export Template ===== */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+        <h3 className="text-xl font-bold text-gray-900 mb-2">Export Template</h3>
+        <p className="text-gray-600 mb-6 leading-relaxed">
+          Choose the look applied when you export as PDF, DOCX, or EPUB.
+        </p>
+        <ExportTemplatePicker
+          value={book.templateId || "classic"}
+          onChange={(templateId) =>
+            onBookChange({ target: { name: "templateId", value: templateId } })
+          }
+        />
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ const Book = require("../models/Book");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const { getExportTemplate } = require("../config/exportTemplates");
 
 
 const md = new MarkdownIt();
@@ -23,38 +24,26 @@ const md = new MarkdownIt();
 // documents are XHTML and reject the bare HTML5 form markdown-it emits by default.
 const mdEpub = new MarkdownIt({ xhtmlOut: true });
 
-//Typography configuration matching the PDF export
-const DOCX_STYLES = {
-    fonts: {
-        body: "Charter",
-        heading: "Inter",
-    },
-    sizes: {
-        title: 32,
-        subtitle: 20,
-        author: 18,
-        chapterTitle: 24,
-        // Chapter-body headings (rendered via processMarkdownToDocx) must stay
-        // visually subordinate to the 18pt chapter title Paragraph below, so
-        // h1/h2/h3 here are scaled below 18 rather than mirroring standard
-        // document heading sizes.
-        h1: 16,
-        h2: 14,
-        h3: 13,
-        body: 12,
-    },
-    spacing: {
-        paragraphBefore: 200,
-        paragraphAfter: 200,
-        chapterBefore: 400,
-        chapterAfter: 300,
-        headingBefore: 300,
-        headingAfter: 150,
-    },
+// Paragraph/heading spacing that stays constant across templates — only the
+// font, size scale, margins, line-spacing and heading style vary by
+// template (see backend/config/exportTemplates.js).
+const DOCX_SPACING = {
+    paragraphBefore: 200,
+    paragraphAfter: 200,
+    chapterBefore: 400,
+    chapterAfter: 300,
+    headingBefore: 300,
+    headingAfter: 150,
+};
+
+const DOCX_ALIGN = {
+    justified: AlignmentType.JUSTIFIED,
+    left: AlignmentType.LEFT,
+    center: AlignmentType.CENTER,
 };
 
 // Function to process markdown content into docx paragraphs
-const processMarkdownToDocx = (markdown) => {
+const processMarkdownToDocx = (markdown, docxT) => {
     const tokens = md.parse(markdown, {});
     const paragraphs = [];
     let inList = false;
@@ -73,30 +62,30 @@ const processMarkdownToDocx = (markdown) => {
                    switch (level) {
                        case 1:
                            headingLevel = HeadingLevel.HEADING_1;
-                           fontSize = DOCX_STYLES.sizes.h1;
+                           fontSize = docxT.h1;
                            break;
                        case 2:
                            headingLevel = HeadingLevel.HEADING_2;
-                           fontSize = DOCX_STYLES.sizes.h2;
+                           fontSize = docxT.h2;
                            break;
                        case 3:
                            headingLevel = HeadingLevel.HEADING_3;
-                           fontSize = DOCX_STYLES.sizes.h3;
+                           fontSize = docxT.h3;
                            break;
                        default:
                            headingLevel = HeadingLevel.HEADING_1;
-                           fontSize = DOCX_STYLES.sizes.h1;
+                           fontSize = docxT.h1;
                            break;
                    }
                    paragraphs.push(
                        new Paragraph({
                            heading: headingLevel,
-                           spacing: { before: DOCX_STYLES.spacing.headingBefore, after: DOCX_STYLES.spacing.headingAfter },
+                           spacing: { before: DOCX_SPACING.headingBefore, after: DOCX_SPACING.headingAfter },
                            children: [
                                new TextRun({
                                    text: nextToken.content,
                                    bold: true,
-                                   font: DOCX_STYLES.fonts.heading,
+                                   font: docxT.headingFont,
                                    size: fontSize * 2, // docx uses half-points
                                }),
                            ],
@@ -108,17 +97,17 @@ const processMarkdownToDocx = (markdown) => {
             else if (token.type === "paragraph_open") {
                 const nextToken = tokens[i + 1];
                 if (nextToken && nextToken.type === "inline" && nextToken.children) {
-                    const textRuns =  processInlineContent(nextToken.children);
+                    const textRuns =  processInlineContent(nextToken.children, docxT);
 
                     if(textRuns.length > 0) {
                         paragraphs.push(
                             new Paragraph({
                                 children: textRuns,
-                                spacing: { before: inList ? 100 : DOCX_STYLES.spacing.paragraphBefore, after: inList ? 100 : DOCX_STYLES.spacing.paragraphAfter,
-                                    line: 360, // 1.5 line spacing in twips (1/20 of a point)
+                                spacing: { before: inList ? 100 : DOCX_SPACING.paragraphBefore, after: inList ? 100 : DOCX_SPACING.paragraphAfter,
+                                    line: docxT.lineSpacing,
                                  },
-                                 alignment: AlignmentType.JUSTIFIED,
-                                
+                                 alignment: DOCX_ALIGN[docxT.paragraphAlign] || AlignmentType.JUSTIFIED,
+
                             })
                         );
                     }
@@ -162,7 +151,7 @@ const processMarkdownToDocx = (markdown) => {
                 if (nextToken && nextToken.type === "paragraph_open") {
                     const inlineToken = tokens[i + 2];
                     if (inlineToken && inlineToken.type === "inline" && inlineToken.children) {
-                        const textRuns = processInlineContent(inlineToken.children);
+                        const textRuns = processInlineContent(inlineToken.children, docxT);
                         let bulletText = "";
                         if (listType === "bullet") {
                             bulletText = "• ";
@@ -175,7 +164,7 @@ const processMarkdownToDocx = (markdown) => {
                                 children: [
                                     new TextRun({
                                         text: bulletText,
-                                        font: DOCX_STYLES.fonts.body,
+                                        font: docxT.bodyFont,
                                     }),
                                     ...textRuns,
                                 ],
@@ -199,14 +188,14 @@ const processMarkdownToDocx = (markdown) => {
                             children: [
                                 new TextRun({
                                     text: inlineToken.content,
-                                    font: DOCX_STYLES.fonts.body,
+                                    font: docxT.bodyFont,
                                     italics: true,
                                     color: "666666",
                                 }),
                             ],
                             spacing: { before: 200, after: 200 },
                             indent: { left: 720 }, //0.5 Indent for blockquote
-                            alignment: AlignmentType.JUSTIFIED,
+                            alignment: DOCX_ALIGN[docxT.paragraphAlign] || AlignmentType.JUSTIFIED,
                             border: {
                                 left: {
                                     color: "4F46E5",
@@ -264,7 +253,7 @@ const processMarkdownToDocx = (markdown) => {
 }
 
 // Function to process inline content for bold, italics, and text
-const processInlineContent = (children) => {
+const processInlineContent = (children, docxT) => {
     const textRuns = [];
     let currentFormatting = { bold: false, italics: false, };
     let textBuffer = "";
@@ -274,10 +263,10 @@ const processInlineContent = (children) => {
             textRuns.push(
                 new TextRun({
                     text: textBuffer,
-                    font: DOCX_STYLES.fonts.body,
+                    font: docxT.bodyFont,
                     bold: currentFormatting.bold,
                     italics: currentFormatting.italics,
-                    size: DOCX_STYLES.sizes.body * 2, // docx uses half-points
+                    size: docxT.bodySize * 2, // docx uses half-points
                 })
             );
             textBuffer = "";
@@ -312,6 +301,10 @@ const exportAsDocument = async (req, res) => {
     if (book.userId.toString() !== req.user._id.toString()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+
+    const docxT = getExportTemplate(book.templateId).docx;
+    const chapterHeadingAlignment =
+      DOCX_ALIGN[docxT.chapterHeadingAlign] || AlignmentType.LEFT;
 
     const sections = [];
 
@@ -369,7 +362,7 @@ const exportAsDocument = async (req, res) => {
             text: book.title || "Untitled Book",
             bold: true,
             size: 56, // 28pt
-            font: "Arial",
+            font: docxT.headingFont,
             color: "1A202C",
           }),
         ],
@@ -386,7 +379,7 @@ const exportAsDocument = async (req, res) => {
             new TextRun({
               text: book.subtitle,
               size: 32, // 16pt
-              font: "Arial",
+              font: docxT.headingFont,
               color: "4A5568",
             }),
           ],
@@ -403,7 +396,7 @@ const exportAsDocument = async (req, res) => {
           new TextRun({
             text: `by ${book.author || "Unknown Author"}`,
             size: 28, // 14pt
-            font: "Arial",
+            font: docxT.headingFont,
             color: "2D3748",
           }),
         ],
@@ -413,19 +406,21 @@ const exportAsDocument = async (req, res) => {
     );
 
     // Decorative line
-    sections.push(
-      new Paragraph({
-        border: {
-          bottom: {
-            color: "4F46E5",
-            space: 1,
-            value: "single",
-            size: 12,
+    if (docxT.decorativeRule) {
+      sections.push(
+        new Paragraph({
+          border: {
+            bottom: {
+              color: "4F46E5",
+              space: 1,
+              value: "single",
+              size: 12,
+            },
           },
-        },
-        spacing: { before: 200, after: 600 },
-      })
-    );
+          spacing: { before: 200, after: 600 },
+        })
+      );
+    }
 
     // ========== 3. Chapters ==========
     book.chapters.forEach((chapter, index) => {
@@ -440,18 +435,27 @@ const exportAsDocument = async (req, res) => {
       }
 
       // Chapter Title
+      const chapterTitleText = chapter.title || `Chapter ${index + 1}`;
       sections.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: chapter.title || `Chapter ${index + 1}`,
+              text: docxT.chapterHeadingUppercase
+                ? chapterTitleText.toUpperCase()
+                : chapterTitleText,
               bold: true,
-              size: 36, // 18pt
-              font: "Arial",
+              size: docxT.chapterTitleSize * 2,
+              font: docxT.headingFont,
               color: "1A202C",
             }),
           ],
+          alignment: chapterHeadingAlignment,
           spacing: { before: 200, after: 300 },
+          border: docxT.decorativeRule
+            ? {
+                bottom: { color: "4F46E5", space: 4, style: "single", size: 6 },
+              }
+            : undefined,
         })
       );
 
@@ -459,7 +463,7 @@ const exportAsDocument = async (req, res) => {
       const content = chapter.content || "";
 
       if (content.trim()) {
-        sections.push(...processMarkdownToDocx(content));
+        sections.push(...processMarkdownToDocx(content, docxT));
       }
     });
 
@@ -469,12 +473,7 @@ const exportAsDocument = async (req, res) => {
         {
           properties: {
             page: {
-              margin: {
-                top: 1440, // 1 inch
-                right: 1440,
-                bottom: 1440,
-                left: 1440,
-              },
+              margin: docxT.margins,
             },
           },
           children: sections,
@@ -508,49 +507,32 @@ const exportAsDocument = async (req, res) => {
   }
 };
 
-//Typography configuration for modern ebook styling
-const TYPOGRAPHY = {
-    fonts: {
-        serif: "Times New Roman, Times-Roman",
-        serifBold: "Times-Bold",
-        serifItalic: "Times-Italic",
-        sans: "Helvetica",
-        sansBold: "Helvetica-Bold",
-        sansItalic: "Helvetica-Oblique",
-    },
-    sizes: {
-        title: 28,
-        author: 16,
-        chapterTitle: 20,
-        h1: 18,
-        h2: 16,
-        h3: 14,
-        body: 11,
-        caption: 9,
-    },
-    colors: {
-        heading: "#1A1A1A",
-        text: "#333333",
-        accent: "#4F46E5",
-    },
-    spacing: {
-        paragraphSpacing: 12,
-        chapterSpacing: 24,
-        headingSpacing: {
-            before: 16, after: 8,
-        },
-        listSpacing: 6,
-    },
+// Colors and spacing rhythm that stay constant across templates — only the
+// font, size scale, margins, line-gap and heading style vary by template
+// (see backend/config/exportTemplates.js).
+const PDF_COLORS = {
+    heading: "#1A1A1A",
+    text: "#333333",
+    accent: "#4F46E5",
 };
 
-const renderInlineTokens = (doc, tokens, options = {}) => {
+const PDF_SPACING = {
+    paragraphSpacing: 12,
+    chapterSpacing: 24,
+    headingSpacing: {
+        before: 16, after: 8,
+    },
+    listSpacing: 6,
+};
+
+const renderInlineTokens = (doc, tokens, options = {}, pdfT) => {
     if (!tokens || tokens.length === 0) return;
     const baseOptions = {
         align: options.align || "justify",
         indent: options.indent || 0,
-        lineGap: options.lineGap || 2,
+        lineGap: options.lineGap != null ? options.lineGap : pdfT.lineGap,
     };
-    let currentFont = TYPOGRAPHY.fonts.serif;
+    let currentFont = pdfT.bodyFont;
     let textBuffer = "";
 
     const flushBuffer = () => {
@@ -566,17 +548,17 @@ const renderInlineTokens = (doc, tokens, options = {}) => {
             textBuffer += token.content;
         } else if (token.type === "strong_open") {
             flushBuffer();
-            currentFont = TYPOGRAPHY.fonts.serifBold;
+            currentFont = pdfT.bodyFontBold;
         } else if (token.type === "strong_close") {
             flushBuffer();
-            currentFont = TYPOGRAPHY.fonts.serif;
+            currentFont = pdfT.bodyFont;
         } else if (token.type === "em_open") {
             flushBuffer();
-            currentFont = TYPOGRAPHY.fonts.serifItalic;
+            currentFont = pdfT.bodyFontItalic;
         } else if (token.type === "em_close") {
             flushBuffer();
-            currentFont = TYPOGRAPHY.fonts.serif;
-        } 
+            currentFont = pdfT.bodyFont;
+        }
          else if (token.type === "code_inline") {
             flushBuffer();
             doc.font("Courier").text(token.content, { ...baseOptions, continued: true });
@@ -592,7 +574,7 @@ const renderInlineTokens = (doc, tokens, options = {}) => {
     };
 
     //render markdown
-const renderMarkdown = (doc, markdown) => {
+const renderMarkdown = (doc, markdown, pdfT) => {
     if(!markdown || markdown.trim() === "") return;
     const tokens = md.parse(markdown, {});
     let inList = false;
@@ -606,43 +588,43 @@ const renderMarkdown = (doc, markdown) => {
            let fontSize;
             switch (level) {
                 case 1:
-                    fontSize = TYPOGRAPHY.sizes.h1;
+                    fontSize = pdfT.h1;
                     break;
                 case 2:
-                    fontSize = TYPOGRAPHY.sizes.h2;
+                    fontSize = pdfT.h2;
                     break;
                 case 3:
-                    fontSize = TYPOGRAPHY.sizes.h3;
+                    fontSize = pdfT.h3;
                     break;
                 default:
-                    fontSize = TYPOGRAPHY.sizes.h3;
-                    
+                    fontSize = pdfT.h3;
+
             }
-            doc.moveDown(TYPOGRAPHY.spacing.headingSpacing.before / TYPOGRAPHY.sizes.body);
-            doc.font(TYPOGRAPHY.fonts.sansBold).fontSize(fontSize)
-            .fillColor(TYPOGRAPHY.colors.heading)
+            doc.moveDown(PDF_SPACING.headingSpacing.before / pdfT.bodySize);
+            doc.font(pdfT.headingFont).fontSize(fontSize)
+            .fillColor(PDF_COLORS.heading)
             if (i + 1 < tokens.length && tokens[i + 1].type === "inline") {
-                renderInlineTokens(doc, tokens[i + 1].children, { align: "left", lineGap: 0});
+                renderInlineTokens(doc, tokens[i + 1].children, { align: "left", lineGap: 0}, pdfT);
                 i++; // Skip the heading text and closing tag
             }
-            doc.moveDown(TYPOGRAPHY.spacing.headingSpacing.after / TYPOGRAPHY.sizes.body);
+            doc.moveDown(PDF_SPACING.headingSpacing.after / pdfT.bodySize);
             if (i + 1 < tokens.length && tokens[i + 1].type === "heading_close") {
                 i++; // Skip the closing tag
             }
         } else if (token.type === "paragraph_open") {
             doc
-               .font(TYPOGRAPHY.fonts.serif)
-               .fontSize(TYPOGRAPHY.sizes.body)
-               .fillColor(TYPOGRAPHY.colors.text);
+               .font(pdfT.bodyFont)
+               .fontSize(pdfT.bodySize)
+               .fillColor(PDF_COLORS.text);
 
             if (i + 1 < tokens.length && tokens[i + 1].type === "inline") {
-                renderInlineTokens(doc, tokens[i + 1].children, { align: "justify", lineGap: 2});
+                renderInlineTokens(doc, tokens[i + 1].children, { align: pdfT.paragraphAlign, lineGap: pdfT.lineGap}, pdfT);
                 i++; // Skip the paragraph text and closing tag
             }
 
             if(!inList) {
-                doc.moveDown(TYPOGRAPHY.spacing.paragraphSpacing / TYPOGRAPHY.sizes.body);
-            
+                doc.moveDown(PDF_SPACING.paragraphSpacing / pdfT.bodySize);
+
             }
 
             if (i + 1 < tokens.length && tokens[i + 1].type === "paragraph_close") {
@@ -651,25 +633,25 @@ const renderMarkdown = (doc, markdown) => {
         } else if (token.type === "bullet_list_open") {
             inList = true;
             listType = "bullet";
-            doc.moveDown(TYPOGRAPHY.spacing.listSpacing / TYPOGRAPHY.sizes.body);
-            
+            doc.moveDown(PDF_SPACING.listSpacing / pdfT.bodySize);
+
         }
         else if (token.type === "bullet_list_close") {
             inList = false;
             listType = null;
-            doc.moveDown(TYPOGRAPHY.spacing.paragraphSpacing / TYPOGRAPHY.sizes.body);
+            doc.moveDown(PDF_SPACING.paragraphSpacing / pdfT.bodySize);
         }
         else if (token.type === "ordered_list_open") {
             inList = true;
             listType = "ordered";
             orderedCounter = 1;
-            doc.moveDown(TYPOGRAPHY.spacing.listSpacing / TYPOGRAPHY.sizes.body);
+            doc.moveDown(PDF_SPACING.listSpacing / pdfT.bodySize);
         }
         else if (token.type === "ordered_list_close") {
             inList = false;
             listType = null;
             orderedCounter = 1;
-            doc.moveDown(TYPOGRAPHY.spacing.paragraphSpacing / TYPOGRAPHY.sizes.body);
+            doc.moveDown(PDF_SPACING.paragraphSpacing / pdfT.bodySize);
         }
         else if (token.type === "list_item_open") {
            let bullet = "";
@@ -679,29 +661,29 @@ const renderMarkdown = (doc, markdown) => {
                 bullet = `${orderedCounter}. `;
                 orderedCounter++;
             }
-            doc.font(TYPOGRAPHY.fonts.serif).fontSize(TYPOGRAPHY.sizes.body).fillColor(TYPOGRAPHY.colors.text);
+            doc.font(pdfT.bodyFont).fontSize(pdfT.bodySize).fillColor(PDF_COLORS.text);
             doc.text(bullet, {indent: 20, continued: true });
            for (let j = i + 1; j < tokens.length; j++) {
             if (tokens[j].type === "inline" && tokens[j].children) {
-                renderInlineTokens(doc, tokens[j].children, { align: "left",lineGap:2 });
+                renderInlineTokens(doc, tokens[j].children, { align: "left", lineGap: pdfT.lineGap }, pdfT);
                   break;
         }else if(tokens[j].type === "list_item_close") {
         break;
     }
-    
+
     }
-   doc.moveDown(TYPOGRAPHY.spacing.listSpacing / TYPOGRAPHY.sizes.body);
+   doc.moveDown(PDF_SPACING.listSpacing / pdfT.bodySize);
         } else if(token.type === "code_block" || token.type === "fence") {
-            doc.moveDown(TYPOGRAPHY.spacing.paragraphSpacing / TYPOGRAPHY.sizes.body);
+            doc.moveDown(PDF_SPACING.paragraphSpacing / pdfT.bodySize);
             doc
             .font("Courier")
             .fontSize(9)
-            .fillColor(TYPOGRAPHY.colors.text)
+            .fillColor(PDF_COLORS.text)
             .text(token.content, {align: "left", indent: 20});
 
-            doc.font(TYPOGRAPHY.fonts.serif).fontSize(TYPOGRAPHY.sizes.body).fillColor(TYPOGRAPHY.colors.text);
-            doc.moveDown(TYPOGRAPHY.spacing.paragraphSpacing / TYPOGRAPHY.sizes.body);
-            
+            doc.font(pdfT.bodyFont).fontSize(pdfT.bodySize).fillColor(PDF_COLORS.text);
+            doc.moveDown(PDF_SPACING.paragraphSpacing / pdfT.bodySize);
+
         }
         else if (token.type === "hr") {
             doc.moveDown()
@@ -732,8 +714,10 @@ const exportAsPDF = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    const pdfT = getExportTemplate(book.templateId).pdf;
+
     const doc = new PDFDocument({
-      margins: { top: 72, bottom: 72, left: 72, right: 72 },
+      margins: pdfT.margins,
       bufferPages: true,
       autoFirstPage: true,
     });
@@ -776,7 +760,7 @@ const exportAsPDF = async (req, res) => {
     // ========== Title Page ==========
     doc.moveDown(8);
     doc
-      .font("Helvetica-Bold")
+      .font(pdfT.headingFont)
       .fontSize(28)
       .fillColor("#1A1A1A")
       .text(book.title || "Untitled", { align: "center" });
@@ -785,7 +769,7 @@ const exportAsPDF = async (req, res) => {
 
     if (book.subtitle && book.subtitle.trim()) {
       doc
-        .font("Helvetica")
+        .font(pdfT.bodyFont)
         .fontSize(16)
         .fillColor("#4A5568")
         .text(book.subtitle, { align: "center" });
@@ -793,7 +777,7 @@ const exportAsPDF = async (req, res) => {
     }
 
     doc
-      .font("Helvetica")
+      .font(pdfT.bodyFont)
       .fontSize(14)
       .fillColor("#2D3748")
       .text(`by ${book.author || "Unknown Author"}`, { align: "center" });
@@ -804,38 +788,37 @@ const exportAsPDF = async (req, res) => {
         doc.addPage();
 
         // Chapter Title
+        const chapterTitleText = chapter.title || `Chapter ${index + 1}`;
         doc
-          .font("Helvetica-Bold")
-          .fontSize(20)
+          .font(pdfT.headingFont)
+          .fontSize(pdfT.chapterTitleSize)
           .fillColor("#1A1A1A")
-          .text(chapter.title || `Chapter ${index + 1}`, {
-            align: "left",
-          });
+          .text(
+            pdfT.chapterHeadingUppercase
+              ? chapterTitleText.toUpperCase()
+              : chapterTitleText,
+            { align: pdfT.chapterHeadingAlign }
+          );
+
+        if (pdfT.decorativeRule) {
+          doc.moveDown(0.4);
+          const y = doc.y;
+          doc
+            .moveTo(doc.page.margins.left, y)
+            .lineTo(doc.page.width - doc.page.margins.right, y)
+            .strokeColor(PDF_COLORS.accent)
+            .lineWidth(1.5)
+            .stroke()
+            .strokeColor(PDF_COLORS.text) // reset for any later strokes (e.g. <hr>)
+            .lineWidth(1);
+        }
 
         doc.moveDown(1.5);
 
-        // Chapter Content (simple & reliable)
+        // Chapter Content
         const content = chapter.content || "";
         if (content.trim()) {
-          // Convert basic markdown to plain text for reliability
-          const plainText = content
-            .replace(/^#{1,6}\s+/gm, "") // remove headings
-            .replace(/\*\*(.*?)\*\*/g, "$1") // bold
-            .replace(/\*(.*?)\*/g, "$1") // italic
-            .replace(/`(.*?)`/g, "$1") // inline code
-            .replace(/^\s*[-*+]\s+/gm, "• ") // bullets
-            .replace(/^\s*\d+\.\s+/gm, "") // ordered lists
-            .trim();
-
-          doc
-            .font("Times-Roman")
-            .fontSize(11)
-            .fillColor("#333333")
-            .text(plainText, {
-              align: "justify",
-              lineGap: 4,
-              paragraphGap: 8,
-            });
+          renderMarkdown(doc, content, pdfT);
         }
       });
     }
@@ -939,6 +922,25 @@ const buildPlaceholderCoverSvg = (title, author) => {
 </svg>`;
 };
 
+// Builds the template's CSS for the EPUB. Only body/heading font-family,
+// line-height, and chapter-heading style map onto EPUB's reflowable format —
+// see the "EPUB mapping notes" at the bottom of backend/config/exportTemplates.js
+// for what was deliberately left out (fixed margins, absolute point sizes)
+// and why. The chapter-title heading gets its own .chapter-title class so
+// these rules only ever touch the title nodepub renders per chapter, never
+// an "# heading" a user typed inside their own chapter markdown.
+const buildEpubCss = (epubT) => `
+  body { font-family: ${epubT.bodyFontFamily}; line-height: ${epubT.lineHeight}; }
+  h1, h2, h3 { font-family: ${epubT.headingFontFamily}; }
+  h1.chapter-title {
+    text-align: ${epubT.chapterHeadingAlign};
+    margin-top: 1.5em;
+    margin-bottom: 1em;
+    ${epubT.chapterHeadingUppercase ? "text-transform: uppercase; letter-spacing: 0.05em;" : ""}
+    ${epubT.decorativeRule ? "border-top: 1px solid #4F46E5; padding-top: 0.75em;" : ""}
+  }
+`;
+
 //@desc    Export a book as EPUB
 //@route   GET /api/export/:id/epub
 //@access  Private
@@ -951,6 +953,8 @@ const exportAsEPUB = async (req, res) => {
     if (book.userId.toString() !== req.user._id.toString()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+
+    const epubT = getExportTemplate(book.templateId).epub;
 
     // ========== Cover Image ==========
     let coverPath;
@@ -993,7 +997,7 @@ const exportAsEPUB = async (req, res) => {
       const resolvedHtml = resolveChapterImagesForEpub(bodyHtml, imageMap);
       return {
         title,
-        html: `<h1>${escapeHtml(title)}</h1>${resolvedHtml}`,
+        html: `<h1 class="chapter-title">${escapeHtml(title)}</h1>${resolvedHtml}`,
       };
     });
 
@@ -1017,6 +1021,7 @@ const exportAsEPUB = async (req, res) => {
     };
 
     const epub = nodepub.document(metadata);
+    epub.addCSS(buildEpubCss(epubT));
     chapterSections.forEach((section) => {
       epub.addSection(section.title, section.html);
     });
