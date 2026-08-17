@@ -1,39 +1,43 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { BASE_URL } from "../../utils/apiPaths";
-import { Edit, Trash2, BookOpen } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
+import CoverPreview from "./CoverPreview";
 
 const BookCard = ({ book, onDelete }) => {
   const navigate = useNavigate();
 
-  const coverImageUrl = book.coverImage
-    ? `${BASE_URL}${book.coverImage}`.replace(/\\/g, "/")
-    : null;
-
   return (
     <div
       onClick={() => navigate(`/view-book/${book._id}`)}
-      className="group bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+      className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
     >
-      {/* Cover Image */}
-      <div className="relative aspect-[3/4] bg-gradient-to-br from-accent-50 to-accent-secondary-50 overflow-hidden">
-        {coverImageUrl ? (
-          <img
-            src={coverImageUrl}
-            alt={book.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
+      {/* Cover — real 3D tilt on hover (perspective + rotateY), with a thin
+          page-edge/spine face so it reads as a physical object, not a flat
+          card spinning in place. No overflow-hidden on these wrappers: the
+          spine needs room to render outside the cover's own box as it turns. */}
+      <div className="relative [perspective:1200px]">
+        <div
+          className="relative transition-transform duration-500 ease-out [transform-style:preserve-3d] [transform-origin:right_center] group-hover:[transform:rotateY(-14deg)]"
+        >
+          <CoverPreview
+            title={book.title}
+            subtitle={book.subtitle}
+            author={book.author}
+            coverImage={book.coverImage}
+            size="sm"
+            rounded="rounded-t-3xl"
           />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <BookOpen className="w-16 h-16 text-accent-300" />
-          </div>
-        )}
 
-        {/* Action Buttons (appear on hover) */}
-        <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          {/* Spine / page-edge face — perpendicular to the cover, only reads
+              as a strip once the parent rotates in 3D. */}
+          <div
+            className="absolute top-0 left-0 h-full w-3 rounded-l-sm bg-gradient-to-b from-gray-100 via-white to-gray-200 shadow-[inset_2px_0_4px_rgba(0,0,0,0.25)] [transform:rotateY(90deg)] [transform-origin:left_center]"
+          />
+        </div>
+
+        {/* Action Buttons — flat UI chrome, deliberately outside the 3D
+            rotating layer so they stay easy to click and undistorted. */}
+        <div className="absolute top-3 right-3 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -56,7 +60,7 @@ const BookCard = ({ book, onDelete }) => {
       </div>
 
       {/* Book Info */}
-      <div className="p-5">
+      <div className="p-5 rounded-b-3xl bg-white">
         <h3 className="font-serif font-semibold text-gray-900 text-lg leading-tight line-clamp-2 mb-1">
           {book.title || "Untitled Book"}
         </h3>

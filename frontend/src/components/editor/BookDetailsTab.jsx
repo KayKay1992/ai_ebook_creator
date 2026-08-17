@@ -1,8 +1,8 @@
 import InputField from "../ui/inputField";
 import Button from "../ui/Button";
-import { UploadCloud, Image as ImageIcon } from "lucide-react";
-import { BASE_URL } from "../../utils/apiPaths";
+import { UploadCloud } from "lucide-react";
 import ExportTemplatePicker from "./ExportTemplatePicker";
+import CoverPreview from "../cards/CoverPreview";
 
 const BookDetailsTab = ({
   book,
@@ -11,12 +11,6 @@ const BookDetailsTab = ({
   isUploading,
   fileInputRef,
 }) => {
-  const coverImageUrl = book.coverImage
-    ? book.coverImage.startsWith("http")
-      ? book.coverImage
-      : `${BASE_URL}${book.coverImage}`.replace(/\\/g, "/")
-    : null;
-
   return (
     <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in duration-500">
       {/* ===== Book Information ===== */}
@@ -55,25 +49,17 @@ const BookDetailsTab = ({
         <h3 className="text-xl font-bold text-gray-900 mb-6">Cover Image</h3>
 
         <div className="flex flex-col md:flex-row gap-8 items-start">
-          {/* Cover Preview */}
+          {/* Cover Preview — updates live as title/subtitle/author/cover change */}
           <div className="w-full md:w-48 flex-shrink-0">
-            <div className="aspect-[2/3] rounded-2xl overflow-hidden border border-gray-200 bg-gradient-to-br from-accent-50 to-accent-secondary-50 flex items-center justify-center shadow-sm">
-              {coverImageUrl ? (
-                <img
-                  src={coverImageUrl}
-                  alt="Book Cover"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="text-center p-4">
-                  <ImageIcon className="w-12 h-12 text-accent-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-400">No cover yet</p>
-                </div>
-              )}
-            </div>
+            <CoverPreview
+              title={book.title}
+              subtitle={book.subtitle}
+              author={book.author}
+              coverImage={book.coverImage}
+              size="md"
+              rounded="rounded-2xl"
+              className="border border-gray-200 shadow-sm"
+            />
           </div>
 
           {/* Upload Section */}
