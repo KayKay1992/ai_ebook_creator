@@ -1,5 +1,3 @@
-import { BASE_URL } from "../../utils/apiPaths";
-
 // Text sizing per consumer — the dashboard grid card and the larger editor
 // preview need different scales even though both are the same 2:3 shape.
 const SIZE_STYLES = {
@@ -35,11 +33,9 @@ const CoverPreview = ({
   rounded = "rounded-xl",
   className = "",
 }) => {
-  const coverImageUrl = coverImage
-    ? coverImage.startsWith("http")
-      ? coverImage
-      : `${BASE_URL}${coverImage}`.replace(/\\/g, "/")
-    : null;
+  // coverImage is always an absolute Cloudinary URL (or empty) — no local
+  // path resolution needed.
+  const coverImageUrl = coverImage || null;
 
   const s = SIZE_STYLES[size] || SIZE_STYLES.md;
   const textShadow = "0 1px 3px rgba(0,0,0,0.85), 0 2px 8px rgba(0,0,0,0.5)";

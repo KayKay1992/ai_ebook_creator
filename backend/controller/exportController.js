@@ -24,6 +24,93 @@ const md = new MarkdownIt();
 // documents are XHTML and reject the bare HTML5 form markdown-it emits by default.
 const mdEpub = new MarkdownIt({ xhtmlOut: true });
 
+// Fetches image bytes from an absolute Cloudinary (or other https) URL for
+// embedding in exports. Never throws — a failed/unreachable image is logged
+// and skipped so one bad image can't crash a whole export. Legacy local
+// "/uploads/..." references (pre-Cloudinary migration) are no longer
+// servable now that the static route is removed, so those are skipped too.
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Retries a couple of times on network-level failures (observed in practice:
+// a freshly-started process's first outbound HTTPS calls can transiently
+// fail before its connection pool warms up) — a bad HTTP status is not
+// retried since that's not transient.
+const fetchImageBuffer = async (url, attempt = 1) => {
+  if (!url || !/^https?:\/\//i.test(url)) {
+    if (url) console.warn("Skipping non-remote image reference (legacy local path?):", url);
+    return null;
+  }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`Failed to fetch image (status ${response.status}):`, url);
+      return null;
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const contentType = response.headers.get("content-type") || "";
+    return { buffer: Buffer.from(arrayBuffer), contentType };
+  } catch (err) {
+    if (attempt < 3) {
+      await sleep(200 * attempt);
+      return fetchImageBuffer(url, attempt + 1);
+    }
+    console.warn("Failed to fetch image:", url, err.message);
+    return null;
+  }
+};
+
+// nodepub's cover/image metadata fields expect on-disk file paths, not
+// buffers, so remote images destined for EPUB are downloaded to a temp file
+// first. Extension is inferred from the URL when possible, falling back to
+// content-type, so nodepub's own extension handling doesn't choke.
+const EXT_BY_CONTENT_TYPE = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+};
+
+// docx's ImageRun requires an explicit type — unlike pdfkit, it does not
+// sniff the format from the buffer or infer it from a file path, and
+// omitting it silently produces an invalid media-part extension (previously
+// this was always missing, which is why cover images embedded via ImageRun
+// were never spec-valid — see [Content_Types].xml's per-extension defaults).
+const DOCX_IMAGE_TYPE_BY_CONTENT_TYPE = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/bmp": "bmp",
+};
+
+const inferDocxImageType = (contentType, url) => {
+  if (contentType && DOCX_IMAGE_TYPE_BY_CONTENT_TYPE[contentType]) {
+    return DOCX_IMAGE_TYPE_BY_CONTENT_TYPE[contentType];
+  }
+  const ext = path.extname(new URL(url).pathname).toLowerCase().replace(".", "");
+  if (ext === "jpeg") return "jpg";
+  if (["jpg", "png", "gif", "bmp"].includes(ext)) return ext;
+  return "png";
+};
+
+const fetchImageToTempFile = async (url, prefix) => {
+  const fetched = await fetchImageBuffer(url);
+  if (!fetched) return null;
+
+  const urlExt = path.extname(new URL(url).pathname).toLowerCase();
+  const ext = /^\.(jpe?g|png|gif|webp)$/.test(urlExt)
+    ? urlExt
+    : EXT_BY_CONTENT_TYPE[fetched.contentType] || ".jpg";
+
+  const tempPath = path.join(
+    os.tmpdir(),
+    `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`
+  );
+  fs.writeFileSync(tempPath, fetched.buffer);
+  return tempPath;
+};
+
 // Paragraph/heading spacing that stays constant across templates — only the
 // font, size scale, margins, line-spacing and heading style vary by
 // template (see backend/config/exportTemplates.js).
@@ -310,15 +397,11 @@ const exportAsDocument = async (req, res) => {
 
     // ========== 1. Cover Image ==========
     if (book.coverImage && !book.coverImage.includes("pravatar")) {
-      const imagePath = path.join(
-        __dirname,
-        "..",
-        book.coverImage.replace(/^\//, "").replace(/\\/g, "/")
-      );
-
       try {
-        if (fs.existsSync(imagePath)) {
-          const imageBuffer = fs.readFileSync(imagePath);
+        const fetched = await fetchImageBuffer(book.coverImage);
+        if (fetched) {
+          const imageBuffer = fetched.buffer;
+          const imageType = inferDocxImageType(fetched.contentType, book.coverImage);
 
           // Top spacing
           sections.push(new Paragraph({ text: "", spacing: { before: 1200 } }));
@@ -329,6 +412,7 @@ const exportAsDocument = async (req, res) => {
               children: [
                 new ImageRun({
                   data: imageBuffer,
+                  type: imageType,
                   transformation: {
                     width: 400,
                     height: 550,
@@ -732,20 +816,15 @@ const exportAsPDF = async (req, res) => {
 
     // ========== Cover Image ==========
     if (book.coverImage && !book.coverImage.includes("pravatar")) {
-      const imagePath = path.join(
-        __dirname,
-        "..",
-        book.coverImage.replace(/^\//, "").replace(/\\/g, "/")
-      );
-
       try {
-        if (fs.existsSync(imagePath)) {
+        const fetched = await fetchImageBuffer(book.coverImage);
+        if (fetched) {
           const pageWidth =
             doc.page.width - doc.page.margins.left - doc.page.margins.right;
           const pageHeight =
             doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
 
-          doc.image(imagePath, {
+          doc.image(fetched.buffer, {
             fit: [pageWidth * 0.85, pageHeight * 0.85],
             align: "center",
             valign: "center",
@@ -842,32 +921,46 @@ const escapeHtml = (str = "") =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-// Rewrites <img src="/uploads/chapters/...jpg"> references in rendered chapter
-// HTML to the "../images/<file>" paths nodepub expects, collecting the
-// resolved on-disk source path for each into imageMap (basename -> abs path)
-// so it can be embedded. Images that don't actually exist on disk are
-// dropped from the markup entirely rather than left as broken internal links.
-const resolveChapterImagesForEpub = (html, imageMap) => {
-  return html.replace(
-    /<img([^>]*?)src="([^"]+)"([^>]*?)\/?>/g,
-    (match, before, src, after) => {
-      if (!src.startsWith("/uploads/")) {
-        return match; // leave any non-local reference alone
-      }
+// Rewrites <img src="https://res.cloudinary.com/...jpg"> references in
+// rendered chapter HTML to the "../images/<file>" paths nodepub expects,
+// downloading each remote image to a temp file (nodepub's image metadata
+// needs on-disk paths, not buffers) and collecting it into imageMap
+// (basename -> temp path) plus tempFiles for later cleanup. Images that
+// fail to fetch, or legacy local "/uploads/..." references that are no
+// longer servable post-migration, are dropped from the markup entirely
+// rather than left as broken links.
+const resolveChapterImagesForEpub = async (html, imageMap, tempFiles) => {
+  const regex = /<img([^>]*?)src="([^"]+)"([^>]*?)\/?>/g;
+  const matches = [...html.matchAll(regex)];
+  if (matches.length === 0) return html;
 
-      const diskPath = path.join(__dirname, "..", src.replace(/^\//, ""));
-      if (!fs.existsSync(diskPath)) {
-        console.warn("Skipping missing chapter image for EPUB:", diskPath);
-        return "";
-      }
+  let result = "";
+  let lastIndex = 0;
+  for (const match of matches) {
+    const [fullMatch, before, src, after] = match;
+    result += html.slice(lastIndex, match.index);
+    lastIndex = match.index + fullMatch.length;
 
-      const basename = path.basename(diskPath);
-      if (!imageMap.has(basename)) {
-        imageMap.set(basename, diskPath);
-      }
-      return `<img${before}src="../images/${basename}"${after}/>`;
+    if (!/^https?:\/\//i.test(src)) {
+      console.warn("Skipping non-remote chapter image reference for EPUB:", src);
+      continue; // drop the tag
     }
-  );
+
+    const tempPath = await fetchImageToTempFile(src, "epub-chapter-img");
+    if (!tempPath) {
+      console.warn("Skipping unreachable chapter image for EPUB:", src);
+      continue; // drop the tag
+    }
+
+    tempFiles.push(tempPath);
+    const basename = path.basename(tempPath);
+    if (!imageMap.has(basename)) {
+      imageMap.set(basename, tempPath);
+    }
+    result += `<img${before}src="../images/${basename}"${after}/>`;
+  }
+  result += html.slice(lastIndex);
+  return result;
 };
 
 const toArchiveContent = (content) => {
@@ -957,49 +1050,56 @@ const exportAsEPUB = async (req, res) => {
     const epubT = getExportTemplate(book.templateId).epub;
 
     // ========== Cover Image ==========
+    // Every temp file created while assembling this EPUB (fetched cover,
+    // fetched chapter images, or the generated placeholder SVG) is tracked
+    // here so it can be cleaned up in one place once the EPUB is built.
+    const tempFilesToCleanup = [];
     let coverPath;
     if (book.coverImage && !book.coverImage.includes("pravatar")) {
-      const candidate = path.join(
-        __dirname,
-        "..",
-        book.coverImage.replace(/^\//, "").replace(/\\/g, "/")
-      );
-      if (fs.existsSync(candidate)) {
-        coverPath = candidate;
+      coverPath = await fetchImageToTempFile(book.coverImage, `epub-cover-${book._id.toString()}`);
+      if (coverPath) {
+        tempFilesToCleanup.push(coverPath);
       } else {
-        console.warn("Cover image not found on disk for EPUB:", candidate);
+        console.warn("Could not fetch cover image for EPUB:", book.coverImage);
       }
     }
 
     // nodepub requires a cover — fall back to a generated placeholder when
-    // the book has none, rather than failing the export.
-    let tempCoverPath;
+    // the book has none (or its image failed to fetch), rather than failing
+    // the export.
     if (!coverPath) {
-      tempCoverPath = path.join(
+      const placeholderPath = path.join(
         os.tmpdir(),
         `epub-cover-${book._id.toString()}-${Date.now()}.svg`
       );
       fs.writeFileSync(
-        tempCoverPath,
+        placeholderPath,
         buildPlaceholderCoverSvg(book.title, book.author)
       );
-      coverPath = tempCoverPath;
+      coverPath = placeholderPath;
+      tempFilesToCleanup.push(placeholderPath);
     }
 
     // ========== Chapters ==========
-    const imageMap = new Map(); // basename -> absolute disk path
-    const chapterSections = (book.chapters || []).map((chapter, index) => {
-      const title = chapter.title || `Chapter ${index + 1}`;
-      const bodyHtml =
-        chapter.content && chapter.content.trim()
-          ? mdEpub.render(chapter.content)
-          : "<p><em>No content available for this chapter.</em></p>";
-      const resolvedHtml = resolveChapterImagesForEpub(bodyHtml, imageMap);
-      return {
-        title,
-        html: `<h1 class="chapter-title">${escapeHtml(title)}</h1>${resolvedHtml}`,
-      };
-    });
+    const imageMap = new Map(); // basename -> temp file path
+    const chapterSections = await Promise.all(
+      (book.chapters || []).map(async (chapter, index) => {
+        const title = chapter.title || `Chapter ${index + 1}`;
+        const bodyHtml =
+          chapter.content && chapter.content.trim()
+            ? mdEpub.render(chapter.content)
+            : "<p><em>No content available for this chapter.</em></p>";
+        const resolvedHtml = await resolveChapterImagesForEpub(
+          bodyHtml,
+          imageMap,
+          tempFilesToCleanup
+        );
+        return {
+          title,
+          html: `<h1 class="chapter-title">${escapeHtml(title)}</h1>${resolvedHtml}`,
+        };
+      })
+    );
 
     // ========== Metadata ==========
     // nodepub emits an (invalid, per EPUBCheck) empty <dc:date> element when
@@ -1030,9 +1130,7 @@ const exportAsEPUB = async (req, res) => {
     try {
       files = await epub.getFilesForEPUB();
     } finally {
-      if (tempCoverPath) {
-        fs.unlink(tempCoverPath, () => {}); // best-effort cleanup
-      }
+      tempFilesToCleanup.forEach((p) => fs.unlink(p, () => {})); // best-effort cleanup
     }
 
     res.setHeader("Content-Type", "application/epub+zip");

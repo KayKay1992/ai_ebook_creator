@@ -1,4 +1,5 @@
 const Book = require('../models/Book');
+const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 
 //@desc    Create a new book
 //@route   POST /api/books
@@ -113,9 +114,8 @@ const updateBookCover = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // Clean and consistent path
-    // This will always save as: /uploads/filename.jpg
-    book.coverImage = `/uploads/${req.file.filename}`;
+    const result = await uploadBufferToCloudinary(req.file.buffer, "ebook-creator/covers");
+    book.coverImage = result.secure_url;
 
     const updatedBook = await book.save();
     res.status(200).json(updatedBook);
@@ -144,8 +144,8 @@ const uploadChapterImage = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const imagePath = `/uploads/chapters/${req.file.filename}`;
-    res.status(200).json({ path: imagePath });
+    const result = await uploadBufferToCloudinary(req.file.buffer, "ebook-creator/chapters");
+    res.status(200).json({ path: result.secure_url });
   } catch (error) {
     console.error("Chapter image upload error:", error);
     res.status(500).json({ message: "Server Error" });

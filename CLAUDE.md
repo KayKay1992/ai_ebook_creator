@@ -28,7 +28,7 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 
 ## Environment
 
-Backend expects a `.env` file in `backend/` (gitignored) with at least: `PORT` (8000 in dev), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL` (the allowed CORS origin — defaults to `http://localhost:5173` if unset).
+Backend expects a `.env` file in `backend/` (gitignored) with at least: `PORT` (8000 in dev), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL` (the allowed CORS origin — defaults to `http://localhost:5173` if unset), `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below).
 
 The frontend's API base URL is **hardcoded** in `frontend/src/utils/apiPaths.js` (`BASE_URL`), not read from a Vite env var — it must be kept in sync with the backend's actual port/URL manually, including for production.
 
@@ -41,11 +41,11 @@ Standard Express MVC-ish layering: `routes/` → `controller/` → `models/`, wi
 - **Auth**: JWT-based. `middleware/authMiddleware.js`'s `protect` reads a `Bearer` token, verifies it, and attaches `req.user` (password excluded). Every books/ai/export route is protected; ownership is enforced in each controller by comparing `book.userId` to `req.user._id`, not by middleware.
 - **Data model** (`models/Book.js`): a `Book` embeds its `chapters` as a subdocument array (title/description/content) rather than a separate collection — chapters are always loaded/saved with their parent book. `models/User.js` hashes passwords via a `pre('save')` hook and exposes `matchPassword`.
 - **AI generation** (`controller/aiController.js`): uses `@google/genai` (Gemini, model `gemini-2.5-flash`) with large hand-tuned prompts to (1) generate a JSON chapter outline and (2) generate markdown content for a single chapter. Outline responses are parsed by locating the first `[` and last `]` in the raw text — the prompt format must keep producing a bare JSON array for this to keep working.
-- **File uploads** (`middleware/uploadMiddleware.js`): Multer disk storage into `backend/uploads/`, single field `coverImage`, 3MB limit, image mimetypes only. `backend/uploads/` is also served statically at `/uploads`. Cover image paths are stored on the `Book` doc as `/uploads/<filename>`.
+- **File uploads** (`middleware/uploadMiddleware.js`): Multer memory storage (image mimetypes only; 5MB limit for the cover, `coverImage` field; 8MB limit for chapter images, `chapterImage` field) — files are held in `req.file.buffer` and never written to local disk. Controllers (`bookController.js`'s `updateBookCover`/`uploadChapterImage`) pipe the buffer straight to Cloudinary via `utils/cloudinaryUpload.js`, uploading into `ebook-creator/covers/` or `ebook-creator/chapters/` respectively, and store the returned `secure_url` (an absolute URL) on the `Book` doc / in the inserted markdown image reference. There is no local `/uploads` static route — old pre-migration `backend/uploads/` files and any `/uploads/...`-prefixed paths still in the DB are no longer served.
 - **Export** (`controller/exportController.js`): the largest/most intricate file. Two independent hand-rolled markdown-to-document renderers share the same `markdown-it` token stream but are otherwise separate implementations:
   - `exportAsDocument` walks markdown-it tokens into `docx` `Paragraph`/`TextRun` trees (headings, lists, blockquotes, code blocks, inline bold/italic) and streams a `.docx` via `Packer.toBuffer`.
   - `exportAsPDF` walks the same token stream directly into a `pdfkit` `PDFDocument` (manual cursor/`moveDown` layout), and separately strips markdown to plain text for the DOCX chapter body (note: DOCX chapter *body* text uses a simpler regex-strip approach, not the token walker, while headings/title page do use rich formatting).
-  - Both embed the book's cover image from disk (resolved from the `coverImage` DB path) if present and not a placeholder (`pravatar`) URL.
+  - Both embed the book's cover image, fetched over HTTP from its Cloudinary `coverImage` URL, if present and not a placeholder (`pravatar`) URL — a failed/unreachable fetch is logged and the image is skipped rather than crashing the export. EPUB export additionally downloads the cover and any chapter images to temp files (`os.tmpdir()`) since `nodepub`'s metadata API expects on-disk paths, cleaning them up after the EPUB is built.
   - When modifying markdown rendering, changes generally need to be made in both places to keep PDF/DOCX output consistent.
 
 ### Frontend (`frontend/src/`)

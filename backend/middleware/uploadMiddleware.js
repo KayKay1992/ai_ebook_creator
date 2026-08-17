@@ -1,17 +1,5 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-
-//create the uploads directories if they don't exist
-const uploadDir = 'uploads';
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const chapterUploadDir = path.join(uploadDir, 'chapters');
-if (!fs.existsSync(chapterUploadDir)) {
-    fs.mkdirSync(chapterUploadDir, { recursive: true });
-}
 
 //check file type
 function checkFileType(file, cb) {
@@ -46,36 +34,24 @@ function wrapUpload(multerHandler, maxSizeLabel) {
     };
 }
 
-//--- Cover image (book-level, one per book) ---
-const coverStorage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`);
-    },
-});
+// Files are held in memory (req.file.buffer) and piped straight to Cloudinary
+// from the controller — nothing is ever written to local disk. This also
+// means the Cloudinary upload only happens after the controller's own
+// book-ownership check passes, instead of a storage engine (e.g.
+// multer-storage-cloudinary) uploading at the middleware layer before
+// ownership has been verified.
+const memoryStorage = multer.memoryStorage();
 
 const uploadCoverImage = multer({
-    storage: coverStorage,
+    storage: memoryStorage,
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     fileFilter: function (req, file, cb) {
         checkFileType(file, cb);
     }
 }).single('coverImage');
 
-//--- Chapter content image (inline images inserted into chapter markdown) ---
-const chapterImageStorage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, chapterUploadDir);
-    },
-    filename: function (req, file, cb) {
-        cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`);
-    },
-});
-
 const uploadChapterImage = multer({
-    storage: chapterImageStorage,
+    storage: memoryStorage,
     limits: { fileSize: 8 * 1024 * 1024 }, // 8MB limit — a bit more headroom than the cover for in-content screenshots/diagrams
     fileFilter: function (req, file, cb) {
         checkFileType(file, cb);

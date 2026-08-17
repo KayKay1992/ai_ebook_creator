@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoute');
 const bookRoutes = require('./routes/bookRoute');
@@ -24,10 +23,6 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 //connect Database
 connectDB();
-
-//static folder for uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 
 //define routes
 app.use('/api/auth', authRoutes);
