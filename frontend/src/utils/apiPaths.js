@@ -15,6 +15,10 @@ export const API_PATHS = {
     DELETE_BOOK: "/api/books",
     UPDATE_COVER: "/api/books/cover",
     UPLOAD_CHAPTER_IMAGE: "/api/books/chapter-image",
+    TOGGLE_PUBLISH: "/api/books",
+  },
+  PUBLIC: {
+    GET_BOOK_BY_SHARE_ID: "/api/public/books",
   },
   AI: {
     GENERATE_OUTLINE: "/api/ai/generate-outline",

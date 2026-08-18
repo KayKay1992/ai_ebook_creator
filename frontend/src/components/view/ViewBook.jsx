@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
 import ViewChapterSidebar from "./ViewChapterSidebar";
 import MarkdownContent from "../shared/MarkdownContent";
 
-const ViewBook = ({ book }) => {
+const ViewBook = ({ book, backTo = "/dashboard", backLabel = "Back to Dashboard" }) => {
   const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [fontSize, setFontSize] = useState(18);
@@ -28,6 +28,8 @@ const ViewBook = ({ book }) => {
         onSelectChapter={setSelectedChapterIndex}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        backTo={backTo}
+        backLabel={backLabel}
       />
 
       {/* Main Reading Area */}

@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoute');
 const bookRoutes = require('./routes/bookRoute');
 const aiRoutes = require('./routes/aiRoute');
 const exportRoutes = require('./routes/exportRoute');
+const publicRoutes = require('./routes/publicRoute');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/public', publicRoutes);
 
 //start server
 const PORT = process.env.PORT || 5000;

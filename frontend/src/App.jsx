@@ -8,6 +8,7 @@ import DashboardPage from "./pages/DashboardPage";
 import ProfilePage from "./pages/ProfilePage";
 import EditorPage from "./pages/EditorPage";
 import ViewBookPage from "./pages/ViewBookPage";
+import ReadBookPage from "./pages/ReadBookPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 
 const App = () => {
@@ -19,6 +20,7 @@ const App = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/read/:shareId" element={<ReadBookPage />} />
 
           {/* protected route */}
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

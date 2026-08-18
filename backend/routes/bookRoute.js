@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage } = require('../controller/bookController');
+const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus } = require('../controller/bookController');
 const { protect } = require('../middleware/authMiddleware');
 const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware } = require('../middleware/uploadMiddleware');
 
@@ -21,5 +21,8 @@ router.route('/cover/:id')
 
 router.route('/chapter-image/:id')
     .post(uploadChapterImageMiddleware, uploadChapterImage);
+
+router.route('/:id/publish')
+    .put(togglePublishStatus);
 
 module.exports = router;

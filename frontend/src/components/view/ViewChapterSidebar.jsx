@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BookOpen, X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
+import CoverPreview from "../cards/CoverPreview";
 
 const ViewChapterSidebar = ({
   book,
@@ -7,6 +8,8 @@ const ViewChapterSidebar = ({
   onSelectChapter,
   isOpen,
   onClose,
+  backTo = "/dashboard",
+  backLabel = "Back to Dashboard",
 }) => {
   const navigate = useNavigate();
   const chapters = book?.chapters || [];
@@ -32,11 +35,11 @@ const ViewChapterSidebar = ({
           <div className="px-5 py-5 border-b border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <button
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate(backTo)}
                 className="flex items-center gap-2 text-sm text-gray-500 hover:text-accent transition-colors group"
               >
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                Back to Dashboard
+                {backLabel}
               </button>
 
               <button
@@ -48,10 +51,16 @@ const ViewChapterSidebar = ({
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-secondary flex items-center justify-center shadow-lg shadow-accent-500/20">
-                <BookOpen className="w-5 h-5 text-white" />
+              <div className="w-11 flex-shrink-0">
+                <CoverPreview
+                  title={book?.title}
+                  author={book?.author}
+                  coverImage={book?.coverImage}
+                  size="sm"
+                  rounded="rounded-lg"
+                />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="font-semibold text-gray-900">Chapters</h2>
                 <p className="text-xs text-gray-500">
                   {chapters.length} chapter{chapters.length !== 1 ? "s" : ""}

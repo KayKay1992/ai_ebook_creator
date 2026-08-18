@@ -34,6 +34,7 @@ const EditorPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isTogglingPublish, setIsTogglingPublish] = useState(false);
   const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
   const [activeTab, setActiveTab] = useState("editor");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -187,6 +188,25 @@ const EditorPage = () => {
       toast.error(getErrorMessage(error, "Failed to upload cover"));
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleTogglePublish = async () => {
+    setIsTogglingPublish(true);
+    try {
+      const response = await axiosInstance.put(
+        `${API_PATHS.BOOKS.TOGGLE_PUBLISH}/${bookId}/publish`
+      );
+      setBook(response.data);
+      toast.success(
+        response.data.status === "published"
+          ? "Book published! Anyone with the link can now read it."
+          : "Book unpublished. The share link no longer works."
+      );
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to update publish status"));
+    } finally {
+      setIsTogglingPublish(false);
     }
   };
 
@@ -538,6 +558,8 @@ const EditorPage = () => {
                 onBookChange={handleBookChange}
                 isUploading={isUploading}
                 fileInputRef={fileInputRef}
+                onTogglePublish={handleTogglePublish}
+                isTogglingPublish={isTogglingPublish}
               />
             )}
           </div>

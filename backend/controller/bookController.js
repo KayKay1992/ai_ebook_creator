@@ -1,5 +1,6 @@
 const Book = require('../models/Book');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
+const generateShareId = require('../utils/shareId');
 
 //@desc    Create a new book
 //@route   POST /api/books
@@ -152,6 +153,41 @@ const uploadChapterImage = async (req, res) => {
   }
 };
 
+//@desc    Toggle a book's status between draft and published. Generates a
+//         shareId the first time it's published; a book that's published
+//         again after being unpublished keeps its original shareId (same
+//         link stays valid rather than rotating on every toggle).
+//@route   PUT /api/books/:id/publish
+//@access  Private
+const togglePublishStatus = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (book.status === "published") {
+      book.status = "draft";
+    } else {
+      book.status = "published";
+      if (!book.shareId) {
+        book.shareId = generateShareId();
+      }
+    }
+
+    const updatedBook = await book.save();
+    res.status(200).json(updatedBook);
+  } catch (error) {
+    console.error("Publish toggle error:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 module.exports = {
     createBook,
     getBooks,
@@ -160,4 +196,5 @@ module.exports = {
     deleteBook,
     updateBookCover,
     uploadChapterImage,
+    togglePublishStatus,
 };
