@@ -1,4 +1,5 @@
 const { GoogleGenAI } = require("@google/genai");
+const { buildVoiceProfileInstruction } = require("../utils/voiceProfile");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -9,11 +10,15 @@ const ai = new GoogleGenAI({
 //@access Private
 const generateOutline = async (req, res) => {
   try {
-    const { topic, style, numChapters, description, title } = req.body;
+    const { topic, tones, numChapters, description, title } = req.body;
 
     if (!topic && !title) {
       return res.status(400).json({ message: "Topic or title is required" });
     }
+
+    const voiceInstruction = buildVoiceProfileInstruction(
+      Array.isArray(tones) && tones.length ? tones : ["Informative"]
+    );
 
     const prompt = `
 You are an elite book architect and professional non-fiction outline designer.
@@ -22,7 +27,7 @@ Create a high-quality, modern, and well-structured book outline based on the fol
 
 Book Title / Topic: "${title || topic}"
 ${description ? `Description: "${description}"` : ""}
-Writing Style: ${style || "Informative"}
+Voice & Tone: ${voiceInstruction}
 Number of Chapters: ${numChapters || 5}
 
 ### Outline Requirements:
@@ -30,7 +35,7 @@ Number of Chapters: ${numChapters || 5}
 2. Chapter titles must be clear, elegant, and engaging.
 3. Each chapter must build logically on the previous one.
 4. Create a natural progression from introduction → core ideas → deeper insights → conclusion.
-5. Match the "${style || "Informative"}" tone in the titles and descriptions.
+5. Apply this voice and tone throughout the titles and descriptions: ${voiceInstruction}
 6. Make the outline feel premium, modern, and professional (like a published non-fiction book).
 7. Avoid generic or boring titles.
 8. Do not include any extra text outside the JSON.
@@ -96,11 +101,15 @@ Generate the outline now:
 //@access Private
 const generateChapterContent = async (req, res) => {
   try {
-    const { chapterTitle, chapterDescription, style } = req.body;
+    const { chapterTitle, chapterDescription, tones } = req.body;
 
     if (!chapterTitle) {
       return res.status(400).json({ message: "Chapter title is required" });
     }
+
+    const voiceInstruction = buildVoiceProfileInstruction(
+      Array.isArray(tones) && tones.length ? tones : ["Informative"]
+    );
 
     const prompt = `
 You are a premium modern ebook author known for writing elegant, insightful, and highly readable content (similar to books published by major publishers).
@@ -109,11 +118,12 @@ Write a complete chapter with these details:
 
 Chapter Title: "${chapterTitle}"
 ${chapterDescription ? `Chapter Description: "${chapterDescription}"` : ""}
-Writing Style: ${style || "Informative"}
+Voice & Tone: ${voiceInstruction}
 Length: 1600–2200 words
 
 ### Premium Writing Guidelines:
-- Write in a modern, elegant, and sophisticated tone
+- Follow this voice and tone precisely, throughout the entire chapter: ${voiceInstruction}
+- Beyond that specific voice and tone, keep the writing modern and polished
 - Use short, readable paragraphs (maximum 4–5 lines)
 - Start with a powerful opening hook
 - Make the writing flow smoothly with natural transitions

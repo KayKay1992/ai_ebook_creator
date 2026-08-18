@@ -1,10 +1,11 @@
 import { useState } from "react";
 import InputField from "../ui/inputField";
 import Button from "../ui/Button";
-import { UploadCloud, Globe, Lock, Copy, Check } from "lucide-react";
+import { UploadCloud, Globe, Lock, Copy, Check, Mic } from "lucide-react";
 import toast from "react-hot-toast";
 import ExportTemplatePicker from "./ExportTemplatePicker";
 import CoverPreview from "../cards/CoverPreview";
+import TonePicker from "../shared/TonePicker";
 
 const BookDetailsTab = ({
   book,
@@ -63,6 +64,31 @@ const BookDetailsTab = ({
             placeholder="A short and catchy subtitle"
           />
         </div>
+      </div>
+
+      {/* ===== Voice & Tone ===== */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+        <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+          <Mic className="w-5 h-5 text-gray-400" />
+          Voice & Tone
+        </h3>
+        <p className="text-gray-600 mb-6 leading-relaxed">
+          Applied consistently to every AI-generated chapter from now on.
+          Changing this doesn't rewrite chapters you've already generated.
+        </p>
+
+        <TonePicker
+          value={book.voiceProfile?.tones || []}
+          onChange={(tones) =>
+            onBookChange({ target: { name: "voiceProfile", value: { tones } } })
+          }
+        />
+
+        {book.voiceProfile?.instruction && (
+          <p className="mt-4 text-sm text-gray-500 italic bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+            "{book.voiceProfile.instruction}"
+          </p>
+        )}
       </div>
 
       {/* ===== Publish & Share ===== */}

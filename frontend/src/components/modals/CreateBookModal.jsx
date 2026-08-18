@@ -13,7 +13,7 @@ import {
 import Modal from "../ui/Modal";
 import InputField from "../ui/inputField";
 import Button from "../ui/Button";
-import SelectField from "../ui/SelectField";
+import TonePicker from "../shared/TonePicker";
 import axiosInstance from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import toast from "react-hot-toast";
@@ -26,7 +26,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
   const [bookTitle, setBookTitle] = useState("");
   const [numChapters, setNumChapters] = useState(5);
   const [aiTopic, setAiTopic] = useState("");
-  const [aiStyle, setAiStyle] = useState("Informative");
+  const [selectedTones, setSelectedTones] = useState(["Informative"]);
   const [chapters, setChapters] = useState([]);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [isFinalizingBook, setIsFinalizingBook] = useState(false);
@@ -37,7 +37,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
     setBookTitle("");
     setNumChapters(5);
     setAiTopic("");
-    setAiStyle("Informative");
+    setSelectedTones(["Informative"]);
     setChapters([]);
     setIsGeneratingOutline(false);
     setIsFinalizingBook(false);
@@ -48,13 +48,17 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
       toast.error("Please fill in all required fields.");
       return;
     }
+    if (selectedTones.length === 0) {
+      toast.error("Please select at least one tone.");
+      return;
+    }
     setIsGeneratingOutline(true);
     try {
       const response = await axiosInstance.post(API_PATHS.AI.GENERATE_OUTLINE, {
         title: bookTitle,
         numChapters: Number(numChapters),
         topic: aiTopic || "",
-        style: aiStyle,
+        tones: selectedTones,
       });
       setChapters(response.data.outline || []);
       setStep(2);
@@ -95,6 +99,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
         title: bookTitle,
         author: user?.name || "Unknown Author",
         chapters,
+        tones: selectedTones,
       });
       onBookCreated(response.data._id);
       toast.success("Book created successfully!");
@@ -190,24 +195,14 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
             placeholder="e.g. Personal growth, science fiction, history..."
           />
 
-          <SelectField
-            icon={Palette}
-            label="Writing Style"
-            value={aiStyle}
-            onChange={(e) => setAiStyle(e.target.value)}
-            options={[
-              "Informative",
-              "Conversational",
-              "Persuasive",
-              "Educational",
-              "Entertaining",
-              "Inspirational",
-              "Narrative",
-              "Technical",
-              "Philosophical",
-              "Fictional",
-            ]}
-          />
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+              <Palette className="w-4 h-4 text-gray-400" />
+              Tone & Voice
+              <span className="text-gray-400 font-normal">(choose 1-3)</span>
+            </label>
+            <TonePicker value={selectedTones} onChange={setSelectedTones} />
+          </div>
 
           <div className="pt-4">
             <Button

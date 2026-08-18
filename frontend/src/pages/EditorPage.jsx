@@ -247,7 +247,7 @@ const EditorPage = () => {
           body: JSON.stringify({
             chapterTitle: chapter.title,
             chapterDescription: chapter.description || "",
-            style: "Informative",
+            tones: book.voiceProfile?.tones || [],
           }),
         }
       );

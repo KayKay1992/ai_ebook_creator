@@ -1,17 +1,20 @@
 const Book = require('../models/Book');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const generateShareId = require('../utils/shareId');
+const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
 
 //@desc    Create a new book
 //@route   POST /api/books
 //@access  Private
 const createBook = async (req, res) => {
     try {
-          const { title, author, subtitle, chapters } = req.body;
+          const { title, author, subtitle, chapters, tones } = req.body;
 
           if (!title || !author) {
             return res.status(400).json({ message: 'Title and author are required' });
         }
+
+        const voiceTones = Array.isArray(tones) ? tones.slice(0, 3) : [];
 
         // Create a new book
         const book = await Book.create({
@@ -20,6 +23,10 @@ const createBook = async (req, res) => {
             author,
             subtitle,
             chapters,
+            voiceProfile: {
+                tones: voiceTones,
+                instruction: buildVoiceProfileInstruction(voiceTones),
+            },
         });
 
         res.status(201).json(book);
@@ -70,7 +77,20 @@ const updateBook = async (req, res) => {
         if (book.userId.toString() !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
-        const updatedBook = await Book.findByIdAndUpdate(req.params.id, req.body, { returnDocument: "after" });
+
+        const updates = { ...req.body };
+        // instruction is always server-derived from tones — never trust a
+        // client-supplied instruction string, so it can't drift from what
+        // buildVoiceProfileInstruction would actually produce.
+        if (updates.voiceProfile && Array.isArray(updates.voiceProfile.tones)) {
+            const voiceTones = updates.voiceProfile.tones.slice(0, 3);
+            updates.voiceProfile = {
+                tones: voiceTones,
+                instruction: buildVoiceProfileInstruction(voiceTones),
+            };
+        }
+
+        const updatedBook = await Book.findByIdAndUpdate(req.params.id, updates, { returnDocument: "after" });
         res.status(200).json(updatedBook);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
