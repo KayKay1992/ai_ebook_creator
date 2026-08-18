@@ -61,6 +61,7 @@ const loginUser = async (req, res) => {
                 _id: user._id,
                 name: user.name,
                 email: user.email,
+                role: user.role,
                 token: generateToken(user._id),
             });
         } else {
@@ -84,6 +85,7 @@ const getProfile = async (req, res) => {
                 email: user.email,
                 isPro: user.isPro,
                 avatar: user.avatar,
+                role: user.role,
             });
         } else {
             res.status(404).json({ message: 'User not found' });
@@ -112,6 +114,7 @@ const updateUserProfile = async (req, res) => {
                 email: updatedUser.email,
                 isPro: updatedUser.isPro,
                 avatar: updatedUser.avatar,
+                role: updatedUser.role,
                 token: generateToken(updatedUser._id),
             });
         } else {

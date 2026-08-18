@@ -26,7 +26,17 @@ const userSchema = new mongoose.Schema({
     isPro:{
         type: Boolean,
         default: false
-    }
+    },
+    // Gates access to the whole app surface (see AdminRoute/ReaderRoute on
+    // the frontend and KENLIBS-ARCHITECTURE.md). Deliberately no
+    // self-service way to become 'admin' — only set directly in the
+    // database via backend/scripts/setAdmin.js, never through a public
+    // form or request body.
+    role: {
+        type: String,
+        enum: ['admin', 'reader'],
+        default: 'reader',
+    },
 },
     {
         timestamps: true

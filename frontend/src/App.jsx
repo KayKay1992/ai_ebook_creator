@@ -1,6 +1,6 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
-import ProtectedRoute from "./components/auth/ProtectedRoute";
+import AdminRoute from "./components/auth/AdminRoute";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -23,12 +23,12 @@ const App = () => {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/read/:shareId" element={<ReadBookPage />} />
 
-          {/* protected route */}
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path='/editor/:bookId' element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
-          <Route path='/editor/:bookId/cover' element={<ProtectedRoute><CoverDesignerPage /></ProtectedRoute>} />
-          <Route path='/view-book/:bookId' element={<ProtectedRoute><ViewBookPage /></ProtectedRoute>} />
+          {/* admin-only route (creator surface — see KENLIBS-ARCHITECTURE.md) */}
+          <Route path="/dashboard" element={<AdminRoute><DashboardPage /></AdminRoute>} />
+          <Route path="/profile" element={<AdminRoute><ProfilePage /></AdminRoute>} />
+          <Route path='/editor/:bookId' element={<AdminRoute><EditorPage /></AdminRoute>} />
+          <Route path='/editor/:bookId/cover' element={<AdminRoute><CoverDesignerPage /></AdminRoute>} />
+          <Route path='/view-book/:bookId' element={<AdminRoute><ViewBookPage /></AdminRoute>} />
       </Routes>
     </div>
   );

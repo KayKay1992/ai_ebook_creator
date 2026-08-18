@@ -36,7 +36,7 @@ const LoginPage = () => {
 
       login(profileResponse.data, token);
       toast.success("Welcome back!");
-      navigate("/dashboard");
+      navigate(profileResponse.data.role === "admin" ? "/dashboard" : "/kenlibs");
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Login failed. Please try again.",
