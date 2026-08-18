@@ -16,6 +16,7 @@ import {
   Check,
   Loader2,
   AlertCircle,
+  Activity,
 } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
 
@@ -24,6 +25,7 @@ import Button from "../components/ui/Button";
 import ChapterSidebar from "../components/editor/ChapterSidebar";
 import ChapterEditorTab from "../components/editor/ChapterEditorTab";
 import BookDetailsTab from "../components/editor/BookDetailsTab";
+import VitalsTab from "../components/editor/VitalsTab";
 import EditorSkeleton from "../components/skeletons/EditorSkeleton";
 
 const EditorPage = () => {
@@ -477,6 +479,17 @@ const EditorPage = () => {
                 <NotebookText className="w-4 h-4" />
                 Details
               </button>
+              <button
+                onClick={() => setActiveTab("vitals")}
+                className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === "vitals"
+                    ? "bg-white text-accent-hover shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Activity className="w-4 h-4" />
+                Vitals
+              </button>
             </div>
 
             {/* Actions */}
@@ -551,7 +564,7 @@ const EditorPage = () => {
                 onGenerateChapterContent={handleGenerateChapterContent}
                 isGenerating={isGenerating}
               />
-            ) : (
+            ) : activeTab === "details" ? (
               <BookDetailsTab
                 book={book}
                 onCoverUpload={handleCoverImageUpload}
@@ -561,6 +574,8 @@ const EditorPage = () => {
                 onTogglePublish={handleTogglePublish}
                 isTogglingPublish={isTogglingPublish}
               />
+            ) : (
+              <VitalsTab book={book} />
             )}
           </div>
         </main>
