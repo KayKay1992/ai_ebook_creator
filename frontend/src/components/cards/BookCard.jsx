@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Palette } from "lucide-react";
 import CoverPreview from "./CoverPreview";
 
 const BookCard = ({ book, onDelete }) => {
@@ -24,6 +24,7 @@ const BookCard = ({ book, onDelete }) => {
             subtitle={book.subtitle}
             author={book.author}
             coverImage={book.coverImage}
+            coverDesign={book.coverDesign}
             size="sm"
             rounded="rounded-t-3xl"
           />
@@ -44,8 +45,19 @@ const BookCard = ({ book, onDelete }) => {
               navigate(`/editor/${book._id}`);
             }}
             className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-xl flex items-center justify-center text-gray-700 hover:bg-accent hover:text-white shadow-md transition-all"
+            title="Edit book"
           >
             <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/editor/${book._id}/cover`);
+            }}
+            className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-xl flex items-center justify-center text-gray-700 hover:bg-accent hover:text-white shadow-md transition-all"
+            title="Design cover"
+          >
+            <Palette className="w-4 h-4" />
           </button>
           <button
             onClick={(e) => {

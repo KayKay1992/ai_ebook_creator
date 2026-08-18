@@ -330,8 +330,85 @@ ${voiceInstruction ? `\n### Voice & tone\nThis book has an established voice pro
   }
 };
 
+//@desc Generate a back-cover blurb from the book's existing chapter content
+//@route POST /api/ai/generate-blurb
+//@access Private
+const generateBlurb = async (req, res) => {
+  try {
+    const { bookId } = req.body;
+
+    if (!bookId) {
+      return res.status(400).json({ message: "bookId is required" });
+    }
+
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const writtenChapters = (book.chapters || []).filter(
+      (c) => c.content && c.content.trim()
+    );
+    if (writtenChapters.length === 0) {
+      return res.status(400).json({
+        message: "Write some chapter content first — there's nothing to summarize yet.",
+      });
+    }
+
+    const voiceInstruction = book.voiceProfile?.instruction || "";
+
+    // A short excerpt per chapter (not the full manuscript) is plenty of
+    // signal for back-cover copy and keeps the prompt a reasonable size.
+    const chapterExcerpts = writtenChapters
+      .slice(0, 6)
+      .map((c, i) => `Chapter ${i + 1}: ${c.title}\n${(c.content || "").slice(0, 600)}`)
+      .join("\n\n");
+
+    const prompt = `
+You are a professional back-cover copywriter for published books.
+
+Book Title: "${book.title}"
+${book.subtitle ? `Subtitle: "${book.subtitle}"` : ""}
+Author: ${book.author}
+
+Here are excerpts from the book, across its chapters:
+${chapterExcerpts}
+
+### Task
+Write a compelling back-cover blurb for this book, in the style of real
+published back-cover copy. 2-4 short paragraphs, roughly 80-150 words total.
+Hook the reader in the first sentence. Make it feel professional and
+enticing, not like a generic AI summary of the content.
+${voiceInstruction ? `\n### Voice & tone\nMatch the book's established voice: ${voiceInstruction}` : ""}
+
+Never use the em dash symbol (—). Use a comma, period, or colon instead.
+
+Return ONLY the blurb text. No heading, no wrapping quotation marks, no commentary.
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    const blurb = (response.text || "").trim();
+    if (!blurb) {
+      return res.status(500).json({ message: "Failed to generate blurb" });
+    }
+
+    res.status(200).json({ blurb });
+  } catch (error) {
+    console.error("Error generating blurb:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 module.exports = {
   generateOutline,
   generateChapterContent,
   editSelection,
+  generateBlurb,
 };

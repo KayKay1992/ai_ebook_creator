@@ -16,6 +16,8 @@ export const API_PATHS = {
     UPDATE_COVER: "/api/books/cover",
     UPLOAD_CHAPTER_IMAGE: "/api/books/chapter-image",
     TOGGLE_PUBLISH: "/api/books",
+    UPLOAD_COVER_DESIGN_FRONT_IMAGE: "/api/books/cover-design/front-image",
+    UPLOAD_COVER_DESIGN_AUTHOR_PHOTO: "/api/books/cover-design/author-photo",
   },
   PUBLIC: {
     GET_BOOK_BY_SHARE_ID: "/api/public/books",
@@ -24,6 +26,7 @@ export const API_PATHS = {
     GENERATE_OUTLINE: "/api/ai/generate-outline",
     GENERATE_CHAPTER_CONTENT: "/api/ai/generate-chapter-content",
     EDIT_SELECTION: "/api/ai/edit-selection",
+    GENERATE_BLURB: "/api/ai/generate-blurb",
   },
   EXPORT: {
     PDF: "/api/export",

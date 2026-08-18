@@ -58,7 +58,19 @@ const uploadChapterImage = multer({
     }
 }).single('chapterImage');
 
+// Shared by both Cover Designer image slots (front background, author
+// photo) — same size/type constraints as the plain cover image, single
+// field name reused across both routes.
+const uploadCoverDesignImage = multer({
+    storage: memoryStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: function (req, file, cb) {
+        checkFileType(file, cb);
+    }
+}).single('image');
+
 module.exports = {
     uploadCover: wrapUpload(uploadCoverImage, '5MB'),
     uploadChapterImage: wrapUpload(uploadChapterImage, '8MB'),
+    uploadCoverDesignImage: wrapUpload(uploadCoverDesignImage, '5MB'),
 };

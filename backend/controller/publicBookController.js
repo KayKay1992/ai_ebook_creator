@@ -10,7 +10,7 @@ const getPublicBookByShareId = async (req, res) => {
     const book = await Book.findOne({
       shareId: req.params.shareId,
       status: "published",
-    }).select("title subtitle author coverImage chapters");
+    }).select("title subtitle author coverImage chapters coverDesign");
 
     if (!book) {
       return res.status(404).json({ message: "Book not found" });

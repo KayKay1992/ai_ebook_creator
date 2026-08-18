@@ -77,6 +77,58 @@ const bookSchema = new mongoose.Schema({
             default: '',
         },
     },
+    // Full front/back cover design, edited on the dedicated Cover Designer
+    // page (frontend/src/pages/CoverDesignerPage.jsx). All leaf fields have
+    // defaults so `book.coverDesign` is always a populated object, never
+    // undefined — components read it directly without null-guarding, and
+    // the defaults (titleColor '#ffffff', titleAlign 'left', showSubtitle
+    // true, backgroundStyle 'image') reproduce Step 15's original
+    // CoverPreview look exactly, so books that never touch this page still
+    // render the same as before.
+    coverDesign: {
+        front: {
+            backgroundImage: { type: String, default: '' },
+            backgroundStyle: {
+                type: String,
+                enum: ['image', 'gradient', 'solid'],
+                default: 'image',
+            },
+            titleColor: { type: String, default: '#ffffff' },
+            titleAlign: {
+                type: String,
+                enum: ['left', 'center', 'right'],
+                default: 'left',
+            },
+            showSubtitle: { type: Boolean, default: true },
+            genreTag: { type: String, default: '' },
+            // Colors for backgroundStyle: 'gradient'. Left empty ('') by
+            // default on purpose — CoverPreview.jsx treats an empty value as
+            // "use the theme's --color-accent/--color-accent-secondary",
+            // so books that picked gradient style before this field existed
+            // (or never touched it) keep looking exactly the same.
+            gradientFrom: { type: String, default: '' },
+            gradientTo: { type: String, default: '' },
+        },
+        back: {
+            blurb: { type: String, default: '' },
+            authorBio: { type: String, default: '' },
+            authorPhoto: { type: String, default: '' },
+            reviewQuotes: {
+                type: [
+                    {
+                        quote: { type: String, required: true },
+                        attribution: { type: String, default: '' },
+                    },
+                ],
+                default: [],
+                validate: {
+                    validator: (arr) => arr.length <= 3,
+                    message: 'A cover can have at most 3 review quotes.',
+                },
+            },
+            genreTag: { type: String, default: '' },
+        },
+    },
 },
     {
         timestamps: true

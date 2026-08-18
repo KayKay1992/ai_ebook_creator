@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, X, ChevronDown } from "lucide-react";
 import CoverPreview from "../cards/CoverPreview";
 
 const ViewChapterSidebar = ({
@@ -13,6 +14,10 @@ const ViewChapterSidebar = ({
 }) => {
   const navigate = useNavigate();
   const chapters = book?.chapters || [];
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const blurb = book?.coverDesign?.back?.blurb?.trim();
+  const authorBio = book?.coverDesign?.back?.authorBio?.trim();
+  const hasAboutContent = Boolean(blurb || authorBio);
 
   return (
     <>
@@ -56,6 +61,7 @@ const ViewChapterSidebar = ({
                   title={book?.title}
                   author={book?.author}
                   coverImage={book?.coverImage}
+                  coverDesign={book?.coverDesign}
                   size="sm"
                   rounded="rounded-lg"
                 />
@@ -78,6 +84,52 @@ const ViewChapterSidebar = ({
               {book?.author || "Unknown Author"}
             </p>
           </div>
+
+          {/* About this book — collapsed by default so it never gets in
+              the way of a reader who just wants to start reading. */}
+          {hasAboutContent && (
+            <div className="border-b border-gray-50">
+              <button
+                onClick={() => setIsAboutOpen((open) => !open)}
+                className="w-full flex items-center justify-between px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                About this book
+                <ChevronDown
+                  className={`w-4 h-4 text-gray-400 transition-transform ${
+                    isAboutOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {isAboutOpen && (
+                <div className="px-5 pb-4 space-y-3">
+                  {blurb && (
+                    <p className="text-sm text-gray-600 leading-relaxed font-serif italic">
+                      {blurb}
+                    </p>
+                  )}
+                  {authorBio && (
+                    <div className="flex items-start gap-2 pt-2 border-t border-gray-50">
+                      {book?.coverDesign?.back?.authorPhoto && (
+                        <img
+                          src={book.coverDesign.back.authorPhoto}
+                          alt=""
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-gray-700">
+                          {book?.author || "Unknown Author"}
+                        </p>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                          {authorBio}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Chapter List */}
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">

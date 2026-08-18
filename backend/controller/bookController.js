@@ -173,6 +173,50 @@ const uploadChapterImage = async (req, res) => {
   }
 };
 
+// Shared upload handler for the two Cover Designer image slots (front
+// background, author photo) — same ownership check + Cloudinary upload,
+// differing only in which coverDesign field the resulting URL is written to.
+const uploadCoverDesignImageHandler = (applyToBook) => async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const result = await uploadBufferToCloudinary(req.file.buffer, "ebook-creator/cover-design");
+    applyToBook(book, result.secure_url);
+
+    const updatedBook = await book.save();
+    res.status(200).json(updatedBook);
+  } catch (error) {
+    console.error("Cover design image upload error:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+//@desc    Upload the Cover Designer's front-cover background image
+//@route   PUT /api/books/cover-design/front-image/:id
+//@access  Private
+const updateCoverDesignFrontImage = uploadCoverDesignImageHandler((book, url) => {
+  book.coverDesign.front.backgroundImage = url;
+});
+
+//@desc    Upload the Cover Designer's back-cover author photo
+//@route   PUT /api/books/cover-design/author-photo/:id
+//@access  Private
+const updateCoverDesignAuthorPhoto = uploadCoverDesignImageHandler((book, url) => {
+  book.coverDesign.back.authorPhoto = url;
+});
+
 //@desc    Toggle a book's status between draft and published. Generates a
 //         shareId the first time it's published; a book that's published
 //         again after being unpublished keeps its original shareId (same
@@ -217,4 +261,6 @@ module.exports = {
     updateBookCover,
     uploadChapterImage,
     togglePublishStatus,
+    updateCoverDesignFrontImage,
+    updateCoverDesignAuthorPhoto,
 };

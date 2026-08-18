@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import InputField from "../ui/inputField";
 import Button from "../ui/Button";
-import { UploadCloud, Globe, Lock, Copy, Check, Mic } from "lucide-react";
+import { UploadCloud, Globe, Lock, Copy, Check, Mic, Palette } from "lucide-react";
 import toast from "react-hot-toast";
 import ExportTemplatePicker from "./ExportTemplatePicker";
 import CoverPreview from "../cards/CoverPreview";
@@ -16,6 +17,7 @@ const BookDetailsTab = ({
   onTogglePublish,
   isTogglingPublish,
 }) => {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const isPublished = book.status === "published";
   const shareUrl = book.shareId
@@ -146,7 +148,17 @@ const BookDetailsTab = ({
 
       {/* ===== Cover Image ===== */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Cover Image</h3>
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Cover Image</h3>
+          <Button
+            onClick={() => navigate(`/editor/${book._id}/cover`)}
+            variant="secondary"
+            className="flex items-center gap-2"
+          >
+            <Palette className="w-4 h-4" />
+            Design Full Cover
+          </Button>
+        </div>
 
         <div className="flex flex-col md:flex-row gap-8 items-start">
           {/* Cover Preview — updates live as title/subtitle/author/cover change */}
@@ -156,6 +168,7 @@ const BookDetailsTab = ({
               subtitle={book.subtitle}
               author={book.author}
               coverImage={book.coverImage}
+              coverDesign={book.coverDesign}
               size="md"
               rounded="rounded-2xl"
               className="border border-gray-200 shadow-sm"
@@ -165,8 +178,11 @@ const BookDetailsTab = ({
           {/* Upload Section */}
           <div className="flex-1">
             <p className="text-gray-600 mb-6 leading-relaxed">
-              Upload a high-quality cover image for your book.  
-              Recommended size: <span className="font-medium">1600 × 2400 px</span>.  
+              Upload a quick cover image here, or use the{" "}
+              <span className="font-medium">Design Full Cover</span> button
+              above for a complete front and back cover with a blurb, author
+              bio, and review quotes.
+              Recommended size: <span className="font-medium">1600 × 2400 px</span>.
               Supported formats: JPG, PNG. Maximum size: 5MB.
             </p>
 

@@ -7,6 +7,7 @@ import SignupPage from "./pages/SignupPage";
 import DashboardPage from "./pages/DashboardPage";
 import ProfilePage from "./pages/ProfilePage";
 import EditorPage from "./pages/EditorPage";
+import CoverDesignerPage from "./pages/CoverDesignerPage";
 import ViewBookPage from "./pages/ViewBookPage";
 import ReadBookPage from "./pages/ReadBookPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
@@ -26,6 +27,7 @@ const App = () => {
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path='/editor/:bookId' element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
+          <Route path='/editor/:bookId/cover' element={<ProtectedRoute><CoverDesignerPage /></ProtectedRoute>} />
           <Route path='/view-book/:bookId' element={<ProtectedRoute><ViewBookPage /></ProtectedRoute>} />
       </Routes>
     </div>

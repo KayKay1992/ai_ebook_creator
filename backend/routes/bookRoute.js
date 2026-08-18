@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus } = require('../controller/bookController');
+const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto } = require('../controller/bookController');
 const { protect } = require('../middleware/authMiddleware');
-const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware } = require('../middleware/uploadMiddleware');
+const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware, uploadCoverDesignImage } = require('../middleware/uploadMiddleware');
 
 // Apply the protect middleware to all routes in this router
 router.use(protect);
@@ -24,5 +24,11 @@ router.route('/chapter-image/:id')
 
 router.route('/:id/publish')
     .put(togglePublishStatus);
+
+router.route('/cover-design/front-image/:id')
+    .put(uploadCoverDesignImage, updateCoverDesignFrontImage);
+
+router.route('/cover-design/author-photo/:id')
+    .put(uploadCoverDesignImage, updateCoverDesignAuthorPhoto);
 
 module.exports = router;
