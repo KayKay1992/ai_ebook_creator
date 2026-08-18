@@ -1,5 +1,6 @@
 const { GoogleGenAI } = require("@google/genai");
 const { buildVoiceProfileInstruction } = require("../utils/voiceProfile");
+const Book = require("../models/Book");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -212,7 +213,125 @@ Return only the clean Markdown content. No extra commentary.
   }
 };
 
+// Each action gets its own focused instruction rather than one generic
+// "edit this" prompt, so the four actions actually produce meaningfully
+// different results instead of variations on the same rewrite.
+const EDIT_ACTION_INSTRUCTIONS = {
+  shorten:
+    "Rewrite the passage to be noticeably shorter and more concise, cutting at least 30-40% of its length. Preserve the key meaning and information. Do not introduce new ideas.",
+  improve:
+    "Rewrite the passage to improve its clarity, flow, and overall quality. Elevate word choice and sentence rhythm. Preserve the original meaning and keep it roughly the same length. Do not introduce new ideas.",
+  "fix-grammar":
+    "Correct any grammar, spelling, and punctuation errors in the passage. Make the minimum changes necessary to fix actual errors, do not rewrite phrasing, restructure sentences, or otherwise change the style, voice, or length beyond what's needed to fix the errors.",
+  continue:
+    "Continue the passage naturally. Return the original passage followed by 2-4 new sentences that continue the thought, forming one seamless passage. Do not rephrase, summarize, or repeat the original text, only add new content after it.",
+};
+
+//@desc Rewrite/edit a selected snippet of chapter markdown per a specific action
+//@route POST /api/ai/edit-selection
+//@access Private
+const editSelection = async (req, res) => {
+  try {
+    const { selectedText, action, surroundingContext, bookId } = req.body;
+
+    if (!selectedText || !selectedText.trim()) {
+      return res.status(400).json({ message: "Selected text is required" });
+    }
+    if (!EDIT_ACTION_INSTRUCTIONS[action]) {
+      return res.status(400).json({ message: "Invalid action" });
+    }
+
+    // Voice profile is looked up server-side from the book itself (never
+    // trusted from the client, same reasoning as bookController.js) —
+    // ownership is checked so a bookId for a book the user doesn't own
+    // can't be used to probe its voice profile. A missing/unowned book
+    // just means the edit proceeds without a voice instruction, rather
+    // than failing the whole request.
+    let voiceInstruction = "";
+    if (bookId) {
+      const book = await Book.findById(bookId).select("userId voiceProfile");
+      if (book && book.userId.toString() === req.user._id.toString()) {
+        voiceInstruction = book.voiceProfile?.instruction || "";
+      }
+    }
+
+    const actionInstruction = EDIT_ACTION_INSTRUCTIONS[action];
+
+    const prompt = `
+You are an expert editorial assistant revising a small section of an existing ebook chapter.
+
+${surroundingContext ? `### Surrounding context (for continuity only — do not repeat or include this in your output)\n${surroundingContext}\n` : ""}
+### Passage to edit
+"""
+${selectedText}
+"""
+
+### Task
+${actionInstruction}
+${voiceInstruction ? `\n### Voice & tone\nThis book has an established voice profile — match it precisely, the same way the rest of the chapter is written: ${voiceInstruction}` : ""}
+
+### Formatting
+- The passage may contain Markdown formatting (e.g. **bold**, *italic*, ## headings) — preserve it where it already exists, and match the surrounding style
+- Never use the em dash symbol (—). Use a comma, period, or colon instead.
+- Return ONLY the replacement passage as clean Markdown text. No explanations, no preamble like "Here's the revised text:", no wrapping quotes.
+`;
+
+    let clientDisconnected = false;
+    req.on("close", () => {
+      clientDisconnected = true;
+    });
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    res.flushHeaders();
+
+    const sendEvent = (event, data) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    let fullText = "";
+    try {
+      const stream = await ai.models.generateContentStream({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      for await (const chunk of stream) {
+        if (clientDisconnected) break;
+        const chunkText = chunk.text;
+        if (chunkText) {
+          fullText += chunkText;
+          sendEvent("chunk", { text: chunkText });
+        }
+      }
+
+      if (!clientDisconnected) {
+        sendEvent("done", { content: fullText });
+      }
+    } catch (streamError) {
+      console.error("Error streaming selection edit:", streamError);
+      if (!clientDisconnected) {
+        sendEvent("error", { message: "Failed to generate edit" });
+      }
+    } finally {
+      res.end();
+    }
+  } catch (error) {
+    console.error("Error editing selection:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Server Error" });
+    } else {
+      res.end();
+    }
+  }
+};
+
 module.exports = {
   generateOutline,
   generateChapterContent,
+  editSelection,
 };
