@@ -9,6 +9,8 @@ const exportRoutes = require('./routes/exportRoute');
 const publicRoutes = require('./routes/publicRoute');
 const bundleRoutes = require('./routes/bundleRoute');
 const purchaseRoutes = require('./routes/purchaseRoute');
+const kenlibsRoutes = require('./routes/kenlibsRoute');
+const adminRoutes = require('./routes/adminRoute');
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.use('/api/export', exportRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/bundles', bundleRoutes);
 app.use('/api/purchases', purchaseRoutes);
+app.use('/api/kenlibs', kenlibsRoutes);
+app.use('/api/admin', adminRoutes);
 
 //start server
 const PORT = process.env.PORT || 5000;

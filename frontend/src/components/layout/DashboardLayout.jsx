@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, Package, ShieldCheck } from "lucide-react";
+import { BookOpen, Package, ShieldCheck, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import axiosInstance from "../../utils/axiosInstance";
@@ -85,6 +85,15 @@ const DashboardLayout = ({ children }) => {
                       {pendingCount}
                     </span>
                   )}
+                </Link>
+              )}
+              {user?.role === "admin" && (
+                <Link
+                  to="/admin/users"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <Users className="w-4 h-4" />
+                  Users
                 </Link>
               )}
             </div>

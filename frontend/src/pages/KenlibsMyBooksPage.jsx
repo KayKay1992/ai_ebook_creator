@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Clock, CheckCircle2, XCircle, BookOpen } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, BookOpen, BookOpenCheck } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
@@ -65,37 +65,70 @@ const KenlibsMyBooksPage = () => {
             {requests.map((req) => {
               const meta = STATUS_META[req.status] || STATUS_META.pending;
               const StatusIcon = meta.icon;
+              const isApproved = req.status === "approved";
               return (
                 <div
                   key={req._id}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4"
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"
                 >
-                  <div className="w-12 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                    {req.itemCoverImage && (
-                      <img
-                        src={req.itemCoverImage}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    )}
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                      {req.itemCoverImage && (
+                        <img
+                          src={req.itemCoverImage}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium text-gray-900 truncate">{req.itemTitle}</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {formatNaira(req.amount)} · {req.itemType === "bundle" ? "Bundle" : "Book"}
+                      </p>
+                      {req.status === "rejected" && req.adminNote && (
+                        <p className="text-xs text-red-500 mt-1">{req.adminNote}</p>
+                      )}
+                    </div>
+
+                    <span
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${meta.className}`}
+                    >
+                      <StatusIcon className="w-3.5 h-3.5" />
+                      {meta.label}
+                    </span>
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-gray-900 truncate">{req.itemTitle}</h3>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      {formatNaira(req.amount)} · {req.itemType === "bundle" ? "Bundle" : "Book"}
-                    </p>
-                    {req.status === "rejected" && req.adminNote && (
-                      <p className="text-xs text-red-500 mt-1">{req.adminNote}</p>
-                    )}
-                  </div>
-
-                  <span
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${meta.className}`}
-                  >
-                    <StatusIcon className="w-3.5 h-3.5" />
-                    {meta.label}
-                  </span>
+                  {/* A single-book purchase links straight to the reader; a
+                      bundle grants access to every book it contains, so
+                      each gets its own Read link. */}
+                  {isApproved && req.itemType === "book" && (
+                    <Link
+                      to={`/kenlibs/read/${req.item}`}
+                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary"
+                    >
+                      <BookOpenCheck className="w-4 h-4" />
+                      Read Book
+                    </Link>
+                  )}
+                  {isApproved && req.itemType === "bundle" && req.itemBooks?.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <p className="text-xs text-gray-400 mb-2">Read a book from this bundle:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {req.itemBooks.map((book) => (
+                          <Link
+                            key={book._id}
+                            to={`/kenlibs/read/${book._id}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-accent-hover bg-accent-50 hover:bg-accent-100 transition-colors"
+                          >
+                            <BookOpenCheck className="w-3.5 h-3.5" />
+                            {book.title}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

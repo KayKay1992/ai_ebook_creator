@@ -38,7 +38,13 @@ const enrichWithItemDetails = async (requests) => {
 
     const [books, bundles] = await Promise.all([
         Book.find({ _id: { $in: bookIds } }).select('title coverImage coverDesign'),
-        Bundle.find({ _id: { $in: bundleIds } }).select('title coverImage'),
+        // Bundles also carry their books' titles — an approved bundle
+        // request doesn't map to one readable item, so the reader's
+        // "My Books" list needs each contained book to link to its own
+        // /kenlibs/read/:bookId.
+        Bundle.find({ _id: { $in: bundleIds } })
+            .select('title coverImage books')
+            .populate('books', 'title'),
     ]);
 
     const bookMap = new Map(books.map((b) => [b._id.toString(), b]));
@@ -51,6 +57,10 @@ const enrichWithItemDetails = async (requests) => {
             ...r,
             itemTitle: source?.title || 'Item no longer available',
             itemCoverImage: source?.coverDesign?.front?.backgroundImage || source?.coverImage || null,
+            itemBooks:
+                r.itemType === 'bundle'
+                    ? (source?.books || []).map((b) => ({ _id: b._id, title: b.title }))
+                    : undefined,
         };
     });
 };

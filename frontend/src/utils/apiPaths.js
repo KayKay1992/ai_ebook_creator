@@ -46,4 +46,10 @@ export const API_PATHS = {
     APPROVE: (id) => `/api/purchases/${id}/approve`,
     REJECT: (id) => `/api/purchases/${id}/reject`,
   },
+  KENLIBS: {
+    READ: (bookId) => `/api/kenlibs/read/${bookId}`,
+  },
+  ADMIN: {
+    USERS: "/api/admin/users",
+  },
 };

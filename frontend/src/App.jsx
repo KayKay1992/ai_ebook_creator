@@ -20,6 +20,8 @@ import KenlibsLoginPage from "./pages/KenlibsLoginPage";
 import KenlibsSignupPage from "./pages/KenlibsSignupPage";
 import KenlibsCheckoutPage from "./pages/KenlibsCheckoutPage";
 import KenlibsMyBooksPage from "./pages/KenlibsMyBooksPage";
+import KenlibsReadPage from "./pages/KenlibsReadPage";
+import AdminUsersPage from "./pages/AdminUsersPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 
 const App = () => {
@@ -51,6 +53,10 @@ const App = () => {
           path="/kenlibs/my-books"
           element={<ReaderRoute><KenlibsMyBooksPage /></ReaderRoute>}
         />
+        <Route
+          path="/kenlibs/read/:bookId"
+          element={<ReaderRoute><KenlibsReadPage /></ReaderRoute>}
+        />
 
           {/* admin-only route (creator surface — see KENLIBS-ARCHITECTURE.md) */}
           <Route path="/dashboard" element={<AdminRoute><DashboardPage /></AdminRoute>} />
@@ -60,6 +66,7 @@ const App = () => {
           <Route path='/view-book/:bookId' element={<AdminRoute><ViewBookPage /></AdminRoute>} />
           <Route path='/admin/bundles' element={<AdminRoute><AdminBundlesPage /></AdminRoute>} />
           <Route path='/admin/purchases' element={<AdminRoute><AdminPurchasesPage /></AdminRoute>} />
+          <Route path='/admin/users' element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
       </Routes>
     </div>
   );
