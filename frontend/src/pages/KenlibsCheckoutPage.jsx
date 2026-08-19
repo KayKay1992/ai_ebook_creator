@@ -9,10 +9,12 @@ import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import CoverPreview from "../components/cards/CoverPreview";
 import Button from "../components/ui/Button";
 import { formatNaira, getBookBadge } from "../utils/kenlibsPricing";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 const VALID_TYPES = ["book", "bundle"];
 
 const KenlibsCheckoutPage = () => {
+  useDocumentTitle("Checkout — Kenlibs");
   const { itemType, id } = useParams();
   const navigate = useNavigate();
 

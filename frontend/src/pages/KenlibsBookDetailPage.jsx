@@ -8,6 +8,7 @@ import FlipCover from "../components/kenlibs/FlipCover";
 import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 const KenlibsBookDetailPage = () => {
   const { id } = useParams();
@@ -15,6 +16,8 @@ const KenlibsBookDetailPage = () => {
   const { isAuthenticated } = useAuth();
   const [book, setBook] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
 
   useEffect(() => {
     const fetchBook = async () => {

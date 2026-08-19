@@ -6,6 +6,7 @@ import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import KenlibsBookCard from "../components/kenlibs/KenlibsBookCard";
 import KenlibsBundleCard from "../components/kenlibs/KenlibsBundleCard";
 import KenlibsCardSkeleton from "../components/kenlibs/KenlibsCardSkeleton";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 // Horizontal-scrolling row, matching the Kotobee reference layout. Cards are
 // fixed-width flex children with scroll-snap so it also behaves reasonably
@@ -22,6 +23,7 @@ const KenlibsRow = ({ title, children }) => (
 );
 
 const KenlibsPage = () => {
+  useDocumentTitle("Kenlibs");
   const [books, setBooks] = useState([]);
   const [bundles, setBundles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

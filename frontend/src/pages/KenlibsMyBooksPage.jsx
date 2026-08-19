@@ -5,6 +5,7 @@ import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import { formatNaira } from "../utils/kenlibsPricing";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 const STATUS_META = {
   pending: { label: "Pending", icon: Clock, className: "bg-amber-50 text-amber-700" },
@@ -13,6 +14,7 @@ const STATUS_META = {
 };
 
 const KenlibsMyBooksPage = () => {
+  useDocumentTitle("My Books — Kenlibs");
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 

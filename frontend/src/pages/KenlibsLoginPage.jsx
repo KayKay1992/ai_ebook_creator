@@ -10,6 +10,7 @@ import { useAuth } from "../context/AuthContext";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 // Deliberately separate from the admin LoginPage — same underlying
 // register/login endpoints and AuthContext, but shopper-facing copy, a
@@ -17,6 +18,7 @@ import getErrorMessage from "../utils/getErrorMessage";
 // redirecting back to wherever the reader came from — e.g. Request to Buy
 // on a book sends them here, then back to checkout after they sign in.
 const KenlibsLoginPage = () => {
+  useDocumentTitle("Log In — Kenlibs");
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
 

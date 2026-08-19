@@ -10,11 +10,13 @@ import { useAuth } from "../context/AuthContext";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 // New accounts created here default to role: 'reader' server-side
 // (registerUser never reads a role from the request body — see
 // authController.js) — there is no way for this form to create an admin.
 const KenlibsSignupPage = () => {
+  useDocumentTitle("Sign Up — Kenlibs");
   const [formData, setFormData] = useState({
     name: "",
     email: "",

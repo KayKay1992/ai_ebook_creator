@@ -1,8 +1,7 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import AdminRoute from "./components/auth/AdminRoute";
 import ReaderRoute from "./components/auth/ReaderRoute";
-import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -29,8 +28,11 @@ const App = () => {
     <div>
       <OfflineBanner />
       <Routes>
-        {/* public route */}
-        <Route path="/" element={<LandingPage />} />
+        {/* "/" is the app's entry point for a logged-out visitor — redirects
+            straight to the Kenlibs storefront so no one lands on AI-creator
+            marketing copy. Admin sign-in stays reachable directly at /login,
+            unchanged. */}
+        <Route path="/" element={<Navigate to="/kenlibs" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/read/:shareId" element={<ReadBookPage />} />

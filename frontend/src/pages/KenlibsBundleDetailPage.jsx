@@ -8,6 +8,7 @@ import CoverPreview from "../components/cards/CoverPreview";
 import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { formatNaira } from "../utils/kenlibsPricing";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 const KenlibsBundleDetailPage = () => {
   const { id } = useParams();
@@ -15,6 +16,8 @@ const KenlibsBundleDetailPage = () => {
   const { isAuthenticated } = useAuth();
   const [bundle, setBundle] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useDocumentTitle(bundle ? `${bundle.title} — Kenlibs` : "Kenlibs");
 
   useEffect(() => {
     const fetchBundle = async () => {

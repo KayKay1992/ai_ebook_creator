@@ -6,6 +6,7 @@ import { API_PATHS } from "../utils/apiPaths";
 import ViewBook from "../components/view/ViewBook";
 import Button from "../components/ui/Button";
 import ViewBookSkeleton from "../components/skeletons/ViewBookSkeleton";
+import useDocumentTitle from "../hooks/useDocumentTitle";
 
 // The gated reader — same ViewBook rendering as the creator's own preview
 // (/view-book/:bookId) and the public share link (/read/:shareId), but
@@ -17,6 +18,8 @@ const KenlibsReadPage = () => {
   const navigate = useNavigate();
   const [book, setBook] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ok | forbidden | not-found
+
+  useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
 
   useEffect(() => {
     const fetchBook = async () => {

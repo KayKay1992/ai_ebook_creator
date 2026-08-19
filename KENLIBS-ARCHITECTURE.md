@@ -227,6 +227,67 @@ checkout page with evidence upload, `/kenlibs/my-books`.
 
 ---
 
+## 9a. Phase 2 — Post-launch refinements (Steps 29-34)
+
+Once Steps 23-28 land (roles, pricing/bundles, storefront, purchase flow,
+approval dashboard, gated reading), the following extends the product based on
+direct feedback after seeing it running:
+
+**Step 29 — Kenlibs rebrand**
+Remove all "AI eBook Creator" / AI-generated framing from every reader-facing
+surface — site name, titles, meta tags, footer, storefront copy. Site becomes
+"Kenlibs" everywhere a reader can see it. Admin-side tooling (editor, "Generate
+with AI" buttons, etc.) keeps its real labels — this only applies to what a
+reader-facing visitor sees. Tradeoff worth remembering: not disclosing AI
+authorship raises the stakes on writing quality, since the whole point of this
+rebrand is presenting as a conventional curated bookstore.
+
+**Step 30 — Purchase lifecycle extensions**
+Extend PurchaseRequest:
+- status enum grows to include 'revoked' (approved -> revoked is a distinct,
+  trackable state, not reused from 'rejected')
+- Reader can resubmit new evidence on a rejected request, resetting it to
+  'pending' (keep the original adminNote as history rather than erasing it —
+  e.g. an array of review events, or at minimum don't overwrite silently)
+- Admin can approve directly from 'rejected' (relax Step 27's "must currently be
+  pending" guard to also allow rejected -> approved)
+- Admin can revoke a previously 'approved' request -> 'revoked'
+- CRITICAL: Step 28's access check must treat 'revoked' as no-access, same as
+  'pending'/'rejected'/never-requested. Revoking must immediately cut off
+  reading access, same guarantee as unpublish did for share links in Step 16.
+
+**Step 31 — Premium animated design pass**
+All reader-facing pages (storefront, detail pages, checkout, my-books, the
+reader itself) get a real motion/interaction design pass — likely adding Framer
+Motion as a new dependency. Page-load reveals, smooth cross-page transitions,
+richer hover/interaction states beyond what Steps 25-28 shipped functionally.
+Should not touch admin-side pages (dashboard, editor, etc.) — those stay as they
+are, this is reader-experience-only.
+
+**Step 32 — Reading notepad + resume position**
+New ReaderProgress model (or similar): reader, book, lastChapterIndex,
+lastScrollPosition (optional), notes (free-form text, one note doc per
+reader+book, autosaved same debounce pattern as Step 2). Slide-out notepad panel
+in the reader. Opening /kenlibs/read/:bookId resumes at the last-read chapter
+rather than always starting at chapter 1.
+
+**Step 33 — Audio reader (listen mode)**
+Reader can listen to a book instead of / while reading, using the browser's
+built-in Web Speech API (SpeechSynthesis) — no new backend infrastructure, no
+API keys, works offline once loaded (pairs with the existing PWA support from
+Step 13). Play/pause/speed controls, highlight the currently-spoken
+sentence/paragraph as it's read (via SpeechSynthesisUtterance boundary events),
+auto-advance to the next chapter when one finishes. Scope to the gated reader
+(/kenlibs/read/:bookId) only — an admin's own preview view doesn't need this.
+
+**Step 34 — Storefront search + Open Graph tags**
+Search bar + basic genre/category filtering on /kenlibs once the catalog is
+large enough to need it. Open Graph meta tags on book/bundle detail pages so
+shared links (WhatsApp, Twitter, etc.) render a proper preview card (cover,
+title, blurb) instead of a bare link.
+
+---
+
 ## 9. Open decisions worth confirming before Step 23
 
 - Should a **rejected** request let the reader resubmit (new evidence) without
