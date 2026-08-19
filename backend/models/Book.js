@@ -63,6 +63,18 @@ const bookSchema = new mongoose.Schema({
         enum: ['classic', 'modern', 'manuscript'],
         default: 'classic',
     },
+    // Kenlibs storefront pricing (see KENLIBS-ARCHITECTURE.md). `price` and
+    // `isForSale` are deliberately independent — an admin can price a book
+    // ahead of time without listing it yet, and unlisting it (isForSale:
+    // false) doesn't need to also clear the price.
+    price: {
+        type: Number,
+        default: null,
+    },
+    isForSale: {
+        type: Boolean,
+        default: false,
+    },
     // Persistent multi-tone voice profile, applied consistently to every
     // AI-generated chapter (see backend/utils/voiceProfile.js). `instruction`
     // is always derived server-side from `tones` — never trust a

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Package } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import ProfileDropdown from "./ProfileDropdown";
@@ -45,6 +45,19 @@ const DashboardLayout = ({ children }) => {
                 AI Book Creator
               </span>
             </Link>
+
+            {/* Admin nav */}
+            <div className="flex items-center gap-1">
+              {user?.role === "admin" && (
+                <Link
+                  to="/admin/bundles"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <Package className="w-4 h-4" />
+                  Bundles
+                </Link>
+              )}
+            </div>
 
             {/* Profile Dropdown */}
             <div ref={dropdownRef}>

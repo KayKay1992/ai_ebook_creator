@@ -29,4 +29,15 @@ const protect = async (req, res, next) => {
     }
 };
 
-module.exports = { protect };
+// Backend equivalent of the frontend's AdminRoute — must run after
+// `protect` (relies on req.user being set). Returns 403 for any
+// authenticated user whose role isn't 'admin', including a reader with an
+// otherwise perfectly valid token. See KENLIBS-ARCHITECTURE.md section 4.
+const adminOnly = (req, res, next) => {
+    if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+};
+
+module.exports = { protect, adminOnly };

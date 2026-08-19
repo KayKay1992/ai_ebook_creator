@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto } = require('../controller/bookController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, adminOnly } = require('../middleware/authMiddleware');
 const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware, uploadCoverDesignImage } = require('../middleware/uploadMiddleware');
 
-// Apply the protect middleware to all routes in this router
-router.use(protect);
+// Every book route is admin-only per KENLIBS-ARCHITECTURE.md's route map
+// ("Existing (admin-only from now on)"). This also closes a real gap: a
+// reader with a valid token could otherwise still call these directly
+// (e.g. POST / to create a book they'd own, then PUT /:id to set its
+// price) even though the frontend never lets them navigate here — the
+// ownership check alone doesn't stop someone from creating their own
+// resource to own.
+router.use(protect, adminOnly);
 
 router.route('/')
     .get(getBooks)

@@ -10,6 +10,7 @@ import EditorPage from "./pages/EditorPage";
 import CoverDesignerPage from "./pages/CoverDesignerPage";
 import ViewBookPage from "./pages/ViewBookPage";
 import ReadBookPage from "./pages/ReadBookPage";
+import AdminBundlesPage from "./pages/AdminBundlesPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 
 const App = () => {
@@ -29,6 +30,7 @@ const App = () => {
           <Route path='/editor/:bookId' element={<AdminRoute><EditorPage /></AdminRoute>} />
           <Route path='/editor/:bookId/cover' element={<AdminRoute><CoverDesignerPage /></AdminRoute>} />
           <Route path='/view-book/:bookId' element={<AdminRoute><ViewBookPage /></AdminRoute>} />
+          <Route path='/admin/bundles' element={<AdminRoute><AdminBundlesPage /></AdminRoute>} />
       </Routes>
     </div>
   );

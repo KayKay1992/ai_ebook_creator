@@ -33,4 +33,7 @@ export const API_PATHS = {
     DOC: "/api/export",
     EPUB: "/api/export",
   },
+  BUNDLES: {
+    BASE: "/api/bundles",
+  },
 };

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import InputField from "../ui/inputField";
 import Button from "../ui/Button";
-import { UploadCloud, Globe, Lock, Copy, Check, Mic, Palette } from "lucide-react";
+import { UploadCloud, Globe, Lock, Copy, Check, Mic, Palette, Tag } from "lucide-react";
 import toast from "react-hot-toast";
 import ExportTemplatePicker from "./ExportTemplatePicker";
 import CoverPreview from "../cards/CoverPreview";
@@ -144,6 +144,88 @@ const BookDetailsTab = ({
             </Button>
           </div>
         )}
+      </div>
+
+      {/* ===== Kenlibs Listing ===== */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+        <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+          <Tag className="w-5 h-5 text-gray-400" />
+          Kenlibs Pricing
+        </h3>
+        <p className="text-gray-600 mb-4 leading-relaxed">
+          Sets whether a <span className="font-medium">Buy</span> button appears
+          on Kenlibs and what it costs. This does{" "}
+          <span className="font-medium">not</span> control whether the book
+          shows up on the storefront at all — that's decided entirely by the{" "}
+          <span className="font-medium">Publish</span> status above. A published
+          book with no price set is still visible, just shown as
+          "coming soon" instead of purchasable.
+        </p>
+
+        {!isPublished && (
+          <div className="mb-6 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <Lock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800 leading-relaxed">
+              This book is still a draft. Pricing it now won't make it appear
+              on Kenlibs — publish it above first.
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <div className="max-w-xs">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Price (NGN)
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                ₦
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={book.price ?? ""}
+                onChange={(e) =>
+                  onBookChange({
+                    target: {
+                      name: "price",
+                      value: e.target.value === "" ? null : Number(e.target.value),
+                    },
+                  })
+                }
+                placeholder="Not priced yet"
+                className="w-full bg-gray-50 border border-gray-200 rounded-2xl pl-8 pr-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Purchasable</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {book.isForSale
+                  ? "Shows a Buy button on Kenlibs, once published."
+                  : "No Buy button — readers can browse it but not purchase it."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                onBookChange({ target: { name: "isForSale", value: !book.isForSale } })
+              }
+              className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
+                book.isForSale ? "bg-accent" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                  book.isForSale ? "translate-x-5" : ""
+                }`}
+              />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ===== Cover Image ===== */}
