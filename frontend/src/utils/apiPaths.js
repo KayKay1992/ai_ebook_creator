@@ -21,6 +21,9 @@ export const API_PATHS = {
   },
   PUBLIC: {
     GET_BOOK_BY_SHARE_ID: "/api/public/books",
+    KENLIBS_STOREFRONT: "/api/public/kenlibs",
+    KENLIBS_BOOK: "/api/public/kenlibs/books",
+    KENLIBS_BUNDLE: "/api/public/kenlibs/bundles",
   },
   AI: {
     GENERATE_OUTLINE: "/api/ai/generate-outline",
