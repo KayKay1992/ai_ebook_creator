@@ -1,10 +1,18 @@
+import { motion } from "framer-motion";
 import CoverPreview from "../cards/CoverPreview";
 
-// CSS-only front/back flip, same transform technique as BookCard's 3D tilt
-// (Step 15): a perspective wrapper around a preserve-3d layer that rotates
-// on hover, with each face hidden when it's turned away. No React state and
-// nothing re-renders on hover, so this stays cheap across a full grid.
-// Requires a `group` class on an ancestor to trigger group-hover.
+// Front/back flip on hover — same perspective + preserve-3d technique as
+// before (Step 25), but the rotation itself is now a Framer Motion spring
+// instead of a linear CSS transition, so it settles with a touch of real
+// physics rather than a mechanical ease-out. Self-contained: the hover
+// trigger lives on this component's own root, so callers don't need any
+// `group`/`group-hover` wiring — matches the storefront's own "hover a
+// cover" copy (the cover itself is the trigger zone, not the whole card).
+const flipVariants = {
+  rest: { rotateY: 0 },
+  hover: { rotateY: 180 },
+};
+
 const FlipCover = ({
   title,
   subtitle,
@@ -15,8 +23,16 @@ const FlipCover = ({
   rounded = "rounded-2xl",
   className = "",
 }) => (
-  <div className={`relative [perspective:1500px] ${className}`}>
-    <div className="relative w-full transition-transform duration-500 ease-out [transform-style:preserve-3d] group-hover:[transform:rotateY(180deg)]">
+  <motion.div
+    className={`relative [perspective:1500px] ${className}`}
+    initial="rest"
+    whileHover="hover"
+  >
+    <motion.div
+      className="relative w-full [transform-style:preserve-3d]"
+      variants={flipVariants}
+      transition={{ type: "spring", stiffness: 280, damping: 28 }}
+    >
       <div className="[backface-visibility:hidden]">
         <CoverPreview
           side="front"
@@ -41,8 +57,8 @@ const FlipCover = ({
           rounded={rounded}
         />
       </div>
-    </div>
-  </div>
+    </motion.div>
+  </motion.div>
 );
 
 export default FlipCover;

@@ -44,7 +44,7 @@ const ReadBookPage = () => {
   }
 
   if (book) {
-    return <ViewBook book={book} backTo="/" backLabel="Home" />;
+    return <ViewBook book={book} backTo="/" backLabel="Home" animated />;
   }
 
   return (

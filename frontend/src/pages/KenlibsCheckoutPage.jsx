@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, UploadCloud, ShieldAlert } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, UploadCloud, ShieldAlert, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -12,6 +13,16 @@ import { formatNaira, getBookBadge } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
 const VALID_TYPES = ["book", "bundle"];
+
+// How long the success checkmark stays on screen before handing off to
+// /kenlibs/my-books — long enough to register as confirmation, short
+// enough not to feel like a delay.
+const SUCCESS_DISPLAY_MS = 900;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+};
 
 const KenlibsCheckoutPage = () => {
   useDocumentTitle("Checkout — Kenlibs");
@@ -27,6 +38,7 @@ const KenlibsCheckoutPage = () => {
   const [isLoading, setIsLoading] = useState(isValidType);
   const [evidenceFile, setEvidenceFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   useEffect(() => {
     if (!isValidType) return;
@@ -72,10 +84,10 @@ const KenlibsCheckoutPage = () => {
       });
 
       toast.success("Request submitted! We'll review it shortly.");
-      navigate("/kenlibs/my-books");
+      setIsSubmitted(true);
+      setTimeout(() => navigate("/kenlibs/my-books"), SUCCESS_DISPLAY_MS);
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to submit your request"));
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -132,68 +144,116 @@ const KenlibsCheckoutPage = () => {
 
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Checkout</h1>
 
-        {/* Item summary */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex items-center gap-4 mb-6">
-          <div className="w-16 flex-shrink-0">
-            <CoverPreview
-              title={item.title}
-              author={item.author}
-              coverImage={item.coverImage}
-              coverDesign={item.coverDesign}
-              size="sm"
-              rounded="rounded-lg"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="font-serif font-semibold text-gray-900 truncate">{item.title}</h2>
-            {itemType === "book" && item.author && (
-              <p className="text-sm text-gray-500">{item.author}</p>
-            )}
-          </div>
-          <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-accent text-white flex-shrink-0">
-            {formatNaira(price)}
-          </span>
-        </div>
-
-        {/* Payment instructions — placeholder static content; the admin
-            fills in real bank details later. */}
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6">
-          <h3 className="font-semibold text-gray-900 mb-3">Payment Instructions</h3>
-          <div className="text-sm text-gray-600 leading-relaxed space-y-1 bg-gray-50 border border-gray-100 rounded-2xl p-4">
-            <p>Bank Name: <span className="font-medium text-gray-800">[Your Bank Name]</span></p>
-            <p>Account Name: <span className="font-medium text-gray-800">[Your Account Name]</span></p>
-            <p>Account Number: <span className="font-medium text-gray-800">[Your Account Number]</span></p>
-          </div>
-          <p className="text-sm text-gray-500 mt-3">
-            Transfer <span className="font-semibold text-gray-700">{formatNaira(price)}</span> to
-            the account above, then upload your proof of payment below.
-          </p>
-        </div>
-
-        {/* Evidence upload + submit */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6"
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.1 } } }}
         >
-          <h3 className="font-semibold text-gray-900 mb-3">Proof of Payment</h3>
-
-          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-10 cursor-pointer hover:border-accent-300 hover:bg-accent-50/30 transition-colors">
-            <UploadCloud className="w-8 h-8 text-gray-400" />
-            <span className="text-sm text-gray-600">
-              {evidenceFile ? evidenceFile.name : "Click to upload a screenshot or photo"}
+          {/* Item summary */}
+          <motion.div
+            variants={fadeUp}
+            className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex items-center gap-4 mb-6"
+          >
+            <div className="w-16 flex-shrink-0">
+              <CoverPreview
+                title={item.title}
+                author={item.author}
+                coverImage={item.coverImage}
+                coverDesign={item.coverDesign}
+                size="sm"
+                rounded="rounded-lg"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-serif font-semibold text-gray-900 truncate">{item.title}</h2>
+              {itemType === "book" && item.author && (
+                <p className="text-sm text-gray-500">{item.author}</p>
+              )}
+            </div>
+            <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-accent text-white flex-shrink-0">
+              {formatNaira(price)}
             </span>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
-            />
-          </label>
+          </motion.div>
 
-          <Button type="submit" loading={isSubmitting} className="w-full mt-6 py-3.5 text-base">
-            Submit Request
-          </Button>
-        </form>
+          {/* Payment instructions — placeholder static content; the admin
+              fills in real bank details later. */}
+          <motion.div
+            variants={fadeUp}
+            className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6"
+          >
+            <h3 className="font-semibold text-gray-900 mb-3">Payment Instructions</h3>
+            <div className="text-sm text-gray-600 leading-relaxed space-y-1 bg-gray-50 border border-gray-100 rounded-2xl p-4">
+              <p>Bank Name: <span className="font-medium text-gray-800">[Your Bank Name]</span></p>
+              <p>Account Name: <span className="font-medium text-gray-800">[Your Account Name]</span></p>
+              <p>Account Number: <span className="font-medium text-gray-800">[Your Account Number]</span></p>
+            </div>
+            <p className="text-sm text-gray-500 mt-3">
+              Transfer <span className="font-semibold text-gray-700">{formatNaira(price)}</span> to
+              the account above, then upload your proof of payment below.
+            </p>
+          </motion.div>
+
+          {/* Evidence upload + submit — swaps for a success checkmark once
+              the request lands, instead of jumping straight to /my-books. */}
+          <motion.div
+            variants={fadeUp}
+            className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 overflow-hidden"
+          >
+            <AnimatePresence mode="wait">
+              {isSubmitted ? (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center text-center py-6"
+                >
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mb-4"
+                  >
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                  </motion.div>
+                  <p className="font-semibold text-gray-900">Request submitted!</p>
+                  <p className="text-sm text-gray-500 mt-1">Taking you to My Books…</p>
+                </motion.div>
+              ) : (
+                <motion.form
+                  key="form"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  onSubmit={handleSubmit}
+                >
+                  <h3 className="font-semibold text-gray-900 mb-3">Proof of Payment</h3>
+
+                  <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-10 cursor-pointer hover:border-accent-300 hover:bg-accent-50/30 transition-colors">
+                    <UploadCloud className="w-8 h-8 text-gray-400" />
+                    <span className="text-sm text-gray-600">
+                      {evidenceFile ? evidenceFile.name : "Click to upload a screenshot or photo"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
+                    />
+                  </label>
+
+                  <motion.div whileTap={{ scale: 0.98 }}>
+                    <Button
+                      type="submit"
+                      loading={isSubmitting}
+                      className="w-full mt-6 py-3.5 text-base"
+                    >
+                      Submit Request
+                    </Button>
+                  </motion.div>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ArrowLeft, PackageX, ShoppingBag } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -10,12 +11,22 @@ import { useAuth } from "../context/AuthContext";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
+// Same brief pre-navigate pause as the book detail page — see that file's
+// comment on NAVIGATE_DELAY_MS.
+const NAVIGATE_DELAY_MS = 350;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
+};
+
 const KenlibsBundleDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [bundle, setBundle] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
 
   useDocumentTitle(bundle ? `${bundle.title} — Kenlibs` : "Kenlibs");
 
@@ -89,8 +100,13 @@ const KenlibsBundleDetailPage = () => {
           Back to Kenlibs
         </Link>
 
-        <div className="grid md:grid-cols-[280px_1fr] gap-12">
-          <div className="w-full max-w-[280px] mx-auto md:mx-0">
+        <motion.div
+          className="grid md:grid-cols-[280px_1fr] gap-12"
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.12 } } }}
+        >
+          <motion.div className="w-full max-w-[280px] mx-auto md:mx-0" variants={fadeUp}>
             {bundle.coverImage ? (
               <img
                 src={bundle.coverImage}
@@ -115,9 +131,9 @@ const KenlibsBundleDetailPage = () => {
                 })}
               </div>
             )}
-          </div>
+          </motion.div>
 
-          <div>
+          <motion.div variants={fadeUp}>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
               {bundle.title}
             </h1>
@@ -166,24 +182,26 @@ const KenlibsBundleDetailPage = () => {
               </div>
             )}
 
-            <div className="mt-10">
+            <motion.div className="mt-10" whileTap={{ scale: 0.97 }}>
               <Button
+                loading={isNavigatingToCheckout}
                 onClick={() => {
                   const checkoutPath = `/kenlibs/checkout/bundle/${id}`;
                   if (!isAuthenticated) {
                     navigate("/kenlibs/login", { state: { from: checkoutPath } });
-                  } else {
-                    navigate(checkoutPath);
+                    return;
                   }
+                  setIsNavigatingToCheckout(true);
+                  setTimeout(() => navigate(checkoutPath), NAVIGATE_DELAY_MS);
                 }}
                 className="flex items-center gap-2"
               >
                 <ShoppingBag className="w-4 h-4" />
                 Request to Buy
               </Button>
-            </div>
-          </div>
-        </div>
+            </motion.div>
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   );

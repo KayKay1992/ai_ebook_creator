@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { motion, useInView } from "framer-motion";
 import { BookOpen } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -8,19 +9,45 @@ import KenlibsBundleCard from "../components/kenlibs/KenlibsBundleCard";
 import KenlibsCardSkeleton from "../components/kenlibs/KenlibsCardSkeleton";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
+// Plays once per row as it scrolls into view (not on mount) — staggers the
+// "show" state down to each card via variant propagation, so cards further
+// down the page reveal progressively as you scroll rather than all firing
+// together on load. `once: true` stops Framer from re-observing after the
+// first reveal, which keeps this cheap even with a full catalog of cards.
+const rowRevealVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } },
+};
+
 // Horizontal-scrolling row, matching the Kotobee reference layout. Cards are
 // fixed-width flex children with scroll-snap so it also behaves reasonably
 // on touch devices, not just wheel/trackpad scroll.
-const KenlibsRow = ({ title, children }) => (
-  <section className="mb-14">
-    <h2 className="text-xl font-bold text-gray-900 mb-5 tracking-tight">
-      {title}
-    </h2>
-    <div className="flex gap-5 overflow-x-auto pb-3 -mx-6 px-6 lg:-mx-8 lg:px-8 snap-x snap-mandatory [scrollbar-width:thin]">
-      {children}
-    </div>
-  </section>
-);
+const KenlibsRow = ({ title, children }) => {
+  const ref = useRef(null);
+  // useInView (a hook, not the whileInView prop) so an element that's
+  // already on screen the moment it mounts — e.g. the first "Featured" row,
+  // which never has to scroll into view — still reliably reports true on
+  // its first check, instead of only reacting to a later scroll-driven
+  // boundary crossing.
+  const isInView = useInView(ref, { once: true, amount: 0.15 });
+
+  return (
+    <section className="mb-14">
+      <h2 className="text-xl font-bold text-gray-900 mb-5 tracking-tight">
+        {title}
+      </h2>
+      <motion.div
+        ref={ref}
+        className="flex gap-5 overflow-x-auto pb-3 -mx-6 px-6 lg:-mx-8 lg:px-8 snap-x snap-mandatory [scrollbar-width:thin]"
+        initial="hidden"
+        animate={isInView ? "show" : "hidden"}
+        variants={rowRevealVariants}
+      >
+        {children}
+      </motion.div>
+    </section>
+  );
+};
 
 const KenlibsPage = () => {
   useDocumentTitle("Kenlibs");
@@ -59,14 +86,19 @@ const KenlibsPage = () => {
       <KenlibsNav />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
-        <div className="mb-12">
+        <motion.div
+          className="mb-12"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        >
           <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight">
             Kenlibs
           </h1>
           <p className="text-gray-500 mt-2">
             Browse books and bundles — hover a cover for a quick preview.
           </p>
-        </div>
+        </motion.div>
 
         {isLoading ? (
           <>

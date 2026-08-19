@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ArrowLeft, BookX, ShoppingBag } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -10,12 +11,24 @@ import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
+// A brief, purely cosmetic pause before navigating to checkout — turns an
+// instant jump into a deliberate press-and-go, via the Button's own
+// `loading` spinner state. Doesn't delay or alter the actual auth/redirect
+// logic, just when it fires.
+const NAVIGATE_DELAY_MS = 350;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
+};
+
 const KenlibsBookDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [book, setBook] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
 
   useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
 
@@ -94,8 +107,16 @@ const KenlibsBookDetailPage = () => {
           Back to Kenlibs
         </Link>
 
-        <div className="grid md:grid-cols-[280px_1fr] gap-12">
-          <div className="group w-full max-w-[280px] mx-auto md:mx-0">
+        <motion.div
+          className="grid md:grid-cols-[280px_1fr] gap-12"
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.12 } } }}
+        >
+          <motion.div
+            className="w-full max-w-[280px] mx-auto md:mx-0"
+            variants={fadeUp}
+          >
             <FlipCover
               title={book.title}
               subtitle={book.subtitle}
@@ -106,9 +127,9 @@ const KenlibsBookDetailPage = () => {
               rounded="rounded-2xl"
               className="shadow-xl"
             />
-          </div>
+          </motion.div>
 
-          <div>
+          <motion.div variants={fadeUp}>
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
               {book.title || "Untitled Book"}
             </h1>
@@ -159,26 +180,28 @@ const KenlibsBookDetailPage = () => {
               </div>
             )}
 
-            <div className="mt-10">
+            <motion.div className="mt-10" whileTap={canBuy ? { scale: 0.97 } : undefined}>
               <Button
                 disabled={!canBuy}
+                loading={isNavigatingToCheckout}
                 title={canBuy ? undefined : "This book isn't purchasable yet."}
                 onClick={() => {
                   const checkoutPath = `/kenlibs/checkout/book/${id}`;
                   if (!isAuthenticated) {
                     navigate("/kenlibs/login", { state: { from: checkoutPath } });
-                  } else {
-                    navigate(checkoutPath);
+                    return;
                   }
+                  setIsNavigatingToCheckout(true);
+                  setTimeout(() => navigate(checkoutPath), NAVIGATE_DELAY_MS);
                 }}
                 className="flex items-center gap-2"
               >
                 <ShoppingBag className="w-4 h-4" />
                 {canBuy ? "Request to Buy" : "Coming Soon"}
               </Button>
-            </div>
-          </div>
-        </div>
+            </motion.div>
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   );

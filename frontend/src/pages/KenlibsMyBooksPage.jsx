@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import {
   Clock,
@@ -17,6 +18,15 @@ import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import Button from "../components/ui/Button";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+
+const rowEntranceVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07 } },
+};
+const rowFadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
+};
 
 const STATUS_META = {
   pending: { label: "Pending", icon: Clock, className: "bg-amber-50 text-amber-700" },
@@ -106,7 +116,12 @@ const KenlibsMyBooksPage = () => {
             </Link>
           </div>
         ) : (
-          <div className="space-y-3">
+          <motion.div
+            className="space-y-3"
+            initial="hidden"
+            animate="show"
+            variants={rowEntranceVariants}
+          >
             {requests.map((req) => {
               const meta = STATUS_META[req.status] || STATUS_META.pending;
               const StatusIcon = meta.icon;
@@ -115,8 +130,10 @@ const KenlibsMyBooksPage = () => {
               const isResubmitOpen = resubmittingId === req._id;
 
               return (
-                <div
+                <motion.div
                   key={req._id}
+                  layout
+                  variants={rowFadeUp}
                   className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"
                 >
                   <div className="flex items-center gap-4">
@@ -140,12 +157,21 @@ const KenlibsMyBooksPage = () => {
                       )}
                     </div>
 
-                    <span
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${meta.className}`}
-                    >
-                      <StatusIcon className="w-3.5 h-3.5" />
-                      {meta.label}
-                    </span>
+                    {/* Keyed by status so any change (most notably landing
+                        on "approved") pops in fresh rather than silently
+                        swapping label/color in place. */}
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.span
+                        key={req.status}
+                        initial={{ scale: 0.6, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${meta.className}`}
+                      >
+                        <StatusIcon className="w-3.5 h-3.5" />
+                        {meta.label}
+                      </motion.span>
+                    </AnimatePresence>
                   </div>
 
                   {/* A single-book purchase links straight to the reader; a
@@ -180,52 +206,76 @@ const KenlibsMyBooksPage = () => {
 
                   {/* Rejected requests can be resubmitted with new evidence
                       without starting a whole new request. */}
-                  {isRejected && !isResubmitOpen && (
-                    <button
-                      onClick={() => openResubmit(req._id)}
-                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary"
-                    >
-                      <UploadCloud className="w-4 h-4" />
-                      Resubmit Evidence
-                    </button>
-                  )}
-                  {isRejected && isResubmitOpen && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
-                      <label className="flex items-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-4 py-3 cursor-pointer hover:border-accent-300 hover:bg-accent-50/30 transition-colors">
-                        <UploadCloud className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                        <span className="text-sm text-gray-600 truncate">
-                          {resubmitFile ? resubmitFile.name : "Choose a new screenshot or photo"}
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => setResubmitFile(e.target.files?.[0] || null)}
-                        />
-                      </label>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          loading={isSubmittingResubmit}
-                          onClick={() => submitResubmit(req._id)}
-                          className="flex items-center gap-1.5"
+                  {isRejected && (
+                    <AnimatePresence mode="wait" initial={false}>
+                      {!isResubmitOpen ? (
+                        <motion.div
+                          key="trigger"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
                         >
-                          Submit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setResubmittingId(null)}
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => openResubmit(req._id)}
+                            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary"
+                          >
+                            <UploadCloud className="w-4 h-4" />
+                            Resubmit Evidence
+                          </motion.button>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="form"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                          className="overflow-hidden"
                         >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
+                          <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                            <label className="flex items-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-4 py-3 cursor-pointer hover:border-accent-300 hover:bg-accent-50/30 transition-colors">
+                              <UploadCloud className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                              <span className="text-sm text-gray-600 truncate">
+                                {resubmitFile ? resubmitFile.name : "Choose a new screenshot or photo"}
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => setResubmitFile(e.target.files?.[0] || null)}
+                              />
+                            </label>
+                            <div className="flex gap-2">
+                              <motion.div whileTap={{ scale: 0.97 }}>
+                                <Button
+                                  size="sm"
+                                  loading={isSubmittingResubmit}
+                                  onClick={() => submitResubmit(req._id)}
+                                  className="flex items-center gap-1.5"
+                                >
+                                  Submit
+                                </Button>
+                              </motion.div>
+                              <motion.div whileTap={{ scale: 0.97 }}>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => setResubmittingId(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </motion.div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   )}
-                </div>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

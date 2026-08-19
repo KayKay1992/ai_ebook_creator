@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Lock, BookX, ArrowLeft } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -39,13 +40,20 @@ const KenlibsReadPage = () => {
   }
 
   if (status === "ok") {
-    return <ViewBook book={book} backTo="/kenlibs/my-books" backLabel="My Books" />;
+    return (
+      <ViewBook book={book} backTo="/kenlibs/my-books" backLabel="My Books" animated />
+    );
   }
 
   const isForbidden = status === "forbidden";
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-32 text-center px-6">
+    <motion.div
+      className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-32 text-center px-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
       <div className="w-20 h-20 bg-accent-50 rounded-3xl flex items-center justify-center mb-6">
         {isForbidden ? (
           <Lock className="w-10 h-10 text-accent-500" />
@@ -68,7 +76,7 @@ const KenlibsReadPage = () => {
         <ArrowLeft className="w-4 h-4" />
         Back to My Books
       </Button>
-    </div>
+    </motion.div>
   );
 };
 
