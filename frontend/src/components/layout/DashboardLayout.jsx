@@ -1,13 +1,29 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, Package } from "lucide-react";
+import { BookOpen, Package, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import axiosInstance from "../../utils/axiosInstance";
+import { API_PATHS } from "../../utils/apiPaths";
 import ProfileDropdown from "./ProfileDropdown";
 
 const DashboardLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const dropdownRef = useRef(null);
+
+  // A single fetch on layout mount (not a polling loop) just to badge the
+  // nav link — cheap at this app's scale, and only fires for admins since
+  // DashboardLayout is only ever rendered inside AdminRoute.
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    axiosInstance
+      .get(API_PATHS.PURCHASES.ALL)
+      .then((res) => {
+        setPendingCount(res.data.filter((r) => r.status === "pending").length);
+      })
+      .catch(() => {});
+  }, [user?.role]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -55,6 +71,20 @@ const DashboardLayout = ({ children }) => {
                 >
                   <Package className="w-4 h-4" />
                   Bundles
+                </Link>
+              )}
+              {user?.role === "admin" && (
+                <Link
+                  to="/admin/purchases"
+                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Purchases
+                  {pendingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-semibold flex items-center justify-center">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               )}
             </div>

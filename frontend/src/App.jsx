@@ -12,6 +12,7 @@ import CoverDesignerPage from "./pages/CoverDesignerPage";
 import ViewBookPage from "./pages/ViewBookPage";
 import ReadBookPage from "./pages/ReadBookPage";
 import AdminBundlesPage from "./pages/AdminBundlesPage";
+import AdminPurchasesPage from "./pages/AdminPurchasesPage";
 import KenlibsPage from "./pages/KenlibsPage";
 import KenlibsBookDetailPage from "./pages/KenlibsBookDetailPage";
 import KenlibsBundleDetailPage from "./pages/KenlibsBundleDetailPage";
@@ -58,6 +59,7 @@ const App = () => {
           <Route path='/editor/:bookId/cover' element={<AdminRoute><CoverDesignerPage /></AdminRoute>} />
           <Route path='/view-book/:bookId' element={<AdminRoute><ViewBookPage /></AdminRoute>} />
           <Route path='/admin/bundles' element={<AdminRoute><AdminBundlesPage /></AdminRoute>} />
+          <Route path='/admin/purchases' element={<AdminRoute><AdminPurchasesPage /></AdminRoute>} />
       </Routes>
     </div>
   );

@@ -42,5 +42,8 @@ export const API_PATHS = {
   PURCHASES: {
     CREATE: "/api/purchases",
     MINE: "/api/purchases/mine",
+    ALL: "/api/purchases",
+    APPROVE: (id) => `/api/purchases/${id}/approve`,
+    REJECT: (id) => `/api/purchases/${id}/reject`,
   },
 };

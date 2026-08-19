@@ -28,6 +28,33 @@ const resolvePurchasableItem = async (itemType, itemId) => {
     return { error: 'Invalid item type' };
 };
 
+// `item` isn't a typed ref (it can point at either collection depending on
+// itemType), so it can't be `.populate()`d directly — batch-fetch each side
+// and attach just enough for the UI to show something recognizable instead
+// of a bare ObjectId. Shared by the reader's own list and the admin queue.
+const enrichWithItemDetails = async (requests) => {
+    const bookIds = requests.filter((r) => r.itemType === 'book').map((r) => r.item);
+    const bundleIds = requests.filter((r) => r.itemType === 'bundle').map((r) => r.item);
+
+    const [books, bundles] = await Promise.all([
+        Book.find({ _id: { $in: bookIds } }).select('title coverImage coverDesign'),
+        Bundle.find({ _id: { $in: bundleIds } }).select('title coverImage'),
+    ]);
+
+    const bookMap = new Map(books.map((b) => [b._id.toString(), b]));
+    const bundleMap = new Map(bundles.map((b) => [b._id.toString(), b]));
+
+    return requests.map((r) => {
+        const source =
+            r.itemType === 'book' ? bookMap.get(r.item.toString()) : bundleMap.get(r.item.toString());
+        return {
+            ...r,
+            itemTitle: source?.title || 'Item no longer available',
+            itemCoverImage: source?.coverDesign?.front?.backgroundImage || source?.coverImage || null,
+        };
+    });
+};
+
 //@desc    Submit a purchase request with payment evidence
 //@route   POST /api/purchases
 //@access  Private (any authenticated user)
@@ -80,38 +107,79 @@ const getMyPurchaseRequests = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // `item` isn't a typed ref (it can point at either collection
-        // depending on itemType), so it can't be `.populate()`d directly —
-        // batch-fetch each side and attach just enough for the UI to show
-        // something recognizable instead of a bare ObjectId.
-        const bookIds = requests.filter((r) => r.itemType === 'book').map((r) => r.item);
-        const bundleIds = requests.filter((r) => r.itemType === 'bundle').map((r) => r.item);
+        res.status(200).json(await enrichWithItemDetails(requests));
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
-        const [books, bundles] = await Promise.all([
-            Book.find({ _id: { $in: bookIds } }).select('title coverImage coverDesign'),
-            Bundle.find({ _id: { $in: bundleIds } }).select('title coverImage'),
-        ]);
+const STATUS_PRIORITY = { pending: 0, approved: 1, rejected: 2 };
 
-        const bookMap = new Map(books.map((b) => [b._id.toString(), b]));
-        const bundleMap = new Map(bundles.map((b) => [b._id.toString(), b]));
+//@desc    List every purchase request, for the admin approval queue
+//@route   GET /api/purchases
+//@access  Private/Admin
+const getAllPurchaseRequests = async (req, res) => {
+    try {
+        const requests = await PurchaseRequest.find({})
+            .sort({ createdAt: -1 })
+            .populate('reader', 'name email')
+            .lean();
 
-        const enriched = requests.map((r) => {
-            const source =
-                r.itemType === 'book' ? bookMap.get(r.item.toString()) : bundleMap.get(r.item.toString());
-            return {
-                ...r,
-                itemTitle: source?.title || 'Item no longer available',
-                itemCoverImage: source?.coverDesign?.front?.backgroundImage || source?.coverImage || null,
-            };
-        });
+        // Pending first, then most-recent-first within each status group.
+        // Array.prototype.sort is stable, so the createdAt: -1 ordering
+        // from the query is preserved within each group.
+        requests.sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]);
 
+        res.status(200).json(await enrichWithItemDetails(requests));
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// Shared by approve/reject — loads the request and rejects the review if
+// it's already been decided, so a request can't silently flip status twice
+// (e.g. two admins reviewing the same queue at once).
+const reviewPurchaseRequest = async (req, res, { status, adminNote }) => {
+    try {
+        const request = await PurchaseRequest.findById(req.params.id);
+        if (!request) {
+            return res.status(404).json({ message: 'Purchase request not found' });
+        }
+        if (request.status !== 'pending') {
+            return res
+                .status(400)
+                .json({ message: `This request has already been ${request.status}` });
+        }
+
+        request.status = status;
+        request.adminNote = adminNote || '';
+        request.reviewedAt = new Date();
+        request.reviewedBy = req.user._id;
+        await request.save();
+
+        const [enriched] = await enrichWithItemDetails([request.toObject()]);
         res.status(200).json(enriched);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
     }
 };
 
+//@desc    Approve a pending purchase request
+//@route   PUT /api/purchases/:id/approve
+//@access  Private/Admin
+const approvePurchaseRequest = (req, res) =>
+    reviewPurchaseRequest(req, res, { status: 'approved' });
+
+//@desc    Reject a pending purchase request, with an optional note
+//@route   PUT /api/purchases/:id/reject
+//@access  Private/Admin
+const rejectPurchaseRequest = (req, res) =>
+    reviewPurchaseRequest(req, res, { status: 'rejected', adminNote: req.body.adminNote });
+
 module.exports = {
     createPurchaseRequest,
     getMyPurchaseRequests,
+    getAllPurchaseRequests,
+    approvePurchaseRequest,
+    rejectPurchaseRequest,
 };
