@@ -1,8 +1,12 @@
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
 import ViewChapterSidebar from "./ViewChapterSidebar";
 import MarkdownContent from "../shared/MarkdownContent";
+
+// Duration of each half of the chapter crossfade (fade-out, then fade-in),
+// in ms — kept in sync with the CSS transition-duration class below.
+const CHAPTER_FADE_MS = 150;
 
 // `animated` defaults to false and is only ever passed `true` from the
 // reader-facing callers (KenlibsReadPage, ReadBookPage) — the admin's own
@@ -11,33 +15,71 @@ import MarkdownContent from "../shared/MarkdownContent";
 // true, chapter switches cross-fade instead of jumping, and the nav/font
 // controls get a touch of press feedback — kept deliberately understated so
 // it doesn't compete with someone actually reading.
+//
+// The crossfade itself is a plain CSS opacity transition driven by a
+// boolean + setTimeout, deliberately NOT Framer Motion's AnimatePresence,
+// whileInView, or useAnimation().start() — testing turned up all three
+// getting stuck mid-transition in this environment (a chapter change could
+// leave the page permanently blank), which is unacceptable for a page whose
+// whole job is showing the reader their content. Plain CSS has no
+// completion-promise/observer machinery to get stuck on.
+//
+// `initialChapterIndex`/`onChapterChange` are likewise opt-in (Step 32,
+// resume-where-you-left-off): only KenlibsReadPage passes them, to seed the
+// starting chapter from ReaderProgress and report changes back so they can
+// be persisted. Neither admin caller touches these, so their behavior is
+// unaffected.
 const ViewBook = ({
   book,
   backTo = "/dashboard",
   backLabel = "Back to Dashboard",
   animated = false,
+  initialChapterIndex = 0,
+  onChapterChange,
 }) => {
-  const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
+  const chapters = book?.chapters || [];
+  // Guards against a stored index that's no longer valid — e.g. the book
+  // was edited and now has fewer chapters than when progress was last
+  // saved — falling back to the start rather than rendering nothing.
+  const clampedInitialIndex =
+    Number.isInteger(initialChapterIndex) &&
+    initialChapterIndex >= 0 &&
+    initialChapterIndex < chapters.length
+      ? initialChapterIndex
+      : 0;
+
+  const [selectedChapterIndex, setSelectedChapterIndex] = useState(clampedInitialIndex);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [fontSize, setFontSize] = useState(18);
-  // AnimatePresence's mode="wait" plays the outgoing chapter's exit, then
-  // mounts the incoming one — but if a new chapter change arrives before
-  // that finishes, it can get stuck waiting on an exit that never resolves,
-  // leaving the page blank. Guarding chapter changes while a transition is
-  // in flight (only when animated) sidesteps that entirely, and also stops
-  // someone mashing Next from firing a confusing flurry of jumps.
-  const [isChapterTransitioning, setIsChapterTransitioning] = useState(false);
+  const [isChapterFading, setIsChapterFading] = useState(false);
+  // Plain ref guard so a rapid second click can't overlap the fade
+  // sequence's two setTimeouts and land the index change out of order.
+  const isTransitioningRef = useRef(false);
 
-  const chapters = book?.chapters || [];
   const selectedChapter = chapters[selectedChapterIndex];
 
   const changeChapter = (updater) => {
-    if (animated && isChapterTransitioning) return;
-    setSelectedChapterIndex(updater);
-    if (animated) {
-      setIsChapterTransitioning(true);
-      setTimeout(() => setIsChapterTransitioning(false), 450);
+    const next = typeof updater === "function" ? updater(selectedChapterIndex) : updater;
+    if (next === selectedChapterIndex) return;
+
+    if (!animated) {
+      onChapterChange?.(next);
+      setSelectedChapterIndex(next);
+      return;
     }
+
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    onChapterChange?.(next);
+
+    setIsChapterFading(true);
+    setTimeout(() => {
+      setSelectedChapterIndex(next);
+      setIsChapterFading(false);
+      setTimeout(() => {
+        isTransitioningRef.current = false;
+      }, CHAPTER_FADE_MS);
+    }, CHAPTER_FADE_MS);
   };
 
   if (!book) {
@@ -133,17 +175,13 @@ const ViewBook = ({
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-[70ch] mx-auto px-5 sm:px-8 py-12 sm:py-16">
             {animated ? (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={selectedChapterIndex}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                >
-                  {chapterContent}
-                </motion.div>
-              </AnimatePresence>
+              <div
+                className={`transition-opacity duration-150 ease-out ${
+                  isChapterFading ? "opacity-0" : "opacity-100"
+                }`}
+              >
+                {chapterContent}
+              </div>
             ) : (
               chapterContent
             )}

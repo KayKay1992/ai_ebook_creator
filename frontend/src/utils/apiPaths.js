@@ -50,6 +50,7 @@ export const API_PATHS = {
   },
   KENLIBS: {
     READ: (bookId) => `/api/kenlibs/read/${bookId}`,
+    PROGRESS: (bookId) => `/api/kenlibs/progress/${bookId}`,
   },
   ADMIN: {
     USERS: "/api/admin/users",
