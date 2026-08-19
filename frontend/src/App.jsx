@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import AdminRoute from "./components/auth/AdminRoute";
+import ReaderRoute from "./components/auth/ReaderRoute";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -14,6 +15,10 @@ import AdminBundlesPage from "./pages/AdminBundlesPage";
 import KenlibsPage from "./pages/KenlibsPage";
 import KenlibsBookDetailPage from "./pages/KenlibsBookDetailPage";
 import KenlibsBundleDetailPage from "./pages/KenlibsBundleDetailPage";
+import KenlibsLoginPage from "./pages/KenlibsLoginPage";
+import KenlibsSignupPage from "./pages/KenlibsSignupPage";
+import KenlibsCheckoutPage from "./pages/KenlibsCheckoutPage";
+import KenlibsMyBooksPage from "./pages/KenlibsMyBooksPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 
 const App = () => {
@@ -27,12 +32,24 @@ const App = () => {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/read/:shareId" element={<ReadBookPage />} />
 
-        {/* Kenlibs storefront — genuinely public, no route guard at all
-            (see KENLIBS-ARCHITECTURE.md's route map). Browse-only for now;
-            purchase flow lands in Step 26. */}
+        {/* Kenlibs storefront + auth — genuinely public, no route guard at
+            all (see KENLIBS-ARCHITECTURE.md's route map). */}
         <Route path="/kenlibs" element={<KenlibsPage />} />
         <Route path="/kenlibs/book/:id" element={<KenlibsBookDetailPage />} />
         <Route path="/kenlibs/bundle/:id" element={<KenlibsBundleDetailPage />} />
+        <Route path="/kenlibs/login" element={<KenlibsLoginPage />} />
+        <Route path="/kenlibs/signup" element={<KenlibsSignupPage />} />
+
+        {/* Reader-authenticated Kenlibs surfaces — any logged-in user
+            (reader or admin), guarded by ReaderRoute rather than AdminRoute. */}
+        <Route
+          path="/kenlibs/checkout/:itemType/:id"
+          element={<ReaderRoute><KenlibsCheckoutPage /></ReaderRoute>}
+        />
+        <Route
+          path="/kenlibs/my-books"
+          element={<ReaderRoute><KenlibsMyBooksPage /></ReaderRoute>}
+        />
 
           {/* admin-only route (creator surface — see KENLIBS-ARCHITECTURE.md) */}
           <Route path="/dashboard" element={<AdminRoute><DashboardPage /></AdminRoute>} />

@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, BookX, ShoppingBag } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import FlipCover from "../components/kenlibs/FlipCover";
 import Button from "../components/ui/Button";
+import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
 
 const KenlibsBookDetailPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [book, setBook] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -155,12 +158,16 @@ const KenlibsBookDetailPage = () => {
 
             <div className="mt-10">
               <Button
-                disabled
-                title={
-                  canBuy
-                    ? "Purchasing isn't open yet — check back soon."
-                    : "This book isn't purchasable yet."
-                }
+                disabled={!canBuy}
+                title={canBuy ? undefined : "This book isn't purchasable yet."}
+                onClick={() => {
+                  const checkoutPath = `/kenlibs/checkout/book/${id}`;
+                  if (!isAuthenticated) {
+                    navigate("/kenlibs/login", { state: { from: checkoutPath } });
+                  } else {
+                    navigate(checkoutPath);
+                  }
+                }}
                 className="flex items-center gap-2"
               >
                 <ShoppingBag className="w-4 h-4" />

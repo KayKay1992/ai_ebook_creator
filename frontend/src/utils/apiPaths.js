@@ -39,4 +39,8 @@ export const API_PATHS = {
   BUNDLES: {
     BASE: "/api/bundles",
   },
+  PURCHASES: {
+    CREATE: "/api/purchases",
+    MINE: "/api/purchases/mine",
+  },
 };

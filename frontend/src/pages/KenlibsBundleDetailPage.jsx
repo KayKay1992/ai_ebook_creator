@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, PackageX, ShoppingBag } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import CoverPreview from "../components/cards/CoverPreview";
 import Button from "../components/ui/Button";
+import { useAuth } from "../context/AuthContext";
 import { formatNaira } from "../utils/kenlibsPricing";
 
 const KenlibsBundleDetailPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [bundle, setBundle] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -162,8 +165,14 @@ const KenlibsBundleDetailPage = () => {
 
             <div className="mt-10">
               <Button
-                disabled
-                title="Purchasing isn't open yet — check back soon."
+                onClick={() => {
+                  const checkoutPath = `/kenlibs/checkout/bundle/${id}`;
+                  if (!isAuthenticated) {
+                    navigate("/kenlibs/login", { state: { from: checkoutPath } });
+                  } else {
+                    navigate(checkoutPath);
+                  }
+                }}
                 className="flex items-center gap-2"
               >
                 <ShoppingBag className="w-4 h-4" />

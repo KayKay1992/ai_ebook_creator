@@ -69,8 +69,19 @@ const uploadCoverDesignImage = multer({
     }
 }).single('image');
 
+// Payment evidence screenshot for a PurchaseRequest — same constraints as
+// the plain cover image upload.
+const uploadPurchaseEvidence = multer({
+    storage: memoryStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: function (req, file, cb) {
+        checkFileType(file, cb);
+    }
+}).single('evidenceImage');
+
 module.exports = {
     uploadCover: wrapUpload(uploadCoverImage, '5MB'),
     uploadChapterImage: wrapUpload(uploadChapterImage, '8MB'),
     uploadCoverDesignImage: wrapUpload(uploadCoverDesignImage, '5MB'),
+    uploadPurchaseEvidence: wrapUpload(uploadPurchaseEvidence, '5MB'),
 };

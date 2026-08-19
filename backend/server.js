@@ -8,6 +8,7 @@ const aiRoutes = require('./routes/aiRoute');
 const exportRoutes = require('./routes/exportRoute');
 const publicRoutes = require('./routes/publicRoute');
 const bundleRoutes = require('./routes/bundleRoute');
+const purchaseRoutes = require('./routes/purchaseRoute');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/bundles', bundleRoutes);
+app.use('/api/purchases', purchaseRoutes);
 
 //start server
 const PORT = process.env.PORT || 5000;
