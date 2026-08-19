@@ -11,7 +11,11 @@ const PurchaseRequest = require('../models/PurchaseRequest');
 // PurchaseRequest exists directly for this book, OR an approved
 // PurchaseRequest exists for a bundle whose `books` array includes this
 // book. This is the actual security boundary — checked fresh on every
-// request, never inferred from anything the client claims.
+// request, never inferred from anything the client claims. Both queries
+// below filter on the exact string 'approved' (an allow-list, not a
+// deny-list), so 'revoked' — along with 'pending'/'rejected'/never-
+// requested — never matches; a revoke takes effect on the very next read
+// request, with nothing to invalidate or expire (see Step 30).
 const readBook = async (req, res) => {
     try {
         const book = await Book.findById(req.params.bookId);

@@ -45,6 +45,8 @@ export const API_PATHS = {
     ALL: "/api/purchases",
     APPROVE: (id) => `/api/purchases/${id}/approve`,
     REJECT: (id) => `/api/purchases/${id}/reject`,
+    REVOKE: (id) => `/api/purchases/${id}/revoke`,
+    RESUBMIT: (id) => `/api/purchases/${id}/resubmit`,
   },
   KENLIBS: {
     READ: (bookId) => `/api/kenlibs/read/${bookId}`,

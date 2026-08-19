@@ -123,7 +123,7 @@ const getMyPurchaseRequests = async (req, res) => {
     }
 };
 
-const STATUS_PRIORITY = { pending: 0, approved: 1, rejected: 2 };
+const STATUS_PRIORITY = { pending: 0, approved: 1, rejected: 2, revoked: 3 };
 
 //@desc    List every purchase request, for the admin approval queue
 //@route   GET /api/purchases
@@ -133,6 +133,7 @@ const getAllPurchaseRequests = async (req, res) => {
         const requests = await PurchaseRequest.find({})
             .sort({ createdAt: -1 })
             .populate('reader', 'name email')
+            .populate('reviewHistory.reviewedBy', 'name')
             .lean();
 
         // Pending first, then most-recent-first within each status group.
@@ -146,26 +147,43 @@ const getAllPurchaseRequests = async (req, res) => {
     }
 };
 
-// Shared by approve/reject — loads the request and rejects the review if
-// it's already been decided, so a request can't silently flip status twice
-// (e.g. two admins reviewing the same queue at once).
-const reviewPurchaseRequest = async (req, res, { status, adminNote }) => {
+// Shared by approve/reject/revoke — loads the request, rejects the review if
+// it isn't currently in one of the states this transition is allowed from
+// (so a request can't silently flip status twice, e.g. two admins reviewing
+// the same queue at once, or revoking something never approved), then
+// updates both the top-level convenience fields AND appends a reviewHistory
+// entry — reviewHistory is additive, never a replacement.
+const reviewPurchaseRequest = async (req, res, { toStatus, note, allowedFrom, actionVerb }) => {
     try {
         const request = await PurchaseRequest.findById(req.params.id);
         if (!request) {
             return res.status(404).json({ message: 'Purchase request not found' });
         }
-        if (request.status !== 'pending') {
-            return res
-                .status(400)
-                .json({ message: `This request has already been ${request.status}` });
+        if (!allowedFrom.includes(request.status)) {
+            return res.status(400).json({
+                message: `Can't ${actionVerb} a request that's currently '${request.status}'.`,
+            });
         }
 
-        request.status = status;
-        request.adminNote = adminNote || '';
-        request.reviewedAt = new Date();
+        const reviewedAt = new Date();
+        request.status = toStatus;
+        request.adminNote = note || '';
+        request.reviewedAt = reviewedAt;
         request.reviewedBy = req.user._id;
+        request.reviewHistory.push({
+            status: toStatus,
+            note: note || '',
+            reviewedBy: req.user._id,
+            reviewedAt,
+        });
         await request.save();
+        // The admin queue's GET populates reader + reviewHistory.reviewedBy
+        // — do the same here so an in-place UI update after approve/reject/
+        // revoke doesn't drop the reader's name/email or reviewer names.
+        await request.populate([
+            { path: 'reader', select: 'name email' },
+            { path: 'reviewHistory.reviewedBy', select: 'name' },
+        ]);
 
         const [enriched] = await enrichWithItemDetails([request.toObject()]);
         res.status(200).json(enriched);
@@ -174,17 +192,88 @@ const reviewPurchaseRequest = async (req, res, { status, adminNote }) => {
     }
 };
 
-//@desc    Approve a pending purchase request
+//@desc    Approve a pending OR rejected purchase request
 //@route   PUT /api/purchases/:id/approve
 //@access  Private/Admin
 const approvePurchaseRequest = (req, res) =>
-    reviewPurchaseRequest(req, res, { status: 'approved' });
+    reviewPurchaseRequest(req, res, {
+        toStatus: 'approved',
+        allowedFrom: ['pending', 'rejected'],
+        actionVerb: 'approve',
+    });
 
 //@desc    Reject a pending purchase request, with an optional note
 //@route   PUT /api/purchases/:id/reject
 //@access  Private/Admin
 const rejectPurchaseRequest = (req, res) =>
-    reviewPurchaseRequest(req, res, { status: 'rejected', adminNote: req.body.adminNote });
+    reviewPurchaseRequest(req, res, {
+        toStatus: 'rejected',
+        note: req.body.adminNote,
+        allowedFrom: ['pending'],
+        actionVerb: 'reject',
+    });
+
+//@desc    Revoke a previously approved purchase request — immediately cuts
+//         off read access, same guarantee as unpublishing a share link.
+//@route   PUT /api/purchases/:id/revoke
+//@access  Private/Admin
+const revokePurchaseRequest = (req, res) =>
+    reviewPurchaseRequest(req, res, {
+        toStatus: 'revoked',
+        note: req.body.adminNote,
+        allowedFrom: ['approved'],
+        actionVerb: 'revoke',
+    });
+
+//@desc    Reader resubmits new evidence on their own rejected request,
+//         resetting it to 'pending' for another review pass.
+//@route   PUT /api/purchases/:id/resubmit
+//@access  Private (must be the request's own reader)
+const resubmitPurchaseRequest = async (req, res) => {
+    try {
+        const request = await PurchaseRequest.findById(req.params.id);
+        if (!request) {
+            return res.status(404).json({ message: 'Purchase request not found' });
+        }
+        if (request.reader.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: "You don't have access to this request" });
+        }
+        if (request.status !== 'rejected') {
+            return res.status(400).json({
+                message: `Can't resubmit a request that's currently '${request.status}'.`,
+            });
+        }
+        if (!req.file) {
+            return res.status(400).json({ message: 'A new evidence image is required' });
+        }
+
+        const uploadResult = await uploadBufferToCloudinary(
+            req.file.buffer,
+            'ebook-creator/purchase-evidence'
+        );
+
+        request.evidenceImage = uploadResult.secure_url;
+        request.status = 'pending';
+        request.reviewHistory.push({
+            status: 'pending',
+            note: 'Evidence resubmitted by reader.',
+            reviewedAt: new Date(),
+        });
+        // The old admin decision is preserved above in reviewHistory — the
+        // top-level fields now describe the fresh pending state, which has
+        // no active reviewer yet.
+        request.adminNote = '';
+        request.reviewedAt = undefined;
+        request.reviewedBy = undefined;
+        await request.save();
+
+        const [enriched] = await enrichWithItemDetails([request.toObject()]);
+        res.status(200).json(enriched);
+    } catch (error) {
+        console.error('Resubmit purchase request error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
 
 module.exports = {
     createPurchaseRequest,
@@ -192,4 +281,6 @@ module.exports = {
     getAllPurchaseRequests,
     approvePurchaseRequest,
     rejectPurchaseRequest,
+    revokePurchaseRequest,
+    resubmitPurchaseRequest,
 };

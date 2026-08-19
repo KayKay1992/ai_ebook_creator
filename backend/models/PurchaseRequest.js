@@ -1,5 +1,35 @@
 const mongoose = require('mongoose');
 
+// One entry per status-changing review event (reject, approve, revoke, or a
+// reader's resubmit). Additive, never rewritten — the top-level
+// status/adminNote/reviewedAt/reviewedBy fields still reflect the *current*
+// state for convenience, but reviewHistory is the full back-and-forth, e.g.
+// a request that was rejected, resubmitted, then approved.
+const reviewHistoryEntrySchema = new mongoose.Schema(
+    {
+        status: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected', 'revoked'],
+            required: true,
+        },
+        note: {
+            type: String,
+            default: '',
+        },
+        // Unset for a reader's own resubmit entry — that's not an admin
+        // review, just the reader resetting the request back to pending.
+        reviewedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        reviewedAt: {
+            type: Date,
+            default: Date.now,
+        },
+    },
+    { _id: false }
+);
+
 // A reader's request to buy a Book or Bundle — reviewed manually by an admin
 // via evidence of an off-platform payment (see KENLIBS-ARCHITECTURE.md
 // section 3's access-resolution rule: an approved request here is what
@@ -35,9 +65,13 @@ const purchaseRequestSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        // 'revoked' is deliberately distinct from 'rejected' — a revoked
+        // request was once genuinely approved and later pulled, which
+        // matters for records even though the access effect (no access) is
+        // identical to rejected/pending.
         status: {
             type: String,
-            enum: ['pending', 'approved', 'rejected'],
+            enum: ['pending', 'approved', 'rejected', 'revoked'],
             default: 'pending',
         },
         adminNote: {
@@ -50,6 +84,10 @@ const purchaseRequestSchema = new mongoose.Schema(
         reviewedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
+        },
+        reviewHistory: {
+            type: [reviewHistoryEntrySchema],
+            default: [],
         },
     },
     {

@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Clock, CheckCircle2, XCircle, BookOpen, BookOpenCheck } from "lucide-react";
+import toast from "react-hot-toast";
+import {
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Ban,
+  BookOpen,
+  BookOpenCheck,
+  UploadCloud,
+} from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
+import getErrorMessage from "../utils/getErrorMessage";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
+import Button from "../components/ui/Button";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
@@ -11,12 +22,16 @@ const STATUS_META = {
   pending: { label: "Pending", icon: Clock, className: "bg-amber-50 text-amber-700" },
   approved: { label: "Approved", icon: CheckCircle2, className: "bg-emerald-50 text-emerald-700" },
   rejected: { label: "Rejected", icon: XCircle, className: "bg-red-50 text-red-600" },
+  revoked: { label: "Revoked", icon: Ban, className: "bg-slate-100 text-slate-600" },
 };
 
 const KenlibsMyBooksPage = () => {
   useDocumentTitle("My Books — Kenlibs");
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [resubmittingId, setResubmittingId] = useState(null); // row with the upload form open
+  const [resubmitFile, setResubmitFile] = useState(null);
+  const [isSubmittingResubmit, setIsSubmittingResubmit] = useState(false);
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -31,6 +46,34 @@ const KenlibsMyBooksPage = () => {
     };
     fetchRequests();
   }, []);
+
+  const openResubmit = (id) => {
+    setResubmittingId(id);
+    setResubmitFile(null);
+  };
+
+  const submitResubmit = async (id) => {
+    if (!resubmitFile) {
+      toast.error("Please choose a new evidence image first.");
+      return;
+    }
+    setIsSubmittingResubmit(true);
+    try {
+      const formData = new FormData();
+      formData.append("evidenceImage", resubmitFile);
+      const res = await axiosInstance.put(API_PATHS.PURCHASES.RESUBMIT(id), formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setRequests((prev) => prev.map((r) => (r._id === id ? res.data : r)));
+      toast.success("Evidence resubmitted — back in review.");
+      setResubmittingId(null);
+      setResubmitFile(null);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to resubmit evidence"));
+    } finally {
+      setIsSubmittingResubmit(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -68,6 +111,9 @@ const KenlibsMyBooksPage = () => {
               const meta = STATUS_META[req.status] || STATUS_META.pending;
               const StatusIcon = meta.icon;
               const isApproved = req.status === "approved";
+              const isRejected = req.status === "rejected";
+              const isResubmitOpen = resubmittingId === req._id;
+
               return (
                 <div
                   key={req._id}
@@ -89,7 +135,7 @@ const KenlibsMyBooksPage = () => {
                       <p className="text-sm text-gray-500 mt-0.5">
                         {formatNaira(req.amount)} · {req.itemType === "bundle" ? "Bundle" : "Book"}
                       </p>
-                      {req.status === "rejected" && req.adminNote && (
+                      {(isRejected || req.status === "revoked") && req.adminNote && (
                         <p className="text-xs text-red-500 mt-1">{req.adminNote}</p>
                       )}
                     </div>
@@ -128,6 +174,51 @@ const KenlibsMyBooksPage = () => {
                             {book.title}
                           </Link>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rejected requests can be resubmitted with new evidence
+                      without starting a whole new request. */}
+                  {isRejected && !isResubmitOpen && (
+                    <button
+                      onClick={() => openResubmit(req._id)}
+                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      Resubmit Evidence
+                    </button>
+                  )}
+                  {isRejected && isResubmitOpen && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                      <label className="flex items-center gap-3 border-2 border-dashed border-gray-200 rounded-2xl px-4 py-3 cursor-pointer hover:border-accent-300 hover:bg-accent-50/30 transition-colors">
+                        <UploadCloud className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        <span className="text-sm text-gray-600 truncate">
+                          {resubmitFile ? resubmitFile.name : "Choose a new screenshot or photo"}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => setResubmitFile(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          loading={isSubmittingResubmit}
+                          onClick={() => submitResubmit(req._id)}
+                          className="flex items-center gap-1.5"
+                        >
+                          Submit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setResubmittingId(null)}
+                        >
+                          Cancel
+                        </Button>
                       </div>
                     </div>
                   )}
