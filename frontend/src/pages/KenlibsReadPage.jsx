@@ -10,6 +10,7 @@ import ViewBook from "../components/view/ViewBook";
 import Button from "../components/ui/Button";
 import MarkdownContent from "../components/shared/MarkdownContent";
 import ListenModeControls from "../components/kenlibs/ListenModeControls";
+import WordExplainPopup from "../components/kenlibs/WordExplainPopup";
 import ViewBookSkeleton from "../components/skeletons/ViewBookSkeleton";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 import useListenMode from "../hooks/useListenMode";
@@ -27,6 +28,43 @@ const NOTES_SAVE_DELAY_MS = 800;
 // every few seconds while actively reading, and this position only needs to
 // be "in the right neighborhood" on resume, not exact.
 const SPOKEN_BLOCK_SAVE_DELAY_MS = 3000;
+
+// Step 36's word-explain popup: selections longer than this are almost
+// certainly an accidental multi-paragraph drag rather than a word/phrase
+// someone wants explained, so they're silently ignored rather than sent
+// anywhere. Mirrors kenlibsController.js's EXPLAIN_WORD_MAX_LENGTH.
+const EXPLAIN_SELECTION_MAX_LENGTH = 120;
+// Conservative width/height estimate used to clamp the popup on-screen
+// before it has actually rendered (same reasoning as SimpleMDEditor's
+// TOOLBAR_WIDTH estimate for Step 19's inline AI toolbar).
+const EXPLAIN_POPUP_WIDTH = 320;
+const EXPLAIN_POPUP_HEIGHT_ESTIMATE = 260;
+
+// Best-effort "which sentence is this selection inside" — walks up to the
+// nearest block-level ancestor, naively splits its text on sentence-ending
+// punctuation, and returns whichever chunk contains the selected text. Only
+// used as context for the AI fallback explanation, not shown to the reader
+// directly, so an imperfect split (e.g. on "Mr." or a decimal) is a
+// non-issue in practice.
+const extractSentenceContext = (range, selectedText) => {
+  let node = range.commonAncestorContainer;
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+  const block =
+    node?.closest?.("p, li, blockquote, h1, h2, h3, h4, h5, h6, td, th") || node;
+  const blockText = (block?.textContent || "").replace(/\s+/g, " ").trim();
+  if (!blockText) return "";
+
+  const idx = blockText.indexOf(selectedText);
+  if (idx === -1) return blockText.slice(0, 300);
+
+  const sentences = blockText.match(/[^.!?]+[.!?]*/g) || [blockText];
+  let cursor = 0;
+  for (const sentence of sentences) {
+    cursor += sentence.length;
+    if (cursor >= idx) return sentence.trim();
+  }
+  return blockText.slice(0, 300);
+};
 
 // The gated reader — same ViewBook rendering as the creator's own preview
 // (/view-book/:bookId) and the public share link (/read/:shareId), but
@@ -49,6 +87,15 @@ const KenlibsReadPage = () => {
   const [notesSaveStatus, setNotesSaveStatus] = useState("saved"); // saved | saving | unsaved
   const [isListenModeOn, setIsListenModeOn] = useState(false);
   const [isDownloadingCertificate, setIsDownloadingCertificate] = useState(false);
+  // Step 36: the word/phrase explanation popup. null = closed. `key` forces
+  // WordExplainPopup to remount (and re-run its dictionary lookup) on every
+  // new selection, including re-selecting the exact same word twice in a row.
+  const [explainSelection, setExplainSelection] = useState(null);
+  // Scoped to just the current chapter's rendered content (see
+  // renderChapterContent below) — deliberately not the whole page, so
+  // selecting text in the notepad or the completion banner never triggers
+  // this.
+  const contentContainerRef = useRef(null);
 
   const notesSaveTimerRef = useRef(null);
   // Latest not-yet-confirmed-saved notes value, or null once saved — lets
@@ -137,36 +184,87 @@ const KenlibsReadPage = () => {
     }
   };
 
+  // Step 36: fires on mouseup inside the chapter content container — the
+  // only reliable "selection settled" moment, and (per Step 19's toolbar
+  // precedent) also the moment a double-click's browser-native word
+  // selection has already landed, so no separate dblclick handler is
+  // needed. A plain click with no drag collapses the selection, which
+  // clears any open popup here; WordExplainPopup's own click-away listener
+  // covers dismissing it from clicks that land outside the content area
+  // entirely (e.g. the notepad, the completion banner).
+  const handleSelectionEnd = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      setExplainSelection(null);
+      return;
+    }
+
+    const container = contentContainerRef.current;
+    if (
+      !container ||
+      !container.contains(selection.anchorNode) ||
+      !container.contains(selection.focusNode)
+    ) {
+      return; // selection isn't (fully) inside this chapter's content
+    }
+
+    const text = selection.toString().trim();
+    if (!text || text.length > EXPLAIN_SELECTION_MAX_LENGTH) {
+      setExplainSelection(null);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const sentence = extractSentenceContext(range, text);
+    const rect = range.getBoundingClientRect();
+
+    const left = Math.min(
+      Math.max(rect.left, 12),
+      window.innerWidth - EXPLAIN_POPUP_WIDTH - 12
+    );
+    const top = Math.min(rect.bottom + 10, window.innerHeight - EXPLAIN_POPUP_HEIGHT_ESTIMATE);
+
+    setExplainSelection({
+      key: `${text}-${Date.now()}`,
+      word: text,
+      sentence,
+      position: { top, left },
+    });
+  };
+
   const renderChapterContent = (chapter, chapterIndex, fontSize) => {
     const { blocks } = buildSpeechBlocks(chapter.content);
     const isFinalChapter = chapterIndex === (book?.chapters?.length ?? 0) - 1;
 
-    const body =
-      blocks.length === 0 ? (
-        <MarkdownContent
-          content={chapter.content}
-          emptyMessage="No content available for this chapter."
-          className="font-serif leading-loose text-gray-700"
-          style={{ fontSize: `${fontSize}px` }}
-        />
-      ) : (
-        <div
-          data-color-mode="light"
-          className="markdown-content font-serif leading-loose text-gray-700"
-          style={{ fontSize: `${fontSize}px` }}
-        >
-          {blocks.map((block, i) => (
-            <div
-              key={i}
-              className={`listen-block rounded-lg -mx-2 px-2 transition-colors duration-300 ${
-                listenMode.activeBlockIndex === i ? "bg-accent-50" : ""
-              }`}
-            >
-              <MDEditor.Markdown source={block.markdown} prefixCls="" style={{ background: "transparent" }} />
-            </div>
-          ))}
-        </div>
-      );
+    const body = (
+      <div ref={contentContainerRef} onMouseUp={handleSelectionEnd}>
+        {blocks.length === 0 ? (
+          <MarkdownContent
+            content={chapter.content}
+            emptyMessage="No content available for this chapter."
+            className="font-serif leading-loose text-gray-700"
+            style={{ fontSize: `${fontSize}px` }}
+          />
+        ) : (
+          <div
+            data-color-mode="light"
+            className="markdown-content font-serif leading-loose text-gray-700"
+            style={{ fontSize: `${fontSize}px` }}
+          >
+            {blocks.map((block, i) => (
+              <div
+                key={i}
+                className={`listen-block rounded-lg -mx-2 px-2 transition-colors duration-300 ${
+                  listenMode.activeBlockIndex === i ? "bg-accent-50" : ""
+                }`}
+              >
+                <MDEditor.Markdown source={block.markdown} prefixCls="" style={{ background: "transparent" }} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
 
     // The finishing moment lives at the bottom of the final chapter's own
     // content — reached naturally by reading to the end, not a popup that
@@ -424,6 +522,23 @@ const KenlibsReadPage = () => {
         >
           <NotebookPen className="w-6 h-6" />
         </motion.button>
+
+        {/* Step 36: word/phrase explanation popup — anchored near the
+            selection via inline position style, closed by setting
+            explainSelection back to null (click-away/Escape are handled
+            inside WordExplainPopup itself). */}
+        <AnimatePresence>
+          {explainSelection && (
+            <WordExplainPopup
+              key={explainSelection.key}
+              word={explainSelection.word}
+              sentence={explainSelection.sentence}
+              bookId={bookId}
+              position={{ top: explainSelection.position.top, left: explainSelection.position.left }}
+              onClose={() => setExplainSelection(null)}
+            />
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {isNotepadOpen && (

@@ -1,10 +1,20 @@
 const PDFDocument = require('pdfkit');
+const { GoogleGenAI } = require('@google/genai');
 const Book = require('../models/Book');
 const Bundle = require('../models/Bundle');
 const PurchaseRequest = require('../models/PurchaseRequest');
 const ReaderProgress = require('../models/ReaderProgress');
 const { fetchImageBuffer } = require('./exportController');
 const { renderCertificate } = require('../utils/certificateRenderer');
+
+// Separate client instance from aiController.js's — same SDK/API key, but
+// deliberately not imported from there: aiController's endpoints all check
+// *ownership* (book.userId === req.user._id), which is the wrong gate for a
+// reader who doesn't own the book but has approved access to read it. This
+// endpoint reuses hasBookAccess below instead (see explainInContext).
+const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+});
 
 // A book cover is uploaded at full resolution for the reader/storefront —
 // far larger than the small thumbnail the certificate actually displays.
@@ -273,4 +283,82 @@ const getCertificate = async (req, res) => {
     }
 };
 
-module.exports = { readBook, getProgress, updateProgress, getCertificate };
+// Guards against a pathological selection (e.g. a drag that accidentally
+// spans several paragraphs) turning into an oversized prompt — this is a
+// short word/phrase lookup, not a passage-editing tool like Step 19's
+// edit-selection, so the caps are deliberately tight.
+const EXPLAIN_WORD_MAX_LENGTH = 120;
+const EXPLAIN_SENTENCE_MAX_LENGTH = 600;
+
+//@desc    Explain a word/phrase the reader selected, using Gemini and the
+//         sentence it appeared in for context. Only reached client-side
+//         after the free dictionary API lookup misses (proper nouns,
+//         invented terms, book-specific concepts) and the reader explicitly
+//         asks for it — never fired automatically, since it's a real,
+//         rate-limited API call.
+//@route   POST /api/kenlibs/explain/:bookId
+//@access  Private — same access rule as readBook. Deliberately reuses
+//         hasBookAccess (not aiController.js's ownership check) since the
+//         caller here is a reader, not necessarily the book's owner.
+const explainInContext = async (req, res) => {
+    try {
+        const book = await Book.findById(req.params.bookId).select('title author');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+
+        if (!(await hasBookAccess(req.user, book._id))) {
+            return res.status(403).json({ message: "You don't have access to this book" });
+        }
+
+        const word = (req.body.word || '').trim();
+        const sentence = (req.body.sentence || '').trim();
+
+        if (!word) {
+            return res.status(400).json({ message: 'Select a word or phrase first' });
+        }
+        if (word.length > EXPLAIN_WORD_MAX_LENGTH) {
+            return res.status(400).json({ message: 'Selection is too long to explain' });
+        }
+
+        const truncatedSentence = sentence.slice(0, EXPLAIN_SENTENCE_MAX_LENGTH);
+
+        const prompt = `
+You are a helpful reading companion built into an ebook reader. A reader
+selected a word or phrase while reading and wants a short, clear explanation
+of what it means, right here in this specific context.
+
+Book: "${book.title}" by ${book.author || 'Unknown Author'}
+Selected word or phrase: "${word}"
+${truncatedSentence ? `Sentence it appears in: "${truncatedSentence}"` : ''}
+
+### Task
+Explain what "${word}" means as used here. If it's a proper noun, invented
+term, or book-specific concept rather than a dictionary word, explain what it
+refers to based on the context given, and say so plainly if the context
+doesn't make that clear rather than guessing.
+
+### Formatting
+- 1-3 short sentences, plain language, no markdown formatting, no preamble
+  like "This refers to", no restating the question.
+- Never use the em dash symbol (—). Use a comma, period, or colon instead.
+`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        const explanation = (response.text || '').trim();
+        if (!explanation) {
+            return res.status(500).json({ message: 'Failed to generate an explanation' });
+        }
+
+        res.status(200).json({ explanation });
+    } catch (error) {
+        console.error('Error explaining word in context:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+module.exports = { readBook, getProgress, updateProgress, getCertificate, explainInContext };
