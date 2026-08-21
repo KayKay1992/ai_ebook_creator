@@ -22,6 +22,7 @@ import KenlibsMyBooksPage from "./pages/KenlibsMyBooksPage";
 import KenlibsReadPage from "./pages/KenlibsReadPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
+import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
 
 const App = () => {
   return (
@@ -35,30 +36,38 @@ const App = () => {
         <Route path="/" element={<Navigate to="/kenlibs" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/read/:shareId" element={<ReadBookPage />} />
 
-        {/* Kenlibs storefront + auth — genuinely public, no route guard at
-            all (see KENLIBS-ARCHITECTURE.md's route map). */}
-        <Route path="/kenlibs" element={<KenlibsPage />} />
-        <Route path="/kenlibs/book/:id" element={<KenlibsBookDetailPage />} />
-        <Route path="/kenlibs/bundle/:id" element={<KenlibsBundleDetailPage />} />
-        <Route path="/kenlibs/login" element={<KenlibsLoginPage />} />
-        <Route path="/kenlibs/signup" element={<KenlibsSignupPage />} />
+        {/* Every reader-facing surface — the public share reader plus all of
+            Kenlibs — renders inside KenlibsThemeLayout so it picks up the
+            terracotta/navy/cream palette (index.css's .kenlibs-theme rule,
+            Step 39). Admin routes below stay outside this wrapper entirely,
+            so they keep the original violet/purple defaults untouched. */}
+        <Route element={<KenlibsThemeLayout />}>
+          <Route path="/read/:shareId" element={<ReadBookPage />} />
 
-        {/* Reader-authenticated Kenlibs surfaces — any logged-in user
-            (reader or admin), guarded by ReaderRoute rather than AdminRoute. */}
-        <Route
-          path="/kenlibs/checkout/:itemType/:id"
-          element={<ReaderRoute><KenlibsCheckoutPage /></ReaderRoute>}
-        />
-        <Route
-          path="/kenlibs/my-books"
-          element={<ReaderRoute><KenlibsMyBooksPage /></ReaderRoute>}
-        />
-        <Route
-          path="/kenlibs/read/:bookId"
-          element={<ReaderRoute><KenlibsReadPage /></ReaderRoute>}
-        />
+          {/* Kenlibs storefront + auth — genuinely public, no route guard at
+              all (see KENLIBS-ARCHITECTURE.md's route map). */}
+          <Route path="/kenlibs" element={<KenlibsPage />} />
+          <Route path="/kenlibs/book/:id" element={<KenlibsBookDetailPage />} />
+          <Route path="/kenlibs/bundle/:id" element={<KenlibsBundleDetailPage />} />
+          <Route path="/kenlibs/login" element={<KenlibsLoginPage />} />
+          <Route path="/kenlibs/signup" element={<KenlibsSignupPage />} />
+
+          {/* Reader-authenticated Kenlibs surfaces — any logged-in user
+              (reader or admin), guarded by ReaderRoute rather than AdminRoute. */}
+          <Route
+            path="/kenlibs/checkout/:itemType/:id"
+            element={<ReaderRoute><KenlibsCheckoutPage /></ReaderRoute>}
+          />
+          <Route
+            path="/kenlibs/my-books"
+            element={<ReaderRoute><KenlibsMyBooksPage /></ReaderRoute>}
+          />
+          <Route
+            path="/kenlibs/read/:bookId"
+            element={<ReaderRoute><KenlibsReadPage /></ReaderRoute>}
+          />
+        </Route>
 
           {/* admin-only route (creator surface — see KENLIBS-ARCHITECTURE.md) */}
           <Route path="/dashboard" element={<AdminRoute><DashboardPage /></AdminRoute>} />

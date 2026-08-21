@@ -52,7 +52,7 @@ const KenlibsBundleCard = ({ bundle }) => {
             </div>
           )}
 
-          <span className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm bg-accent text-white">
+          <span className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm bg-accent text-white">
             {formatNaira(bundle.price)}
           </span>
         </div>

@@ -17,6 +17,11 @@ const Button = ({
     sm: "px-5 py-2.5 text-sm rounded-2xl",
     md: "px-8 py-3.5 text-base rounded-3xl font-semibold",
     lg: "px-10 py-4 text-lg rounded-3xl",
+    // Reserved for genuinely promotional CTAs (Kenlibs "Request to Buy",
+    // the reading-completion certificate moment — see Step 39) — bigger and
+    // bolder than lg, not a general-purpose size, so nothing existing opts
+    // into it by default.
+    xl: "px-11 py-5 text-lg rounded-3xl font-extrabold tracking-tight",
   };
 
   return (

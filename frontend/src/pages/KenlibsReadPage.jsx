@@ -282,18 +282,22 @@ const KenlibsReadPage = () => {
           transition={{ type: "spring", stiffness: 260, damping: 24, delay: 0.15 }}
           className="mt-14 rounded-3xl border border-accent-100 bg-gradient-to-br from-accent-50 to-white p-8 text-center shadow-sm"
         >
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-accent to-accent-secondary text-white flex items-center justify-center mx-auto mb-5 shadow-lg shadow-accent-500/30">
-            <Award className="w-7 h-7" />
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-accent to-accent-secondary text-white flex items-center justify-center mx-auto mb-5 shadow-lg shadow-accent-500/30">
+            <Award className="w-8 h-8" />
           </div>
-          <h3 className="font-serif text-2xl font-bold text-gray-900">
+          <p className="text-xs font-bold tracking-[0.2em] uppercase text-accent-secondary mb-2">
+            Achievement Unlocked
+          </p>
+          <h3 className="font-serif text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
             You finished this book!
           </h3>
-          <p className="text-gray-500 mt-2 max-w-md mx-auto">
+          <p className="text-gray-500 mt-3 max-w-md mx-auto">
             Nice work reaching the end of {book?.title || "this book"}. Download a certificate to
             mark the occasion.
           </p>
-          <motion.div className="mt-6 inline-block" whileTap={{ scale: 0.97 }}>
+          <motion.div className="mt-7 inline-block" whileTap={{ scale: 0.97 }}>
             <Button
+              size="xl"
               loading={isDownloadingCertificate}
               onClick={handleDownloadCertificate}
               className="flex items-center gap-2"
@@ -599,7 +603,7 @@ const KenlibsReadPage = () => {
 
   return (
     <motion.div
-      className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-32 text-center px-6"
+      className="min-h-screen bg-surface-warm flex flex-col items-center justify-center py-32 text-center px-6"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}

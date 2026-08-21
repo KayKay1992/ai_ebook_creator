@@ -37,6 +37,46 @@
   --color-ink-muted: var(--color-gray-500);
 }
 
+/* Reader-facing Kenlibs theme (Step 39) — a scoped override of the SAME
+   --color-accent/--color-accent-secondary/--color-surface-warm custom
+   properties declared above, not a second set of token names. CSS custom
+   properties resolve by inheritance (nearest ancestor wins, independent of
+   selector specificity), so every existing bg-accent/text-accent-secondary/
+   from-accent/etc. utility already used throughout the Kenlibs components
+   picks this up automatically for free the moment it renders inside a
+   .kenlibs-theme wrapper (see KenlibsThemeLayout.jsx) — no component-level
+   className changes needed for color. Admin pages never render inside that
+   wrapper, so they keep the violet/purple defaults above completely
+   untouched, and a future admin redesign is just editing those defaults,
+   fully decoupled from this block.
+
+   Palette: burnt-orange/terracotta accent (hue ~18°) replacing violet, deep
+   navy secondary (hue ~218°) replacing purple — a classical warm-bookstore
+   aesthetic — plus a genuine cream surface-warm instead of the near-white
+   original. */
+.kenlibs-theme {
+  --color-accent-50: #fdf2ec;
+  --color-accent-100: #fae1d2;
+  --color-accent-200: #f3c2a6;
+  --color-accent-300: #e9a177;
+  --color-accent-400: #dc7f52;
+  --color-accent-500: #d9683c;
+  --color-accent: #c4592f;
+  --color-accent-hover: #a44523;
+  --color-accent-900: #5c2412;
+  --color-accent-muted: #fae1d2;
+
+  --color-accent-secondary-50: #eef1f6;
+  --color-accent-secondary-200: #c7d0de;
+  --color-accent-secondary-300: #a4b2c8;
+  --color-accent-secondary-400: #6e80a0;
+  --color-accent-secondary-500: #3d4f72;
+  --color-accent-secondary: #1b2a4a;
+  --color-accent-secondary-hover: #121f38;
+
+  --color-surface-warm: #faf3e8;
+}
+
 @layer base {
   html {
     font-family: var(--font-display);

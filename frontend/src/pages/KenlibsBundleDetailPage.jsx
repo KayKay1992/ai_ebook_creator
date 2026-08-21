@@ -65,7 +65,7 @@ const KenlibsBundleDetailPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-surface-warm">
         <KenlibsNav />
         <div className="max-w-5xl mx-auto px-6 lg:px-8 py-16 grid md:grid-cols-[280px_1fr] gap-12 animate-pulse">
           <div className="aspect-[2/3] w-full max-w-[280px] rounded-2xl bg-gray-100" />
@@ -81,7 +81,7 @@ const KenlibsBundleDetailPage = () => {
 
   if (!bundle) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-surface-warm">
         <KenlibsNav />
         <div className="flex flex-col items-center justify-center py-32 text-center px-6">
           <div className="w-20 h-20 bg-accent-50 rounded-3xl flex items-center justify-center mb-6">
@@ -107,7 +107,7 @@ const KenlibsBundleDetailPage = () => {
   const books = bundle.books || [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface-warm">
       <KenlibsNav />
 
       <div className="max-w-5xl mx-auto px-6 lg:px-8 py-12">
@@ -161,7 +161,7 @@ const KenlibsBundleDetailPage = () => {
             </p>
 
             <div className="mt-5">
-              <span className="inline-flex px-4 py-1.5 rounded-full text-sm font-semibold bg-accent text-white">
+              <span className="inline-flex px-5 py-2 rounded-full text-base font-extrabold tracking-tight bg-accent text-white shadow-md shadow-black/10">
                 {formatNaira(bundle.price)}
               </span>
             </div>
@@ -203,6 +203,7 @@ const KenlibsBundleDetailPage = () => {
 
             <motion.div className="mt-10" whileTap={{ scale: 0.97 }}>
               <Button
+                size="xl"
                 loading={isNavigatingToCheckout}
                 onClick={() => {
                   const checkoutPath = `/kenlibs/checkout/bundle/${id}`;

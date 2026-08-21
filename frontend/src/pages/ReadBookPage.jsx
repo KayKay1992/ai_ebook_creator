@@ -48,7 +48,7 @@ const ReadBookPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-32 text-center px-6">
+    <div className="min-h-screen bg-surface-warm flex flex-col items-center justify-center py-32 text-center px-6">
       <div className="w-20 h-20 bg-accent-50 rounded-3xl flex items-center justify-center mb-6">
         <BookX className="w-10 h-10 text-accent-500" />
       </div>

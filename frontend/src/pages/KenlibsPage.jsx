@@ -38,8 +38,13 @@ const rowRevealVariants = {
 
 // Horizontal-scrolling row, matching the Kotobee reference layout. Cards are
 // fixed-width flex children with scroll-snap so it also behaves reasonably
-// on touch devices, not just wheel/trackpad scroll.
-const KenlibsRow = ({ title, children }) => {
+// on touch devices, not just wheel/trackpad scroll. `physical` (Step 39,
+// point 3) adds a touch more vertical breathing room for the Featured row's
+// leaned/staggered covers (which lift and rotate slightly on hover — see
+// KenlibsBookCard's angled prop) plus a soft "shelf ledge" line beneath the
+// row, evoking the reference's fanned-books-on-a-shelf display. Every other
+// row (Latest Releases, Bundles) renders with physical=false, unchanged.
+const KenlibsRow = ({ title, children, physical = false }) => {
   const ref = useRef(null);
   // useInView (a hook, not the whileInView prop) so an element that's
   // already on screen the moment it mounts — e.g. the first "Featured" row,
@@ -55,13 +60,18 @@ const KenlibsRow = ({ title, children }) => {
       </h2>
       <motion.div
         ref={ref}
-        className="flex gap-5 overflow-x-auto pb-3 -mx-6 px-6 lg:-mx-8 lg:px-8 snap-x snap-mandatory [scrollbar-width:thin]"
+        className={`flex gap-5 overflow-x-auto pb-3 -mx-6 px-6 lg:-mx-8 lg:px-8 snap-x snap-mandatory [scrollbar-width:thin] ${
+          physical ? "pt-3" : ""
+        }`}
         initial="hidden"
         animate={isInView ? "show" : "hidden"}
         variants={rowRevealVariants}
       >
         {children}
       </motion.div>
+      {physical && (
+        <div className="h-px bg-gradient-to-r from-transparent via-accent-secondary-200 to-transparent mt-1" />
+      )}
     </section>
   );
 };
@@ -139,7 +149,7 @@ const KenlibsPage = () => {
   const hasResults = filteredBooks.length > 0 || filteredBundles.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface-warm">
       <KenlibsNav />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
@@ -236,9 +246,9 @@ const KenlibsPage = () => {
         ) : (
           <>
             {featured.length > 0 && (
-              <KenlibsRow title="Featured">
-                {featured.map((book) => (
-                  <KenlibsBookCard key={book._id} book={book} />
+              <KenlibsRow title="Featured" physical>
+                {featured.map((book, i) => (
+                  <KenlibsBookCard key={book._id} book={book} angled tiltIndex={i} />
                 ))}
               </KenlibsRow>
             )}

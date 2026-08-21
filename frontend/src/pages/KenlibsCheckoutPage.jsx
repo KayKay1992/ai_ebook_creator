@@ -94,7 +94,7 @@ const KenlibsCheckoutPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-surface-warm">
         <KenlibsNav />
         <div className="max-w-2xl mx-auto px-6 py-16 animate-pulse space-y-4">
           <div className="h-8 bg-gray-100 rounded-lg w-1/2" />
@@ -106,7 +106,7 @@ const KenlibsCheckoutPage = () => {
 
   if (!isValidType || !item || !canBuy) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-surface-warm">
         <KenlibsNav />
         <div className="flex flex-col items-center justify-center py-32 text-center px-6">
           <div className="w-20 h-20 bg-accent-50 rounded-3xl flex items-center justify-center mb-6">
@@ -130,7 +130,7 @@ const KenlibsCheckoutPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface-warm">
       <KenlibsNav />
 
       <div className="max-w-2xl mx-auto px-6 lg:px-8 py-12">

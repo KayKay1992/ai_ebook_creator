@@ -137,7 +137,7 @@ const KenlibsMyBooksPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface-warm">
       <KenlibsNav />
 
       <div className="max-w-3xl mx-auto px-6 lg:px-8 py-12">
