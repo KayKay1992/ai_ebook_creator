@@ -10,6 +10,7 @@ import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import useOpenGraphTags from "../hooks/useOpenGraphTags";
 
 // Same brief pre-navigate pause as the book detail page — see that file's
 // comment on NAVIGATE_DELAY_MS.
@@ -29,6 +30,24 @@ const KenlibsBundleDetailPage = () => {
   const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
 
   useDocumentTitle(bundle ? `${bundle.title} — Kenlibs` : "Kenlibs");
+
+  // Best-effort only — see useOpenGraphTags.js's doc comment for why this
+  // does not actually fix link previews on WhatsApp/Twitter/Facebook/etc.
+  useOpenGraphTags({
+    title: bundle ? `${bundle.title} — Kenlibs` : undefined,
+    description:
+      bundle?.description?.trim() ||
+      (bundle
+        ? `A bundle of ${bundle.books?.length || 0} book${bundle.books?.length === 1 ? "" : "s"} on Kenlibs.`
+        : undefined),
+    // No single cover for a generated-grid bundle — fall back to its first
+    // included book's cover so og:image still has one real image to point at.
+    image:
+      bundle?.coverImage ||
+      bundle?.books?.[0]?.coverDesign?.front?.backgroundImage ||
+      bundle?.books?.[0]?.coverImage,
+    url: bundle ? `${window.location.origin}/kenlibs/bundle/${id}` : undefined,
+  });
 
   useEffect(() => {
     const fetchBundle = async () => {

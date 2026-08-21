@@ -11,6 +11,7 @@ const bundleRoutes = require('./routes/bundleRoute');
 const purchaseRoutes = require('./routes/purchaseRoute');
 const kenlibsRoutes = require('./routes/kenlibsRoute');
 const adminRoutes = require('./routes/adminRoute');
+const ogPreviewRoutes = require('./routes/ogPreviewRoute');
 
 const app = express();
 
@@ -39,6 +40,21 @@ app.use('/api/bundles', bundleRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/kenlibs', kenlibsRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Deliberately NOT under /api and matching the frontend's own SPA paths
+// (/kenlibs/book/:id, /kenlibs/bundle/:id) — this exists only to give
+// link-preview crawlers (Facebook, Twitter/X, WhatsApp, etc.) real
+// server-rendered <meta property="og:..."> tags, since the SPA's
+// client-side meta tag updates never reach a crawler that doesn't run JS.
+// Non-crawler requests get redirected straight to FRONTEND_URL unaffected.
+//
+// PRODUCTION NOTE: the frontend and backend are separate deployments (see
+// CLAUDE.md), so a shared link points at the FRONTEND origin, not this one.
+// For this to actually intercept real crawler traffic once deployed, the
+// production reverse proxy / CDN in front of the frontend must route only
+// these two path patterns to this backend, and let every other path
+// continue to the frontend's static SPA build unchanged.
+app.use(ogPreviewRoutes);
 
 //start server
 const PORT = process.env.PORT || 5000;

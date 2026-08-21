@@ -10,6 +10,7 @@ import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import useOpenGraphTags from "../hooks/useOpenGraphTags";
 
 // A brief, purely cosmetic pause before navigating to checkout — turns an
 // instant jump into a deliberate press-and-go, via the Button's own
@@ -31,6 +32,17 @@ const KenlibsBookDetailPage = () => {
   const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
 
   useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
+
+  // Best-effort only — see useOpenGraphTags.js's doc comment for why this
+  // does not actually fix link previews on WhatsApp/Twitter/Facebook/etc.
+  useOpenGraphTags({
+    title: book ? `${book.title} — Kenlibs` : undefined,
+    description:
+      book?.coverDesign?.back?.blurb?.trim() ||
+      (book ? `by ${book.author || "Unknown Author"} — read it on Kenlibs.` : undefined),
+    image: book?.coverImage || book?.coverDesign?.front?.backgroundImage,
+    url: book ? `${window.location.origin}/kenlibs/book/${id}` : undefined,
+  });
 
   useEffect(() => {
     const fetchBook = async () => {
