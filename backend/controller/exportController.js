@@ -1189,4 +1189,9 @@ module.exports = {
     exportAsDocument,
     exportAsPDF,
     exportAsEPUB,
+    // Reused by kenlibsController.js's certificate generation — same
+    // absolute-URL-only, never-throws image fetch used by every export
+    // format, so the certificate's cover thumbnail degrades the same way
+    // (skipped, not crashed) on an unreachable or legacy local path.
+    fetchImageBuffer,
 };

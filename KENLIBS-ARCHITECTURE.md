@@ -288,6 +288,132 @@ title, blurb) instead of a bare link.
 
 ---
 
+## 9b. Phase 3 — Post-31 additions (Steps 34-38+)
+
+Built after Steps 29-33 landed, based on direct usage/feedback:
+
+**Step 34 — Storefront search + Open Graph tags (DONE, split into two parts)**
+- Part 1, search/filter on /kenlibs: DONE. Client-side title/author search
+  (200ms debounce) + genre pills (only render when 2+ distinct genre values
+  exist in the catalog). Sectioned Featured/Latest/Bundles view when no
+  filter is active; flat filtered grid when active, keyed to
+  query+genre so the reveal animation replays per filter change. No backend
+  change needed — confirmed the existing storefront response payload is small
+  enough for client-side filtering to be the right call.
+- Part 2, Open Graph tags: the first attempt (client-side meta tag injection
+  via a useOpenGraphTags hook) was confirmed NOT sufficient — verified via curl
+  impersonating Facebook's crawler that social/messaging crawlers never
+  execute JS and only ever saw the generic static index.html. A real fix was
+  built as a follow-up (see "OG crawler route" below).
+
+**OG crawler route (DONE, follow-up to Step 34 Part 2)**
+backend/routes/ogPreviewRoute.js — GET /kenlibs/book/:id and
+/kenlibs/bundle/:id, mounted directly (not under /api). Detects 13 known
+crawler user-agents (Facebook, Twitter, WhatsApp, LinkedIn, Slack, Discord,
+Telegram, Skype, Reddit, Pinterest, VK, Viber) and returns a minimal static
+HTML page with real og:title/og:description/og:image/og:url tags (book
+titles HTML-escaped; og:image only emits for absolute/Cloudinary URLs) plus
+a meta-refresh to the real SPA URL. Non-crawler traffic gets an immediate
+302, unaffected. Reuses publicBookController.js's visibility rules.
+
+>>> DEPLOYMENT REQUIREMENT, NOT YET DONE: this route only actually intercepts
+>>> crawler traffic once the production reverse proxy/CDN is configured to
+>>> route /kenlibs/book/* and /kenlibs/bundle/* to the backend instead of
+>>> serving the frontend's static SPA build directly. This is an infra
+>>> decision that depends on the eventual hosting setup (Nginx reverse proxy
+>>> rule, Vercel/Netlify rewrite rule, CDN routing rule, etc.) and cannot be
+>>> finished until deployment is decided. Full end-to-end verification also
+>>> requires a real public/tunneled URL via Facebook's Sharing Debugger — not
+>>> testable against localhost. REVISIT THIS AT DEPLOYMENT TIME.
+
+**Step A — Legacy cover path audit (DONE)**
+Audited every Book's coverImage, coverDesign.front.backgroundImage, and
+coverDesign.back.authorPhoto for legacy pre-Cloudinary /uploads/... relative
+paths (no longer served since Step 17's migration). Found 2 of 7 books
+affected, both only in the top-level coverImage field (both predate Step 22,
+so the Cover Designer fields were never touched for them): "The Almagedon"
+(6a6303d336ac11b9f3560ec9) and "Surviving Nigeria Without Losing Yourself..."
+(6a68e722f56191d2313b3ee0). Reported to the admin for manual re-upload via
+the existing Cloudinary flow — deliberately not auto-fixed. Also confirmed
+every code path that touches these fields (exportController.js's
+fetchImageBuffer/fetchImageToTempFile/resolveChapterImagesForEpub,
+ogPreviewRoute.js's asAbsoluteImage) already guards on absolute-URL-only and
+degrades gracefully rather than crashing on a stale path.
+
+**Step 35 — Completion badge/certificate (DONE)**
+ReaderProgress gained a completedAt field (backend/models/ReaderProgress.js),
+set once in updateProgress when an incoming lastChapterIndex update equals
+the book's final chapter index and completedAt isn't already set — never
+reset by later navigation back to an earlier chapter, confirmed by testing
+(reload progress after navigating back to chapter 1: completedAt unchanged;
+re-reaching the final chapter again: still the exact same timestamp).
+GET /api/kenlibs/certificate/:bookId (kenlibsController.js) enforces the same
+hasBookAccess check as readBook, plus a separate check for completedAt — a
+403 with "You don't have access to this book" vs a distinct 400 "Finish
+reading this book to unlock your certificate," not one generic 403 for both.
+Certificate is a single-page landscape PDF (backend/utils/certificateRenderer.js)
+built with pdfkit's base-14 fonts (no new font-embedding dependency, matching
+the rest of this project's PDF output) — double border frame, Kenlibs
+wordmark, reader name/book title/author/completion date, a drawn
+checkmark-in-circle seal, and an optional cover thumbnail when the book has
+a usable absolute cover URL. KenlibsReadPage shows a restrained "You finished
+this book!" card (Award icon, one spring pop-in, no confetti) at the bottom
+of the final chapter's content with a Download Certificate button, flushing
+the final-chapter progress save immediately (not the usual debounce) so the
+button doesn't race completedAt being set. KenlibsMyBooksPage surfaces a
+Certificate button next to Read Book (and per-book inside a completed
+bundle) for any book with completedAt set, fetched per-book via the existing
+progress endpoint — no new bulk endpoint, matching this catalog's small
+scale (same call as the earlier legacy-path audit's client-side-filtering
+reasoning).
+Two real bugs found only by actually opening the generated PDF, not just
+trusting it compiled: (1) pdfkit auto-inserts a page break when
+explicitly-positioned text falls within the configured bottom margin —
+a generous 90pt bottom margin silently produced a 3-page certificate with 2
+blank trailing pages; fixed by using small uniform 20pt margins throughout,
+since every element here is manually positioned anyway. (2) embedding a
+book's cover at full upload resolution bloated the certificate past 1.6MB
+and hung Chrome's own PDF.js renderer; worse, Cloudinary's q_auto/f_jpg
+combination returned a *progressive* JPEG for at least one real cover, which
+pdfkit's bundled JPEG parser mishandles (DCTDecode bytes embedded directly,
+no re-encoding) — fixed by requesting a small Cloudinary-transformed
+thumbnail with fl_progressive:none forcing baseline encoding.
+
+**Step 36 — Word explanation popup (scoped, not yet sent)**
+Select/tap a word in the reader → popup definition. Primary: free Dictionary
+API (api.dictionaryapi.dev), no backend change. Fallback for dictionary
+misses (proper nouns, invented terms): explicit "Explain in context" button
+calling a new backend endpoint (reusing existing AI auth/rate-limit pattern)
+that sends the word + surrounding sentence to Gemini. AI fallback is
+opt-in-per-lookup only, never automatic, to control cost.
+
+**Step 37 — Multi-language translation, Nigerian languages first (scoped, not
+yet sent)**
+Decision made: start with Yoruba/Igbo/Hausa (confirmed supported by Google
+Cloud Translation API, along with Fulani/Kanuri/Tiv) over global languages,
+matching the core audience. Known tradeoff: machine translation quality for
+these languages is real but meaningfully behind major global languages —
+reader-facing UI must set honest expectations ("Machine-translated — quality
+may vary"), not present it as equivalent to the original.
+Architecture: translations are pre-generated and stored per book+language
+(new BookTranslation model: book, language, chapters[], status), NEVER
+translated live per-read — full-book translation cost must not scale with
+readership. Admin-triggered per book via a new admin-only endpoint
+(POST /api/admin/books/:id/translate/:language), not automatic on publish.
+Reader gets a language picker on KenlibsReadPage when translations exist;
+resume position (ReaderProgress) applies globally per book, not per
+language, for v1. Requires a GCP project + Translation API credentials —
+not yet set up, needed before this step can start.
+
+**Step 38 — Design revisit of Step 31 (deferred, not scheduled)**
+Reader-facing motion/visual design pass was committed but explicitly flagged
+as not meeting the bar wanted ("physical outlook... so so poor"). Revisit
+scope not yet defined — needs a concrete comparison pass (e.g. against the
+Kotobee reference used earlier) to identify specific gaps rather than a
+vague "make it better" re-run.
+
+---
+
 ## 9. Open decisions worth confirming before Step 23
 
 - Should a **rejected** request let the reader resubmit (new evidence) without

@@ -36,6 +36,16 @@ const readerProgressSchema = new mongoose.Schema(
             type: String,
             default: '',
         },
+        // Set exactly once, the first time lastChapterIndex reaches the
+        // book's final chapter index (see updateProgress in
+        // kenlibsController.js) — a one-time achievement timestamp, not a
+        // live "currently on last chapter" flag. Never cleared or
+        // overwritten by later navigation, including back to an earlier
+        // chapter or re-finishing the book again.
+        completedAt: {
+            type: Date,
+            default: null,
+        },
     },
     {
         timestamps: true,

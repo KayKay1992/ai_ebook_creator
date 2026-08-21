@@ -10,6 +10,7 @@ import {
   BookOpen,
   BookOpenCheck,
   UploadCloud,
+  Award,
 } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -42,12 +43,41 @@ const KenlibsMyBooksPage = () => {
   const [resubmittingId, setResubmittingId] = useState(null); // row with the upload form open
   const [resubmitFile, setResubmitFile] = useState(null);
   const [isSubmittingResubmit, setIsSubmittingResubmit] = useState(false);
+  // Book ids the reader has actually finished (completedAt set), across
+  // every approved request — including books reached only via a bundle.
+  // Not part of the purchases response itself (that's PurchaseRequest data,
+  // this is ReaderProgress data), so it's fetched separately per book.
+  const [completedBookIds, setCompletedBookIds] = useState(new Set());
+  const [downloadingCertificateId, setDownloadingCertificateId] = useState(null);
 
   useEffect(() => {
     const fetchRequests = async () => {
       try {
         const res = await axiosInstance.get(API_PATHS.PURCHASES.MINE);
         setRequests(res.data);
+
+        const approved = res.data.filter((r) => r.status === "approved");
+        const bookIds = new Set();
+        approved.forEach((r) => {
+          if (r.itemType === "book") bookIds.add(r.item);
+          if (r.itemType === "bundle") {
+            (r.itemBooks || []).forEach((b) => bookIds.add(b._id));
+          }
+        });
+
+        // This catalog is small enough that one request per book is simpler
+        // and more honest than inventing a bulk endpoint for it — see
+        // audit notes elsewhere in this project on client-side filtering
+        // being the right call at this scale.
+        const progressEntries = await Promise.all(
+          Array.from(bookIds).map((id) =>
+            axiosInstance
+              .get(API_PATHS.KENLIBS.PROGRESS(id))
+              .then((res) => [id, Boolean(res.data?.completedAt)])
+              .catch(() => [id, false])
+          )
+        );
+        setCompletedBookIds(new Set(progressEntries.filter(([, done]) => done).map(([id]) => id)));
       } catch {
         setRequests([]);
       } finally {
@@ -56,6 +86,27 @@ const KenlibsMyBooksPage = () => {
     };
     fetchRequests();
   }, []);
+
+  const handleDownloadCertificate = async (bookId, bookTitle) => {
+    setDownloadingCertificateId(bookId);
+    try {
+      const response = await axiosInstance.get(API_PATHS.KENLIBS.CERTIFICATE(bookId), {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${bookTitle || "certificate"} — Kenlibs Certificate.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to generate certificate"));
+    } finally {
+      setDownloadingCertificateId(null);
+    }
+  };
 
   const openResubmit = (id) => {
     setResubmittingId(id);
@@ -178,27 +229,52 @@ const KenlibsMyBooksPage = () => {
                       bundle grants access to every book it contains, so
                       each gets its own Read link. */}
                   {isApproved && req.itemType === "book" && (
-                    <Link
-                      to={`/kenlibs/read/${req.item}`}
-                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary"
-                    >
-                      <BookOpenCheck className="w-4 h-4" />
-                      Read Book
-                    </Link>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <Link
+                        to={`/kenlibs/read/${req.item}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-accent to-accent-secondary"
+                      >
+                        <BookOpenCheck className="w-4 h-4" />
+                        Read Book
+                      </Link>
+                      {completedBookIds.has(req.item) && (
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
+                          disabled={downloadingCertificateId === req.item}
+                          onClick={() => handleDownloadCertificate(req.item, req.itemTitle)}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-accent-hover bg-accent-50 hover:bg-accent-100 transition-colors disabled:opacity-60"
+                        >
+                          <Award className="w-4 h-4" />
+                          {downloadingCertificateId === req.item ? "Preparing…" : "Certificate"}
+                        </motion.button>
+                      )}
+                    </div>
                   )}
                   {isApproved && req.itemType === "bundle" && req.itemBooks?.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <p className="text-xs text-gray-400 mb-2">Read a book from this bundle:</p>
                       <div className="flex flex-wrap gap-2">
                         {req.itemBooks.map((book) => (
-                          <Link
-                            key={book._id}
-                            to={`/kenlibs/read/${book._id}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-accent-hover bg-accent-50 hover:bg-accent-100 transition-colors"
-                          >
-                            <BookOpenCheck className="w-3.5 h-3.5" />
-                            {book.title}
-                          </Link>
+                          <div key={book._id} className="inline-flex items-center gap-1.5">
+                            <Link
+                              to={`/kenlibs/read/${book._id}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-accent-hover bg-accent-50 hover:bg-accent-100 transition-colors"
+                            >
+                              <BookOpenCheck className="w-3.5 h-3.5" />
+                              {book.title}
+                            </Link>
+                            {completedBookIds.has(book._id) && (
+                              <motion.button
+                                whileTap={{ scale: 0.96 }}
+                                disabled={downloadingCertificateId === book._id}
+                                onClick={() => handleDownloadCertificate(book._id, book.title)}
+                                title="Download certificate"
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-accent-hover bg-accent-50 hover:bg-accent-100 transition-colors disabled:opacity-60 flex-shrink-0"
+                              >
+                                <Award className="w-3.5 h-3.5" />
+                              </motion.button>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import MDEditor from "@uiw/react-md-editor";
-import { Lock, BookX, ArrowLeft, NotebookPen, X } from "lucide-react";
+import toast from "react-hot-toast";
+import { Lock, BookX, ArrowLeft, NotebookPen, X, Award, Download } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import ViewBook from "../components/view/ViewBook";
@@ -13,6 +14,7 @@ import ViewBookSkeleton from "../components/skeletons/ViewBookSkeleton";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 import useListenMode from "../hooks/useListenMode";
 import { buildSpeechBlocks } from "../utils/speechText";
+import getErrorMessage from "../utils/getErrorMessage";
 
 // Short debounces (adapted from Step 2's autosave pattern, not reused
 // verbatim — different data shape and no book-wide save-state banner here)
@@ -46,6 +48,7 @@ const KenlibsReadPage = () => {
   const [isNotepadOpen, setIsNotepadOpen] = useState(false);
   const [notesSaveStatus, setNotesSaveStatus] = useState("saved"); // saved | saving | unsaved
   const [isListenModeOn, setIsListenModeOn] = useState(false);
+  const [isDownloadingCertificate, setIsDownloadingCertificate] = useState(false);
 
   const notesSaveTimerRef = useRef(null);
   // Latest not-yet-confirmed-saved notes value, or null once saved — lets
@@ -136,35 +139,73 @@ const KenlibsReadPage = () => {
 
   const renderChapterContent = (chapter, chapterIndex, fontSize) => {
     const { blocks } = buildSpeechBlocks(chapter.content);
+    const isFinalChapter = chapterIndex === (book?.chapters?.length ?? 0) - 1;
 
-    if (blocks.length === 0) {
-      return (
+    const body =
+      blocks.length === 0 ? (
         <MarkdownContent
           content={chapter.content}
           emptyMessage="No content available for this chapter."
           className="font-serif leading-loose text-gray-700"
           style={{ fontSize: `${fontSize}px` }}
         />
+      ) : (
+        <div
+          data-color-mode="light"
+          className="markdown-content font-serif leading-loose text-gray-700"
+          style={{ fontSize: `${fontSize}px` }}
+        >
+          {blocks.map((block, i) => (
+            <div
+              key={i}
+              className={`listen-block rounded-lg -mx-2 px-2 transition-colors duration-300 ${
+                listenMode.activeBlockIndex === i ? "bg-accent-50" : ""
+              }`}
+            >
+              <MDEditor.Markdown source={block.markdown} prefixCls="" style={{ background: "transparent" }} />
+            </div>
+          ))}
+        </div>
       );
-    }
+
+    // The finishing moment lives at the bottom of the final chapter's own
+    // content — reached naturally by reading to the end, not a popup that
+    // interrupts. Restrained per Step 31's reader-facing motion philosophy:
+    // one spring pop-in, no confetti, no auto-opening anything.
+    if (!isFinalChapter) return body;
 
     return (
-      <div
-        data-color-mode="light"
-        className="markdown-content font-serif leading-loose text-gray-700"
-        style={{ fontSize: `${fontSize}px` }}
-      >
-        {blocks.map((block, i) => (
-          <div
-            key={i}
-            className={`listen-block rounded-lg -mx-2 px-2 transition-colors duration-300 ${
-              listenMode.activeBlockIndex === i ? "bg-accent-50" : ""
-            }`}
-          >
-            <MDEditor.Markdown source={block.markdown} prefixCls="" style={{ background: "transparent" }} />
+      <>
+        {body}
+        <motion.div
+          key={`completion-${bookId}`}
+          initial={{ opacity: 0, y: 16, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 24, delay: 0.15 }}
+          className="mt-14 rounded-3xl border border-accent-100 bg-gradient-to-br from-accent-50 to-white p-8 text-center shadow-sm"
+        >
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-accent to-accent-secondary text-white flex items-center justify-center mx-auto mb-5 shadow-lg shadow-accent-500/30">
+            <Award className="w-7 h-7" />
           </div>
-        ))}
-      </div>
+          <h3 className="font-serif text-2xl font-bold text-gray-900">
+            You finished this book!
+          </h3>
+          <p className="text-gray-500 mt-2 max-w-md mx-auto">
+            Nice work reaching the end of {book?.title || "this book"}. Download a certificate to
+            mark the occasion.
+          </p>
+          <motion.div className="mt-6 inline-block" whileTap={{ scale: 0.97 }}>
+            <Button
+              loading={isDownloadingCertificate}
+              onClick={handleDownloadCertificate}
+              className="flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Download Certificate
+            </Button>
+          </motion.div>
+        </motion.div>
+      </>
     );
   };
 
@@ -178,10 +219,30 @@ const KenlibsReadPage = () => {
           axiosInstance.get(API_PATHS.KENLIBS.PROGRESS(bookId)).catch(() => null),
         ]);
         setBook(bookRes.data);
-        setInitialChapterIndex(progressRes?.data?.lastChapterIndex ?? 0);
         setInitialSpokenBlockIndex(progressRes?.data?.lastSpokenBlockIndex ?? 0);
         setNotes(progressRes?.data?.notes ?? "");
         setStatus("ok");
+
+        const chapters = bookRes.data?.chapters || [];
+        const finalIndex = chapters.length - 1;
+        const resolvedInitialIndex = Math.min(
+          Math.max(progressRes?.data?.lastChapterIndex ?? 0, 0),
+          Math.max(finalIndex, 0)
+        );
+        setInitialChapterIndex(resolvedInitialIndex);
+
+        // Covers landing directly on the final chapter without ever firing
+        // a chapter-change event to trigger the usual save — a book with
+        // only one chapter, or resuming a session that was already sitting
+        // on the last page. A plain fire-and-forget PUT rather than routing
+        // through schedulePositionSave/flushPositionSave (defined further
+        // down) — idempotent either way, since the backend only ever sets
+        // completedAt once.
+        if (finalIndex >= 0 && resolvedInitialIndex === finalIndex && !progressRes?.data?.completedAt) {
+          axiosInstance
+            .put(API_PATHS.KENLIBS.PROGRESS(bookId), { lastChapterIndex: resolvedInitialIndex })
+            .catch(() => {});
+        }
       } catch (error) {
         setStatus(error.response?.status === 403 ? "forbidden" : "not-found");
       }
@@ -217,7 +278,15 @@ const KenlibsReadPage = () => {
 
   const handleChapterChange = (index) => {
     currentChapterIndexRef.current = index;
-    schedulePositionSave({ lastChapterIndex: index }, CHAPTER_SAVE_DELAY_MS);
+
+    // Landing on the final chapter skips the usual debounce and saves right
+    // away — the completion banner (see renderChapterContent below) offers
+    // a certificate download that only unlocks server-side once this exact
+    // save round-trips and sets completedAt, so a reader who scrolls
+    // straight to the button shouldn't have to wait out the normal
+    // "close the tab" debounce window first.
+    const isFinalChapter = index === (book?.chapters?.length ?? 0) - 1;
+    schedulePositionSave({ lastChapterIndex: index }, isFinalChapter ? 0 : CHAPTER_SAVE_DELAY_MS);
 
     // Chapter changed while actively listening — whether the reader clicked
     // Next/Previous/a sidebar entry themselves, or this is Listen Mode's own
@@ -225,6 +294,35 @@ const KenlibsReadPage = () => {
     // always match what's on screen, so restart speech for the new chapter.
     if (isListenModeOn) {
       speakChapter(index);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    setIsDownloadingCertificate(true);
+    try {
+      const response = await axiosInstance.get(API_PATHS.KENLIBS.CERTIFICATE(bookId), {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${book?.title || "certificate"} — Kenlibs Certificate.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      // A 400 here almost always means the last-chapter save above hasn't
+      // finished round-tripping yet (near-instant in practice, but not
+      // literally zero latency) — a distinct, actionable message rather
+      // than the generic export-failure fallback.
+      if (error.response?.status === 400) {
+        toast.error(error.response?.data?.message || "Still saving your progress — try again in a moment.");
+      } else {
+        toast.error(getErrorMessage(error, "Failed to generate certificate"));
+      }
+    } finally {
+      setIsDownloadingCertificate(false);
     }
   };
 
