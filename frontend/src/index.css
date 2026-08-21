@@ -81,6 +81,15 @@ body {
 .markdown-content > *:first-child { margin-top: 0; }
 .markdown-content > *:last-child { margin-bottom: 0; }
 
+/* Listen Mode (Step 33, KenlibsReadPage) renders each chapter as a series of
+   per-block wrapper <div>s (one per paragraph/heading) inside a single
+   shared .markdown-content container, so it can highlight whichever block is
+   currently being read aloud. That extra wrapper level shifts the "real"
+   first/last child down one level, so the rules above no longer reach it —
+   these mirror them one level deeper. */
+.markdown-content > .listen-block:first-child > *:first-child { margin-top: 0; }
+.markdown-content > .listen-block:last-child > *:last-child { margin-bottom: 0; }
+
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3 {

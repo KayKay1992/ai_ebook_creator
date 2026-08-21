@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import MDEditor from "@uiw/react-md-editor";
 import { Lock, BookX, ArrowLeft, NotebookPen, X } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import ViewBook from "../components/view/ViewBook";
 import Button from "../components/ui/Button";
+import MarkdownContent from "../components/shared/MarkdownContent";
+import ListenModeControls from "../components/kenlibs/ListenModeControls";
 import ViewBookSkeleton from "../components/skeletons/ViewBookSkeleton";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import useListenMode from "../hooks/useListenMode";
+import { buildSpeechBlocks } from "../utils/speechText";
 
 // Short debounces (adapted from Step 2's autosave pattern, not reused
 // verbatim — different data shape and no book-wide save-state banner here)
@@ -16,6 +21,10 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 // tab" window.
 const CHAPTER_SAVE_DELAY_MS = 800;
 const NOTES_SAVE_DELAY_MS = 800;
+// Longer than the others deliberately — Listen Mode can advance a block
+// every few seconds while actively reading, and this position only needs to
+// be "in the right neighborhood" on resume, not exact.
+const SPOKEN_BLOCK_SAVE_DELAY_MS = 3000;
 
 // The gated reader — same ViewBook rendering as the creator's own preview
 // (/view-book/:bookId) and the public share link (/read/:shareId), but
@@ -32,18 +41,132 @@ const KenlibsReadPage = () => {
   const [book, setBook] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ok | forbidden | not-found
   const [initialChapterIndex, setInitialChapterIndex] = useState(0);
+  const [initialSpokenBlockIndex, setInitialSpokenBlockIndex] = useState(0);
   const [notes, setNotes] = useState("");
   const [isNotepadOpen, setIsNotepadOpen] = useState(false);
   const [notesSaveStatus, setNotesSaveStatus] = useState("saved"); // saved | saving | unsaved
+  const [isListenModeOn, setIsListenModeOn] = useState(false);
 
-  const chapterSaveTimerRef = useRef(null);
   const notesSaveTimerRef = useRef(null);
   // Latest not-yet-confirmed-saved notes value, or null once saved — lets
   // the beforeunload/pagehide handlers below fire one last best-effort
   // save if the debounce timer hasn't gone off yet.
   const pendingNotesRef = useRef(null);
+  // lastChapterIndex and lastSpokenBlockIndex are saved through one
+  // single-flight, latest-wins pipeline rather than two independent
+  // debounced PUTs — confirmed via testing that firing overlapping PUT
+  // requests for these two (both change together during active Listen Mode,
+  // since auto-advancing a chapter and progressing through its blocks
+  // happen in close succession) can have their HTTP responses arrive out of
+  // order, letting an older chapter/block combination silently overwrite a
+  // newer one that had already saved successfully — observed as a real
+  // refresh resuming from a stale, earlier position despite the reader
+  // having listened well past it. Never more than one PUT for this pair of
+  // fields is in flight at a time; anything that changes while one is
+  // already in flight is captured and sent as a single follow-up request
+  // once it settles, so the last state always wins regardless of network
+  // timing. See schedulePositionSave/flushPositionSave below.
+  const positionSaveTimerRef = useRef(null);
+  const positionSaveInFlightRef = useRef(false);
+  const pendingPositionRef = useRef(null); // { lastChapterIndex?, lastSpokenBlockIndex? }
+  const viewBookRef = useRef(null);
+  // Which chapter Listen Mode should read — kept in sync with ViewBook's own
+  // chapter index via handleChapterChange below (the same callback already
+  // used for progress-saving), so Listen Mode never needs its own idea of
+  // "current chapter."
+  const currentChapterIndexRef = useRef(initialChapterIndex);
+  // The block Listen Mode should resume from the *next* time it's turned on
+  // — seeded from ReaderProgress on load, consumed (reset to 0) the first
+  // time it's actually used, so a later Stop→Play within the same session
+  // still restarts from the top like it always has. Only trusted when the
+  // reader hasn't navigated to a different chapter than the one the
+  // position was saved for — see handleToggleListenMode.
+  const resumeBlockIndexRef = useRef(0);
 
   useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
+
+  useEffect(() => {
+    currentChapterIndexRef.current = initialChapterIndex;
+  }, [initialChapterIndex]);
+
+  useEffect(() => {
+    resumeBlockIndexRef.current = initialSpokenBlockIndex;
+  }, [initialSpokenBlockIndex]);
+
+  const listenMode = useListenMode({
+    onChapterEnd: () => {
+      if (!isListenModeOn) return;
+      const chapters = book?.chapters || [];
+      const nextIndex = currentChapterIndexRef.current + 1;
+      if (nextIndex >= chapters.length) return; // end of book — nothing more to advance to
+      viewBookRef.current?.goToNextChapter();
+    },
+  });
+
+  // Builds this chapter's speech blocks and starts Listen Mode reading it
+  // from `fromBlockIndex` (default: the top). Used when Listen Mode is
+  // first turned on, when the reader is already listening and the chapter
+  // changes (manually or via auto-advance), and when resuming a previous
+  // session's position — same primitive either way.
+  const speakChapter = (index, fromBlockIndex = 0) => {
+    const chapter = book?.chapters?.[index];
+    if (!chapter) return;
+    const material = buildSpeechBlocks(chapter.content);
+    if (material.blocks.length === 0) return; // nothing speakable in this chapter
+    listenMode.play(material, fromBlockIndex);
+  };
+
+  const handleToggleListenMode = () => {
+    if (isListenModeOn) {
+      setIsListenModeOn(false);
+      listenMode.stop();
+    } else {
+      setIsListenModeOn(true);
+      // Only resume mid-chapter if the reader hasn't navigated away from
+      // the chapter this position was saved for — otherwise a block index
+      // from a completely different chapter would be meaningless. Consumed
+      // immediately so a later Stop→Play in this same session restarts
+      // from the top as usual, not this stale saved position again.
+      const startBlock =
+        currentChapterIndexRef.current === initialChapterIndex ? resumeBlockIndexRef.current : 0;
+      resumeBlockIndexRef.current = 0;
+      speakChapter(currentChapterIndexRef.current, startBlock);
+    }
+  };
+
+  const renderChapterContent = (chapter, chapterIndex, fontSize) => {
+    const { blocks } = buildSpeechBlocks(chapter.content);
+
+    if (blocks.length === 0) {
+      return (
+        <MarkdownContent
+          content={chapter.content}
+          emptyMessage="No content available for this chapter."
+          className="font-serif leading-loose text-gray-700"
+          style={{ fontSize: `${fontSize}px` }}
+        />
+      );
+    }
+
+    return (
+      <div
+        data-color-mode="light"
+        className="markdown-content font-serif leading-loose text-gray-700"
+        style={{ fontSize: `${fontSize}px` }}
+      >
+        {blocks.map((block, i) => (
+          <div
+            key={i}
+            className={`listen-block rounded-lg -mx-2 px-2 transition-colors duration-300 ${
+              listenMode.activeBlockIndex === i ? "bg-accent-50" : ""
+            }`}
+          >
+            <MDEditor.Markdown source={block.markdown} prefixCls="" style={{ background: "transparent" }} />
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   useEffect(() => {
     const fetchBookAndProgress = async () => {
@@ -56,6 +179,7 @@ const KenlibsReadPage = () => {
         ]);
         setBook(bookRes.data);
         setInitialChapterIndex(progressRes?.data?.lastChapterIndex ?? 0);
+        setInitialSpokenBlockIndex(progressRes?.data?.lastSpokenBlockIndex ?? 0);
         setNotes(progressRes?.data?.notes ?? "");
         setStatus("ok");
       } catch (error) {
@@ -65,14 +189,60 @@ const KenlibsReadPage = () => {
     fetchBookAndProgress();
   }, [bookId]);
 
-  const handleChapterChange = (index) => {
-    if (chapterSaveTimerRef.current) clearTimeout(chapterSaveTimerRef.current);
-    chapterSaveTimerRef.current = setTimeout(() => {
-      axiosInstance
-        .put(API_PATHS.KENLIBS.PROGRESS(bookId), { lastChapterIndex: index })
-        .catch(() => {});
-    }, CHAPTER_SAVE_DELAY_MS);
+  // Sends whatever's pending in pendingPositionRef, unless a request for
+  // this pair of fields is already in flight — in which case it's left
+  // there and picked up as soon as that one settles, rather than firing a
+  // second overlapping request that could resolve out of order and
+  // overwrite the newer value with the older one.
+  const flushPositionSave = () => {
+    if (positionSaveInFlightRef.current) return;
+    const update = pendingPositionRef.current;
+    if (!update) return;
+    pendingPositionRef.current = null;
+    positionSaveInFlightRef.current = true;
+    axiosInstance
+      .put(API_PATHS.KENLIBS.PROGRESS(bookId), update)
+      .catch(() => {})
+      .finally(() => {
+        positionSaveInFlightRef.current = false;
+        if (pendingPositionRef.current) flushPositionSave();
+      });
   };
+
+  const schedulePositionSave = (fields, delayMs) => {
+    pendingPositionRef.current = { ...pendingPositionRef.current, ...fields };
+    if (positionSaveTimerRef.current) clearTimeout(positionSaveTimerRef.current);
+    positionSaveTimerRef.current = setTimeout(flushPositionSave, delayMs);
+  };
+
+  const handleChapterChange = (index) => {
+    currentChapterIndexRef.current = index;
+    schedulePositionSave({ lastChapterIndex: index }, CHAPTER_SAVE_DELAY_MS);
+
+    // Chapter changed while actively listening — whether the reader clicked
+    // Next/Previous/a sidebar entry themselves, or this is Listen Mode's own
+    // auto-advance calling goToNextChapter() — either way the audio should
+    // always match what's on screen, so restart speech for the new chapter.
+    if (isListenModeOn) {
+      speakChapter(index);
+    }
+  };
+
+  // Persists Listen Mode's position as it advances through blocks, so a
+  // refresh can resume "in the right neighborhood" instead of from the top
+  // of the chapter (see handleToggleListenMode). Debounced rather than
+  // fired on every block — activeBlockIndex only changes when speech moves
+  // to a new block in the first place, but a fast reader/rate could still
+  // advance blocks faster than is worth a request each time.
+  useEffect(() => {
+    if (!isListenModeOn || listenMode.activeBlockIndex < 0) return;
+    schedulePositionSave({ lastSpokenBlockIndex: listenMode.activeBlockIndex }, SPOKEN_BLOCK_SAVE_DELAY_MS);
+    // schedulePositionSave is intentionally omitted: it's a plain function
+    // redefined every render (not memoized), so including it would re-run
+    // this effect — and re-debounce the save — on every render rather than
+    // only when the block actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isListenModeOn, listenMode.activeBlockIndex, bookId]);
 
   const handleNotesChange = (e) => {
     const value = e.target.value;
@@ -93,22 +263,30 @@ const KenlibsReadPage = () => {
     }, NOTES_SAVE_DELAY_MS);
   };
 
-  // Best-effort final save if the reader closes/leaves before the debounce
-  // timer fires — fire-and-forget, since unload handlers can't reliably
-  // await a response.
+  // Best-effort final save if the reader closes/leaves/refreshes before a
+  // debounce timer fires — fire-and-forget, since unload handlers can't
+  // reliably await a response. Covers notes, chapter index, and Listen
+  // Mode's block position so a refresh mid-sentence doesn't lose more than
+  // a moment's worth of progress on any of them. Bypasses the position
+  // pipeline's single-flight guard deliberately — the page is on its way
+  // out either way, so there's no later request left to race against.
   useEffect(() => {
-    const flushPendingNotes = () => {
-      if (pendingNotesRef.current === null) return;
-      const value = pendingNotesRef.current;
-      pendingNotesRef.current = null;
-      axiosInstance.put(API_PATHS.KENLIBS.PROGRESS(bookId), { notes: value }).catch(() => {});
+    const flushPending = () => {
+      const update = { ...pendingPositionRef.current };
+      pendingPositionRef.current = null;
+      if (pendingNotesRef.current !== null) {
+        update.notes = pendingNotesRef.current;
+        pendingNotesRef.current = null;
+      }
+      if (Object.keys(update).length === 0) return;
+      axiosInstance.put(API_PATHS.KENLIBS.PROGRESS(bookId), update).catch(() => {});
     };
-    window.addEventListener("beforeunload", flushPendingNotes);
-    window.addEventListener("pagehide", flushPendingNotes);
+    window.addEventListener("beforeunload", flushPending);
+    window.addEventListener("pagehide", flushPending);
     return () => {
-      flushPendingNotes();
-      window.removeEventListener("beforeunload", flushPendingNotes);
-      window.removeEventListener("pagehide", flushPendingNotes);
+      flushPending();
+      window.removeEventListener("beforeunload", flushPending);
+      window.removeEventListener("pagehide", flushPending);
     };
   }, [bookId]);
 
@@ -120,12 +298,22 @@ const KenlibsReadPage = () => {
     return (
       <>
         <ViewBook
+          ref={viewBookRef}
           book={book}
           backTo="/kenlibs/my-books"
           backLabel="My Books"
           animated
           initialChapterIndex={initialChapterIndex}
           onChapterChange={handleChapterChange}
+          renderChapterContent={renderChapterContent}
+          headerControls={
+            <ListenModeControls
+              listenMode={listenMode}
+              isActive={isListenModeOn}
+              onToggle={handleToggleListenMode}
+              onReplay={() => speakChapter(currentChapterIndexRef.current)}
+            />
+          }
         />
 
         {/* Floating notepad toggle — fixed, so it never obscures reading

@@ -88,6 +88,7 @@ const getProgress = async (req, res) => {
 
         res.status(200).json({
             lastChapterIndex: progress?.lastChapterIndex ?? 0,
+            lastSpokenBlockIndex: progress?.lastSpokenBlockIndex ?? 0,
             notes: progress?.notes ?? '',
         });
     } catch (error) {
@@ -97,8 +98,9 @@ const getProgress = async (req, res) => {
 
 //@desc    Upsert the requesting reader's resume position and/or notes for a
 //         book. Accepts partial updates — sending only `notes` never
-//         resets `lastChapterIndex` (and vice versa), since each is only
-//         written when actually present in the request body.
+//         resets `lastChapterIndex`/`lastSpokenBlockIndex` (and vice versa),
+//         since each is only written when actually present in the request
+//         body.
 //@route   PUT /api/kenlibs/progress/:bookId
 //@access  Private — same access rule as readBook.
 const updateProgress = async (req, res) => {
@@ -116,6 +118,13 @@ const updateProgress = async (req, res) => {
         if (typeof req.body.lastChapterIndex === 'number' && Number.isFinite(req.body.lastChapterIndex)) {
             update.lastChapterIndex = req.body.lastChapterIndex;
         }
+        if (
+            typeof req.body.lastSpokenBlockIndex === 'number' &&
+            Number.isFinite(req.body.lastSpokenBlockIndex) &&
+            req.body.lastSpokenBlockIndex >= 0
+        ) {
+            update.lastSpokenBlockIndex = req.body.lastSpokenBlockIndex;
+        }
         if (typeof req.body.notes === 'string') {
             update.notes = req.body.notes;
         }
@@ -128,6 +137,7 @@ const updateProgress = async (req, res) => {
 
         res.status(200).json({
             lastChapterIndex: progress.lastChapterIndex,
+            lastSpokenBlockIndex: progress.lastSpokenBlockIndex,
             notes: progress.notes,
         });
     } catch (error) {

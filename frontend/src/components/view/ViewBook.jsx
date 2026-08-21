@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
 import ViewChapterSidebar from "./ViewChapterSidebar";
@@ -29,14 +29,31 @@ const CHAPTER_FADE_MS = 150;
 // starting chapter from ReaderProgress and report changes back so they can
 // be persisted. Neither admin caller touches these, so their behavior is
 // unaffected.
-const ViewBook = ({
-  book,
-  backTo = "/dashboard",
-  backLabel = "Back to Dashboard",
-  animated = false,
-  initialChapterIndex = 0,
-  onChapterChange,
-}) => {
+//
+// `renderChapterContent` (Step 33, Listen Mode) is a further opt-in: when
+// provided, it replaces the default <MarkdownContent> body rendering for
+// the current chapter — used so KenlibsReadPage can render the same
+// content block-by-block with a highlight on whichever block is currently
+// being read aloud. The chapter title still renders the normal way either
+// way. `ref` exposes goToNextChapter() so Listen Mode can auto-advance
+// through the SAME chapter-navigation state this component already owns,
+// rather than a second, separate one. `headerControls` is likewise opt-in —
+// a node rendered next to the font-size controls, so KenlibsReadPage can put
+// the Listen Mode toggle/play/pause/speed UI "near the existing reading
+// controls" without ViewBook needing to know anything about speech.
+const ViewBook = forwardRef(function ViewBook(
+  {
+    book,
+    backTo = "/dashboard",
+    backLabel = "Back to Dashboard",
+    animated = false,
+    initialChapterIndex = 0,
+    onChapterChange,
+    renderChapterContent,
+    headerControls,
+  },
+  ref
+) {
   const chapters = book?.chapters || [];
   // Guards against a stored index that's no longer valid — e.g. the book
   // was edited and now has fewer chapters than when progress was last
@@ -57,6 +74,10 @@ const ViewBook = ({
   const isTransitioningRef = useRef(false);
 
   const selectedChapter = chapters[selectedChapterIndex];
+
+  useImperativeHandle(ref, () => ({
+    goToNextChapter: () => changeChapter((i) => Math.min(chapters.length - 1, i + 1)),
+  }));
 
   const changeChapter = (updater) => {
     const next = typeof updater === "function" ? updater(selectedChapterIndex) : updater;
@@ -99,14 +120,18 @@ const ViewBook = ({
         {selectedChapter.title || `Chapter ${selectedChapterIndex + 1}`}
       </h1>
 
-      <MarkdownContent
-        content={selectedChapter.content}
-        emptyMessage="No content available for this chapter."
-        className="font-serif leading-loose text-gray-700"
-        style={{
-          fontSize: `${fontSize}px`,
-        }}
-      />
+      {renderChapterContent ? (
+        renderChapterContent(selectedChapter, selectedChapterIndex, fontSize)
+      ) : (
+        <MarkdownContent
+          content={selectedChapter.content}
+          emptyMessage="No content available for this chapter."
+          className="font-serif leading-loose text-gray-700"
+          style={{
+            fontSize: `${fontSize}px`,
+          }}
+        />
+      )}
     </>
   ) : (
     <div className="text-center py-24 text-gray-400">
@@ -150,23 +175,27 @@ const ViewBook = ({
               </div>
             </div>
 
-            {/* Font Size Controls */}
-            <div className="flex items-center gap-2 bg-gray-100 rounded-2xl p-1">
-              <NavButton
-                {...navButtonMotionProps}
-                onClick={() => setFontSize((s) => Math.max(14, s - 2))}
-                className="w-9 h-9 rounded-xl text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm transition-all"
-              >
-                A-
-              </NavButton>
-              <span className="text-xs text-gray-500 w-10 text-center">{fontSize}px</span>
-              <NavButton
-                {...navButtonMotionProps}
-                onClick={() => setFontSize((s) => Math.min(26, s + 2))}
-                className="w-9 h-9 rounded-xl text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm transition-all"
-              >
-                A+
-              </NavButton>
+            <div className="flex items-center gap-2">
+              {headerControls}
+
+              {/* Font Size Controls */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-2xl p-1">
+                <NavButton
+                  {...navButtonMotionProps}
+                  onClick={() => setFontSize((s) => Math.max(14, s - 2))}
+                  className="w-9 h-9 rounded-xl text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm transition-all"
+                >
+                  A-
+                </NavButton>
+                <span className="text-xs text-gray-500 w-10 text-center">{fontSize}px</span>
+                <NavButton
+                  {...navButtonMotionProps}
+                  onClick={() => setFontSize((s) => Math.min(26, s + 2))}
+                  className="w-9 h-9 rounded-xl text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm transition-all"
+                >
+                  A+
+                </NavButton>
+              </div>
             </div>
           </div>
         </header>
@@ -219,6 +248,6 @@ const ViewBook = ({
       </main>
     </div>
   );
-};
+});
 
 export default ViewBook;

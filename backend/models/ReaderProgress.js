@@ -21,6 +21,17 @@ const readerProgressSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        // Listen Mode's (Step 33) finer-grained position within
+        // lastChapterIndex — an index into that chapter's speech blocks
+        // (see frontend utils/speechText.js), not a character offset.
+        // Approximate by design: written on a debounce as blocks advance,
+        // so it can lag the true position by a few seconds. Only ever read
+        // back to seed where a resumed Listen Mode session *would* start
+        // from if the reader presses Play — never used to auto-start audio.
+        lastSpokenBlockIndex: {
+            type: Number,
+            default: 0,
+        },
         notes: {
             type: String,
             default: '',
