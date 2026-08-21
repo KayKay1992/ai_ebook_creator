@@ -5,6 +5,15 @@ import CoverPreview from "./CoverPreview";
 
 const BookCard = ({ book, onDelete }) => {
   const navigate = useNavigate();
+  // A pre-rendered 3D mockup (Step 40) is already a real 3D render — the
+  // fake perspective/rotateY tilt + spine face below is a trick for making a
+  // flat cover image read as physical, and would visibly fight/distort an
+  // image that's already angled and lit as a 3D object. Falls back to the
+  // normal tilt+spine whenever the mockup isn't active or has no front
+  // image yet, same "isActive && frontImage" gate CoverPreview itself uses.
+  const has3DMockup = Boolean(
+    book.coverDesign?.render3D?.isActive && book.coverDesign?.render3D?.frontImage
+  );
 
   return (
     <div
@@ -14,10 +23,16 @@ const BookCard = ({ book, onDelete }) => {
       {/* Cover — real 3D tilt on hover (perspective + rotateY), with a thin
           page-edge/spine face so it reads as a physical object, not a flat
           card spinning in place. No overflow-hidden on these wrappers: the
-          spine needs room to render outside the cover's own box as it turns. */}
-      <div className="relative [perspective:1200px]">
+          spine needs room to render outside the cover's own box as it turns.
+          Swapped for a gentler scale+shadow lift when has3DMockup — see the
+          comment above. */}
+      <div className={has3DMockup ? "relative" : "relative [perspective:1200px]"}>
         <div
-          className="relative transition-transform duration-500 ease-out [transform-style:preserve-3d] [transform-origin:right_center] group-hover:[transform:rotateY(-14deg)]"
+          className={
+            has3DMockup
+              ? "relative transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+              : "relative transition-transform duration-500 ease-out [transform-style:preserve-3d] [transform-origin:right_center] group-hover:[transform:rotateY(-14deg)]"
+          }
         >
           <CoverPreview
             title={book.title}
@@ -30,10 +45,13 @@ const BookCard = ({ book, onDelete }) => {
           />
 
           {/* Spine / page-edge face — perpendicular to the cover, only reads
-              as a strip once the parent rotates in 3D. */}
-          <div
-            className="absolute top-0 left-0 h-full w-3 rounded-l-sm bg-gradient-to-b from-gray-100 via-white to-gray-200 shadow-[inset_2px_0_4px_rgba(0,0,0,0.25)] [transform:rotateY(90deg)] [transform-origin:left_center]"
-          />
+              as a strip once the parent rotates in 3D. Omitted entirely for
+              a 3D mockup cover, which has no fake rotation to reveal it. */}
+          {!has3DMockup && (
+            <div
+              className="absolute top-0 left-0 h-full w-3 rounded-l-sm bg-gradient-to-b from-gray-100 via-white to-gray-200 shadow-[inset_2px_0_4px_rgba(0,0,0,0.25)] [transform:rotateY(90deg)] [transform-origin:left_center]"
+            />
+          )}
         </div>
 
         {/* Action Buttons — flat UI chrome, deliberately outside the 3D

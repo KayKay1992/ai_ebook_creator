@@ -20,6 +20,8 @@ import {
   Type,
   Tag,
   Quote,
+  Boxes,
+  Info,
 } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -110,9 +112,13 @@ const CoverDesignerPage = () => {
   const [isUploadingFront, setIsUploadingFront] = useState(false);
   const [isUploadingAuthorPhoto, setIsUploadingAuthorPhoto] = useState(false);
   const [isGeneratingBlurb, setIsGeneratingBlurb] = useState(false);
+  const [isUploadingRender3DFront, setIsUploadingRender3DFront] = useState(false);
+  const [isUploadingRender3DBack, setIsUploadingRender3DBack] = useState(false);
 
   const frontFileInputRef = useRef(null);
   const authorPhotoInputRef = useRef(null);
+  const render3DFrontInputRef = useRef(null);
+  const render3DBackInputRef = useRef(null);
   const autosaveTimerRef = useRef(null);
 
   useEffect(() => {
@@ -184,6 +190,18 @@ const CoverDesignerPage = () => {
     scheduleAutosave(updatedBook);
   };
 
+  const updateRender3D = (patch) => {
+    const updatedBook = {
+      ...book,
+      coverDesign: {
+        ...book.coverDesign,
+        render3D: { ...book.coverDesign.render3D, ...patch },
+      },
+    };
+    setBook(updatedBook);
+    scheduleAutosave(updatedBook);
+  };
+
   const handleFrontImageUpload = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -225,6 +243,50 @@ const CoverDesignerPage = () => {
       toast.error(getErrorMessage(error, "Failed to upload photo"));
     } finally {
       setIsUploadingAuthorPhoto(false);
+    }
+  };
+
+  const handleRender3DFrontUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("image", file);
+    setIsUploadingRender3DFront(true);
+    try {
+      const response = await axiosInstance.put(
+        `${API_PATHS.BOOKS.UPLOAD_RENDER3D_FRONT_IMAGE}/${bookId}`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      setBook(response.data);
+      toast.success("Front mockup uploaded!");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to upload image"));
+    } finally {
+      setIsUploadingRender3DFront(false);
+    }
+  };
+
+  const handleRender3DBackUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("image", file);
+    setIsUploadingRender3DBack(true);
+    try {
+      const response = await axiosInstance.put(
+        `${API_PATHS.BOOKS.UPLOAD_RENDER3D_BACK_IMAGE}/${bookId}`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      setBook(response.data);
+      toast.success("Back mockup uploaded!");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to upload image"));
+    } finally {
+      setIsUploadingRender3DBack(false);
     }
   };
 
@@ -273,6 +335,7 @@ const CoverDesignerPage = () => {
   const front = book.coverDesign.front;
   const back = book.coverDesign.back;
   const quotes = back.reviewQuotes || [];
+  const render3D = book.coverDesign.render3D;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -351,25 +414,71 @@ const CoverDesignerPage = () => {
               <FileText className="w-4 h-4" />
               Back Cover
             </button>
+            <button
+              onClick={() => setActiveSide("3d")}
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium transition-all ${
+                activeSide === "3d"
+                  ? "bg-white text-accent-hover shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <Boxes className="w-4 h-4" />
+              3D Mockup
+            </button>
           </div>
 
           <div className="w-full max-w-sm">
-            <CoverPreview
-              title={book.title}
-              subtitle={book.subtitle}
-              author={book.author}
-              coverImage={book.coverImage}
-              coverDesign={book.coverDesign}
-              side={activeSide}
-              size="lg"
-              rounded="rounded-3xl"
-              className="shadow-2xl"
-            />
+            {activeSide === "3d" ? (
+              render3D.frontImage ? (
+                <div className="relative aspect-[2/3] w-full overflow-hidden rounded-3xl shadow-2xl bg-gray-100">
+                  <img
+                    src={render3D.frontImage}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                  {render3D.isActive && (
+                    <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white shadow-sm">
+                      Active cover
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="aspect-[2/3] w-full rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center px-6 text-gray-400">
+                  <Boxes className="w-10 h-10 mb-3" />
+                  <p className="text-sm">
+                    Upload a front mockup image to preview it here.
+                  </p>
+                </div>
+              )
+            ) : (
+              <CoverPreview
+                title={book.title}
+                subtitle={book.subtitle}
+                author={book.author}
+                coverImage={book.coverImage}
+                coverDesign={book.coverDesign}
+                side={activeSide}
+                size="lg"
+                rounded="rounded-3xl"
+                className="shadow-2xl"
+              />
+            )}
           </div>
         </div>
 
         {/* ===== Editing Controls ===== */}
         <div className="space-y-5">
+          {render3D.isActive && activeSide !== "3d" && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 text-amber-700 text-xs rounded-2xl px-4 py-3">
+              <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                The 3D Cover Mockup is currently active as this book's cover
+                — changes here won't be visible until you turn it off in the
+                3D Mockup tab.
+              </span>
+            </div>
+          )}
+
           {activeSide === "front" ? (
             <>
               <SectionCard title="Background" icon={ImageIcon}>
@@ -526,7 +635,7 @@ const CoverDesignerPage = () => {
                 </Field>
               </SectionCard>
             </>
-          ) : (
+          ) : activeSide === "back" ? (
             <>
               <SectionCard title="Blurb" icon={FileText}>
                 <Field
@@ -656,6 +765,115 @@ const CoverDesignerPage = () => {
                     placeholder="e.g. Fiction, Self-Help, Sci-Fi"
                     className={INPUT_CLASS}
                   />
+                </Field>
+              </SectionCard>
+            </>
+          ) : (
+            <>
+              <SectionCard title="3D Cover Mockup" icon={Boxes}>
+                <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 text-gray-600 text-xs rounded-2xl px-4 py-3">
+                  <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-accent-hover" />
+                  <span>
+                    Upload a finished front + back render made elsewhere (AI
+                    image tools, mockup generators, Photoshop) — this is a
+                    pre-rendered image, not something built in the editor.
+                  </span>
+                </div>
+
+                <Field label="Front Mockup">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 aspect-[2/3] rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {render3D.frontImage ? (
+                        <img
+                          src={render3D.frontImage}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Boxes className="w-5 h-5 text-gray-300" />
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      ref={render3DFrontInputRef}
+                      accept="image/*"
+                      onChange={handleRender3DFrontUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      onClick={() => render3DFrontInputRef.current?.click()}
+                      loading={isUploadingRender3DFront}
+                      variant="secondary"
+                      className="flex items-center gap-2"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      {isUploadingRender3DFront
+                        ? "Uploading..."
+                        : render3D.frontImage
+                          ? "Replace"
+                          : "Upload"}
+                    </Button>
+                  </div>
+                </Field>
+
+                <Field label="Back Mockup">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 aspect-[2/3] rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {render3D.backImage ? (
+                        <img
+                          src={render3D.backImage}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Boxes className="w-5 h-5 text-gray-300" />
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      ref={render3DBackInputRef}
+                      accept="image/*"
+                      onChange={handleRender3DBackUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      onClick={() => render3DBackInputRef.current?.click()}
+                      loading={isUploadingRender3DBack}
+                      variant="secondary"
+                      className="flex items-center gap-2"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      {isUploadingRender3DBack
+                        ? "Uploading..."
+                        : render3D.backImage
+                          ? "Replace"
+                          : "Upload"}
+                    </Button>
+                  </div>
+                </Field>
+              </SectionCard>
+
+              <SectionCard title="Active Cover" icon={render3D.isActive ? Check : ImageIcon}>
+                <Field
+                  label="Use this 3D mockup as the book's cover"
+                  action={
+                    <Toggle
+                      checked={render3D.isActive}
+                      onChange={() => {
+                        if (!render3D.isActive && !render3D.frontImage) {
+                          toast.error("Upload a front mockup image first.");
+                          return;
+                        }
+                        updateRender3D({ isActive: !render3D.isActive });
+                      }}
+                    />
+                  }
+                >
+                  <p className="text-xs text-gray-500">
+                    {render3D.isActive
+                      ? "This 3D mockup is the book's cover everywhere it's shown — the flat cover design (Front Cover / Back Cover tabs) is hidden while this is on."
+                      : "Off — the standard flat cover design (Front Cover / Back Cover tabs) is used as the book's cover."}
+                  </p>
                 </Field>
               </SectionCard>
             </>

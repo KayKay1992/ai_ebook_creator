@@ -64,6 +64,17 @@ const CoverPreview = ({
   const front = coverDesign?.front || {};
   const back = coverDesign?.back || {};
 
+  // Pre-rendered 3D mockup (Step 40) — a finished front/back render made
+  // externally and uploaded as-is, an either/or alternative to the
+  // generated flat design below. When active it supersedes the flat design
+  // for whichever side is being rendered, exactly like
+  // coverDesign.front.backgroundImage already supersedes the legacy
+  // top-level coverImage above. Falls through to the flat design per side
+  // if that side's image hasn't been uploaded yet (e.g. only the front was
+  // uploaded so far) — never a broken/blank cover.
+  const render3D = coverDesign?.render3D;
+  const is3DActive = Boolean(render3D?.isActive);
+
   const backgroundStyle = front.backgroundStyle || "image";
   const titleColor = front.titleColor || "#ffffff";
   const titleAlign = front.titleAlign || "left";
@@ -90,6 +101,21 @@ const CoverPreview = ({
   const ALIGN_TEXT = { left: "text-left", center: "text-center", right: "text-right" };
 
   if (side === "back") {
+    if (is3DActive && render3D.backImage) {
+      return (
+        <div className={`relative aspect-[2/3] w-full overflow-hidden ${rounded} bg-gray-200 ${className}`}>
+          <img
+            src={render3D.backImage}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = "none";
+            }}
+          />
+        </div>
+      );
+    }
+
     const reviewQuotes = (back.reviewQuotes || []).slice(0, 3);
     return (
       <div
@@ -139,6 +165,21 @@ const CoverPreview = ({
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (is3DActive && render3D.frontImage) {
+    return (
+      <div className={`relative aspect-[2/3] w-full overflow-hidden ${rounded} bg-gray-200 ${className}`}>
+        <img
+          src={render3D.frontImage}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={(e) => {
+            e.target.style.display = "none";
+          }}
+        />
       </div>
     );
   }

@@ -18,6 +18,8 @@ export const API_PATHS = {
     TOGGLE_PUBLISH: "/api/books",
     UPLOAD_COVER_DESIGN_FRONT_IMAGE: "/api/books/cover-design/front-image",
     UPLOAD_COVER_DESIGN_AUTHOR_PHOTO: "/api/books/cover-design/author-photo",
+    UPLOAD_RENDER3D_FRONT_IMAGE: "/api/books/cover-design/render3d-front",
+    UPLOAD_RENDER3D_BACK_IMAGE: "/api/books/cover-design/render3d-back",
   },
   PUBLIC: {
     GET_BOOK_BY_SHARE_ID: "/api/public/books",

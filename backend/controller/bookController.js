@@ -217,6 +217,20 @@ const updateCoverDesignAuthorPhoto = uploadCoverDesignImageHandler((book, url) =
   book.coverDesign.back.authorPhoto = url;
 });
 
+//@desc    Upload the 3D cover mockup's front-angle image (Step 40)
+//@route   PUT /api/books/cover-design/render3d-front/:id
+//@access  Private
+const updateRender3DFrontImage = uploadCoverDesignImageHandler((book, url) => {
+  book.coverDesign.render3D.frontImage = url;
+});
+
+//@desc    Upload the 3D cover mockup's back-angle image (Step 40)
+//@route   PUT /api/books/cover-design/render3d-back/:id
+//@access  Private
+const updateRender3DBackImage = uploadCoverDesignImageHandler((book, url) => {
+  book.coverDesign.render3D.backImage = url;
+});
+
 //@desc    Toggle a book's status between draft and published. Generates a
 //         shareId the first time it's published; a book that's published
 //         again after being unpublished keeps its original shareId (same
@@ -263,4 +277,6 @@ module.exports = {
     togglePublishStatus,
     updateCoverDesignFrontImage,
     updateCoverDesignAuthorPhoto,
+    updateRender3DFrontImage,
+    updateRender3DBackImage,
 };

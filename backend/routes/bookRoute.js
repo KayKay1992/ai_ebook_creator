@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto } = require('../controller/bookController');
+const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware, uploadCoverDesignImage } = require('../middleware/uploadMiddleware');
 
@@ -36,5 +36,11 @@ router.route('/cover-design/front-image/:id')
 
 router.route('/cover-design/author-photo/:id')
     .put(uploadCoverDesignImage, updateCoverDesignAuthorPhoto);
+
+router.route('/cover-design/render3d-front/:id')
+    .put(uploadCoverDesignImage, updateRender3DFrontImage);
+
+router.route('/cover-design/render3d-back/:id')
+    .put(uploadCoverDesignImage, updateRender3DBackImage);
 
 module.exports = router;

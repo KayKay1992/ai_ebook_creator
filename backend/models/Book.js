@@ -140,6 +140,20 @@ const bookSchema = new mongoose.Schema({
             },
             genreTag: { type: String, default: '' },
         },
+        // Pre-rendered 3D cover mockup (Step 40) — an alternative to the
+        // generated flat front/back design above, for a finished render made
+        // externally (AI image tools, mockup generators, Photoshop) and
+        // uploaded as-is. `isActive` is the single either/or switch: true
+        // means frontImage/backImage supersede the flat coverDesign.front/
+        // back everywhere a cover is shown (see CoverPreview.jsx), exactly
+        // the same way coverDesign.front.backgroundImage already supersedes
+        // the legacy top-level coverImage. Defaults keep this always a
+        // populated object, same reasoning as the rest of coverDesign.
+        render3D: {
+            frontImage: { type: String, default: '' },
+            backImage: { type: String, default: '' },
+            isActive: { type: Boolean, default: false },
+        },
     },
 },
     {
