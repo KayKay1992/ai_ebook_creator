@@ -17,6 +17,10 @@ import KenlibsBookDetailPage from "./pages/KenlibsBookDetailPage";
 import KenlibsBundleDetailPage from "./pages/KenlibsBundleDetailPage";
 import KenlibsLoginPage from "./pages/KenlibsLoginPage";
 import KenlibsSignupPage from "./pages/KenlibsSignupPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import KenlibsForgotPasswordPage from "./pages/KenlibsForgotPasswordPage";
+import KenlibsResetPasswordPage from "./pages/KenlibsResetPasswordPage";
 import KenlibsCheckoutPage from "./pages/KenlibsCheckoutPage";
 import KenlibsMyBooksPage from "./pages/KenlibsMyBooksPage";
 import KenlibsReadPage from "./pages/KenlibsReadPage";
@@ -36,6 +40,8 @@ const App = () => {
         <Route path="/" element={<Navigate to="/kenlibs" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         {/* Every reader-facing surface — the public share reader plus all of
             Kenlibs — renders inside KenlibsThemeLayout so it picks up the
@@ -52,6 +58,11 @@ const App = () => {
           <Route path="/kenlibs/bundle/:id" element={<KenlibsBundleDetailPage />} />
           <Route path="/kenlibs/login" element={<KenlibsLoginPage />} />
           <Route path="/kenlibs/signup" element={<KenlibsSignupPage />} />
+          <Route path="/kenlibs/forgot-password" element={<KenlibsForgotPasswordPage />} />
+          <Route
+            path="/kenlibs/reset-password/:token"
+            element={<KenlibsResetPasswordPage />}
+          />
 
           {/* Reader-authenticated Kenlibs surfaces — any logged-in user
               (reader or admin), guarded by ReaderRoute rather than AdminRoute. */}

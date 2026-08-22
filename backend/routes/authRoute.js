@@ -4,6 +4,8 @@ const {
   loginUser,
   getProfile,
   updateUserProfile,
+  forgotPassword,
+  resetPassword,
 } = require("../controller/authController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -28,5 +30,16 @@ router.get("/profile", protect, getProfile);
 // @desc    Update user profile
 // @access  Private
 router.put("/profile", protect, updateUserProfile);
+
+// @route   POST /api/auth/forgot-password
+// @desc    Request a password reset token (see authController.js's TODO —
+//          not production-safe until real email delivery is wired up)
+// @access  Public
+router.post("/forgot-password", forgotPassword);
+
+// @route   POST /api/auth/reset-password/:token
+// @desc    Complete a password reset with a valid token
+// @access  Public
+router.post("/reset-password/:token", resetPassword);
 
 module.exports = router;

@@ -37,6 +37,20 @@ const userSchema = new mongoose.Schema({
         enum: ['admin', 'reader'],
         default: 'reader',
     },
+    // Password reset (self-service forgot-password and admin-initiated
+    // reset — see controller/authController.js and adminController.js).
+    // select: false for the same reason as `password` above: neither should
+    // ever come back in a normal find()/findById() unless explicitly asked
+    // for via .select('+resetPasswordToken'). Both cleared on successful
+    // reset (or left to just expire on their own via resetPasswordExpires).
+    resetPasswordToken: {
+        type: String,
+        select: false,
+    },
+    resetPasswordExpires: {
+        type: Date,
+        select: false,
+    },
 },
     {
         timestamps: true

@@ -6,6 +6,8 @@ export const API_PATHS = {
     REGISTER: "/api/auth/register",
     PROFILE: "/api/auth/profile",
     UPDATE_PROFILE: "/api/auth/profile",
+    FORGOT_PASSWORD: "/api/auth/forgot-password",
+    RESET_PASSWORD: (token) => `/api/auth/reset-password/${token}`,
   },
   BOOKS: {
     CREATE_BOOK: "/api/books",
@@ -58,5 +60,6 @@ export const API_PATHS = {
   },
   ADMIN: {
     USERS: "/api/admin/users",
+    RESET_USER_PASSWORD: (id) => `/api/admin/users/${id}/reset-password`,
   },
 };

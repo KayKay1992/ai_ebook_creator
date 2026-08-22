@@ -87,6 +87,15 @@ const LoginPage = () => {
               required
             />
 
+            <div className="text-right -mt-2">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-accent hover:text-accent-hover font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             <Button
               type="submit"
               className="w-full py-3.5 text-base"
