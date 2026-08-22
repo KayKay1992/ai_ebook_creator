@@ -4,6 +4,7 @@ import { BookOpen, SearchX } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
+import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import KenlibsBookCard from "../components/kenlibs/KenlibsBookCard";
 import KenlibsBundleCard from "../components/kenlibs/KenlibsBundleCard";
 import KenlibsCardSkeleton from "../components/kenlibs/KenlibsCardSkeleton";
@@ -271,6 +272,7 @@ const KenlibsPage = () => {
           </>
         )}
       </div>
+      <KenlibsFooter />
     </div>
   );
 };

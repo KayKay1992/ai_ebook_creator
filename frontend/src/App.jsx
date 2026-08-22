@@ -24,6 +24,9 @@ import KenlibsResetPasswordPage from "./pages/KenlibsResetPasswordPage";
 import KenlibsCheckoutPage from "./pages/KenlibsCheckoutPage";
 import KenlibsMyBooksPage from "./pages/KenlibsMyBooksPage";
 import KenlibsReadPage from "./pages/KenlibsReadPage";
+import KenlibsTermsPage from "./pages/KenlibsTermsPage";
+import KenlibsPrivacyPage from "./pages/KenlibsPrivacyPage";
+import KenlibsRefundPolicyPage from "./pages/KenlibsRefundPolicyPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
@@ -63,6 +66,9 @@ const App = () => {
             path="/kenlibs/reset-password/:token"
             element={<KenlibsResetPasswordPage />}
           />
+          <Route path="/kenlibs/terms" element={<KenlibsTermsPage />} />
+          <Route path="/kenlibs/privacy" element={<KenlibsPrivacyPage />} />
+          <Route path="/kenlibs/refund-policy" element={<KenlibsRefundPolicyPage />} />
 
           {/* Reader-authenticated Kenlibs surfaces — any logged-in user
               (reader or admin), guarded by ReaderRoute rather than AdminRoute. */}

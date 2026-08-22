@@ -7,6 +7,7 @@ import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
+import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import CoverPreview from "../components/cards/CoverPreview";
 import Button from "../components/ui/Button";
 import { formatNaira, getBookBadge } from "../utils/kenlibsPricing";
@@ -240,11 +241,30 @@ const KenlibsCheckoutPage = () => {
                     />
                   </label>
 
+                  <p className="text-xs text-gray-400 mt-5 leading-relaxed">
+                    By submitting, you agree to Kenlibs'{" "}
+                    <Link to="/kenlibs/terms" className="text-accent hover:text-accent-hover font-medium">
+                      Terms of Service
+                    </Link>
+                    ,{" "}
+                    <Link to="/kenlibs/privacy" className="text-accent hover:text-accent-hover font-medium">
+                      Privacy Policy
+                    </Link>
+                    , and{" "}
+                    <Link
+                      to="/kenlibs/refund-policy"
+                      className="text-accent hover:text-accent-hover font-medium"
+                    >
+                      Refund Policy
+                    </Link>
+                    .
+                  </p>
+
                   <motion.div whileTap={{ scale: 0.98 }}>
                     <Button
                       type="submit"
                       loading={isSubmitting}
-                      className="w-full mt-6 py-3.5 text-base"
+                      className="w-full mt-3 py-3.5 text-base"
                     >
                       Submit Request
                     </Button>
@@ -255,6 +275,7 @@ const KenlibsCheckoutPage = () => {
           </motion.div>
         </motion.div>
       </div>
+      <KenlibsFooter />
     </div>
   );
 };

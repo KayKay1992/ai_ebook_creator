@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import InputField from "../components/ui/inputField";
 import Button from "../components/ui/Button";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
+import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import { useAuth } from "../context/AuthContext";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -170,6 +171,7 @@ const KenlibsLoginPage = () => {
           </motion.div>
         </motion.div>
       </div>
+      <KenlibsFooter />
     </div>
   );
 };

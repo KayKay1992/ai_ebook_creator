@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import InputField from "../components/ui/inputField";
 import Button from "../components/ui/Button";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
+import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
@@ -121,6 +122,7 @@ const KenlibsForgotPasswordPage = () => {
           </motion.div>
         </motion.div>
       </div>
+      <KenlibsFooter />
     </div>
   );
 };

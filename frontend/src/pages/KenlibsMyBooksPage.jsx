@@ -16,6 +16,7 @@ import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
+import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import Button from "../components/ui/Button";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
@@ -354,6 +355,7 @@ const KenlibsMyBooksPage = () => {
           </motion.div>
         )}
       </div>
+      <KenlibsFooter />
     </div>
   );
 };

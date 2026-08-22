@@ -5,6 +5,7 @@ import { ArrowLeft, PackageX, ShoppingBag } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
+import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import CoverPreview from "../components/cards/CoverPreview";
 import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
@@ -223,6 +224,7 @@ const KenlibsBundleDetailPage = () => {
           </motion.div>
         </motion.div>
       </div>
+      <KenlibsFooter />
     </div>
   );
 };
