@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import KenlibsPolicyLayout from "../components/kenlibs/KenlibsPolicyLayout";
-import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF } from "../components/kenlibs/KenlibsFooter";
+import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF } from "../utils/kenlibsSupport";
 
 const KenlibsTermsPage = () => (
   <KenlibsPolicyLayout title="Terms of Service" lastUpdated="August 22, 2026">

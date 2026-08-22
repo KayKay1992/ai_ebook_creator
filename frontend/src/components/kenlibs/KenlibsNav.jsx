@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Menu, X } from "lucide-react";
+import { BookOpen, LifeBuoy, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
 // Deliberately separate from the admin Navbar/DashboardLayout — Kenlibs is
@@ -28,6 +28,13 @@ const KenlibsNav = () => {
 
           {/* Desktop links */}
           <div className="hidden sm:flex items-center gap-2">
+            <Link
+              to="/kenlibs/support"
+              title="Support"
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <LifeBuoy className="w-4 h-4" />
+            </Link>
             {isAuthenticated ? (
               <>
                 <Link
@@ -92,6 +99,14 @@ const KenlibsNav = () => {
             className="sm:hidden overflow-hidden border-t border-white/10"
           >
             <div className="px-6 py-4 flex flex-col gap-1">
+              <Link
+                to="/kenlibs/support"
+                onClick={() => setIsMobileOpen(false)}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <LifeBuoy className="w-4 h-4" />
+                Support
+              </Link>
               {isAuthenticated ? (
                 <>
                   <Link

@@ -11,12 +11,14 @@ import {
   BookOpenCheck,
   UploadCloud,
   Award,
+  MessageCircle,
 } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
+import { buildWhatsAppHref } from "../utils/kenlibsSupport";
 import Button from "../components/ui/Button";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
@@ -284,6 +286,7 @@ const KenlibsMyBooksPage = () => {
                   {/* Rejected requests can be resubmitted with new evidence
                       without starting a whole new request. */}
                   {isRejected && (
+                    <>
                     <AnimatePresence mode="wait" initial={false}>
                       {!isResubmitOpen ? (
                         <motion.div
@@ -348,6 +351,26 @@ const KenlibsMyBooksPage = () => {
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    {/* This is the moment a reader is most likely to
+                        actually need help (Step 43) — a direct wa.me link
+                        with the request's own book/bundle title pre-filled,
+                        not just a pointer to the footer. Always visible
+                        here regardless of whether the resubmit form above
+                        is open. */}
+                    <a
+                      href={buildWhatsAppHref(
+                        `Hi, I need help with my purchase request for "${req.itemTitle}" — it was rejected${
+                          req.adminNote ? ` (note: "${req.adminNote}")` : ""
+                        }.`
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-accent-hover transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      Need help? Contact support
+                    </a>
+                    </>
                   )}
                 </motion.div>
               );

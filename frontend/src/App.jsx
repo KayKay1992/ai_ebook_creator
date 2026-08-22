@@ -27,6 +27,7 @@ import KenlibsReadPage from "./pages/KenlibsReadPage";
 import KenlibsTermsPage from "./pages/KenlibsTermsPage";
 import KenlibsPrivacyPage from "./pages/KenlibsPrivacyPage";
 import KenlibsRefundPolicyPage from "./pages/KenlibsRefundPolicyPage";
+import KenlibsSupportPage from "./pages/KenlibsSupportPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
@@ -69,6 +70,7 @@ const App = () => {
           <Route path="/kenlibs/terms" element={<KenlibsTermsPage />} />
           <Route path="/kenlibs/privacy" element={<KenlibsPrivacyPage />} />
           <Route path="/kenlibs/refund-policy" element={<KenlibsRefundPolicyPage />} />
+          <Route path="/kenlibs/support" element={<KenlibsSupportPage />} />
 
           {/* Reader-authenticated Kenlibs surfaces — any logged-in user
               (reader or admin), guarded by ReaderRoute rather than AdminRoute. */}

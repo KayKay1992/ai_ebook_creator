@@ -1,5 +1,5 @@
 import KenlibsPolicyLayout from "../components/kenlibs/KenlibsPolicyLayout";
-import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF } from "../components/kenlibs/KenlibsFooter";
+import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF } from "../utils/kenlibsSupport";
 
 const KenlibsPrivacyPage = () => (
   <KenlibsPolicyLayout title="Privacy Policy" lastUpdated="August 22, 2026">

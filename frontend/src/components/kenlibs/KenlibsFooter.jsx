@@ -1,9 +1,6 @@
 import { Link } from "react-router-dom";
 import { Mail, MessageCircle, BookOpen } from "lucide-react";
-
-const SUPPORT_EMAIL = "kennethnwankpa92@yahoo.com";
-const SUPPORT_WHATSAPP_DISPLAY = "+234 810 310 8267";
-const SUPPORT_WHATSAPP_HREF = "https://wa.me/2348103108267";
+import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF } from "../../utils/kenlibsSupport";
 
 // Rendered at the bottom of every reader-facing Kenlibs page that already
 // renders KenlibsNav (Step 42) — a navy "bookend" to match the nav's own
@@ -31,6 +28,9 @@ const KenlibsFooter = () => (
           </Link>
           <Link to="/kenlibs/refund-policy" className="hover:text-white transition-colors">
             Refund Policy
+          </Link>
+          <Link to="/kenlibs/support" className="hover:text-white transition-colors">
+            Support
           </Link>
         </div>
 
@@ -62,4 +62,3 @@ const KenlibsFooter = () => (
 );
 
 export default KenlibsFooter;
-export { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF };
