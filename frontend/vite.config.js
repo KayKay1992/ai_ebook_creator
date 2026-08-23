@@ -10,14 +10,19 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      // The real Kenlibs icon set (Step 48) — favicon.ico + apple-touch-icon
+      // are referenced directly by index.html's <link> tags but aren't
+      // otherwise picked up as manifest icons, so they're listed here to
+      // make sure the service worker precaches them too. The sized favicon
+      // PNGs are covered by the workbox globPatterns below already.
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'AI Book Creator',
         short_name: 'Book Creator',
         description: 'Create, edit, and read AI-generated ebooks — including offline.',
-        // Matches the frontend/src/index.css @theme tokens (Tailwind v4 OKLCH
-        // values converted to sRGB hex): --color-accent and --color-surface.
-        theme_color: '#7f22fe',
+        // Matches frontend/src/index.css's @theme --color-accent (Step 47's
+        // terracotta/navy palette promotion).
+        theme_color: '#c4592f',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
@@ -29,6 +34,21 @@ export default defineConfig({
           },
           {
             src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          // Android-specific filename convention some PWA tooling expects
+          // alongside the generic pwa-* set above — same artwork, not a
+          // maskable-safe-zone variant, so deliberately not tagged
+          // `purpose: 'maskable'` (that would claim a safe-zone crop this
+          // art doesn't actually have).
+          {
+            src: 'android-chrome-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'android-chrome-512x512.png',
             sizes: '512x512',
             type: 'image/png',
           },
