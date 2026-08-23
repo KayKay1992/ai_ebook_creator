@@ -50,10 +50,11 @@ const App = () => {
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         {/* Every reader-facing surface — the public share reader plus all of
-            Kenlibs — renders inside KenlibsThemeLayout so it picks up the
-            terracotta/navy/cream palette (index.css's .kenlibs-theme rule,
-            Step 39). Admin routes below stay outside this wrapper entirely,
-            so they keep the original violet/purple defaults untouched. */}
+            Kenlibs — renders inside KenlibsThemeLayout. As of Step 47 this
+            is no longer a theming wrapper (the terracotta/navy/cream
+            palette is the app-wide default now, admin included — see
+            index.css's @theme block); it only exists to mount
+            KenlibsWhatsAppButton once for every route below. */}
         <Route element={<KenlibsThemeLayout />}>
           <Route path="/read/:shareId" element={<ReadBookPage />} />
 

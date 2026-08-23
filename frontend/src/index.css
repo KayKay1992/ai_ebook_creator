@@ -6,55 +6,15 @@
   --font-serif: "Fraunces", serif;
   --breakpoint-3xl: 1920px;
 
-  /* Brand accent - violet. Aliased to Tailwind's own violet/purple palette
-     (not hand-copied hex values) so consolidating onto these tokens is a
-     pure rename with zero visual drift from the existing product. */
-  --color-accent-50: var(--color-violet-50);
-  --color-accent-100: var(--color-violet-100);
-  --color-accent-200: var(--color-violet-200);
-  --color-accent-300: var(--color-violet-300);
-  --color-accent-400: var(--color-violet-400);
-  --color-accent-500: var(--color-violet-500);
-  --color-accent: var(--color-violet-600);
-  --color-accent-hover: var(--color-violet-700);
-  --color-accent-900: var(--color-violet-900);
-  --color-accent-muted: var(--color-violet-100);
-
-  /* Gradient partner - purple, the second stop of the existing violet -> purple
-     two-stop brand gradient used on primary buttons, icon badges, and hero text. */
-  --color-accent-secondary-50: var(--color-purple-50);
-  --color-accent-secondary-200: var(--color-purple-200);
-  --color-accent-secondary-300: var(--color-purple-300);
-  --color-accent-secondary-400: var(--color-purple-400);
-  --color-accent-secondary-500: var(--color-purple-500);
-  --color-accent-secondary: var(--color-purple-600);
-  --color-accent-secondary-hover: var(--color-purple-700);
-
-  --color-surface: #ffffff;
-  --color-surface-warm: #faf9f7;
-
-  --color-ink: var(--color-gray-900);
-  --color-ink-muted: var(--color-gray-500);
-}
-
-/* Reader-facing Kenlibs theme (Step 39) — a scoped override of the SAME
-   --color-accent/--color-accent-secondary/--color-surface-warm custom
-   properties declared above, not a second set of token names. CSS custom
-   properties resolve by inheritance (nearest ancestor wins, independent of
-   selector specificity), so every existing bg-accent/text-accent-secondary/
-   from-accent/etc. utility already used throughout the Kenlibs components
-   picks this up automatically for free the moment it renders inside a
-   .kenlibs-theme wrapper (see KenlibsThemeLayout.jsx) — no component-level
-   className changes needed for color. Admin pages never render inside that
-   wrapper, so they keep the violet/purple defaults above completely
-   untouched, and a future admin redesign is just editing those defaults,
-   fully decoupled from this block.
-
-   Palette: burnt-orange/terracotta accent (hue ~18°) replacing violet, deep
-   navy secondary (hue ~218°) replacing purple — a classical warm-bookstore
-   aesthetic — plus a genuine cream surface-warm instead of the near-white
-   original. */
-.kenlibs-theme {
+  /* Brand accent — burnt-orange/terracotta (hue ~18°), a classical
+     warm-bookstore aesthetic. Promoted here as the app-wide default (Step
+     47) — this used to be violet, overridden to terracotta only inside a
+     .kenlibs-theme wrapper scoped to reader-facing routes (Step 39). Now
+     that admin and Kenlibs share one brand, that override was deleted and
+     these hex values (identical to what .kenlibs-theme used to set) live
+     here directly instead, so every bg-accent/text-accent-secondary/
+     from-accent/etc. utility anywhere in the app — admin included —
+     resolves to the same palette with no component-level changes. */
   --color-accent-50: #fdf2ec;
   --color-accent-100: #fae1d2;
   --color-accent-200: #f3c2a6;
@@ -66,6 +26,8 @@
   --color-accent-900: #5c2412;
   --color-accent-muted: #fae1d2;
 
+  /* Gradient partner — deep navy (hue ~218°), the second stop of the
+     brand gradient used on primary buttons, icon badges, and hero text. */
   --color-accent-secondary-50: #eef1f6;
   --color-accent-secondary-200: #c7d0de;
   --color-accent-secondary-300: #a4b2c8;
@@ -74,7 +36,13 @@
   --color-accent-secondary: #1b2a4a;
   --color-accent-secondary-hover: #121f38;
 
+  --color-surface: #ffffff;
+  /* Genuine cream, not near-white — same value Step 39 introduced for
+     Kenlibs, now the app-wide default. */
   --color-surface-warm: #faf3e8;
+
+  --color-ink: var(--color-gray-900);
+  --color-ink-muted: var(--color-gray-500);
 }
 
 @layer base {
@@ -94,10 +62,13 @@ body {
   color: #4A5568 !important;
   padding: 10px !important;
 }
- /* hover effect */
+ /* hover effect — only styled surface (EditorPage) that had hand-picked
+    violet hex values instead of the design tokens; no Kenlibs page uses
+    this editor toolbar, so Step 39 never touched it. Updated here (Step
+    47) to the same terracotta/navy tokens as everything else. */
 .w-md-editor-toolbar button:hover {
-  background-color: #e9d4ff !important;
-  color: #9852e4 !important;
+  background-color: var(--color-accent-100) !important;
+  color: var(--color-accent-hover) !important;
   border-radius: 6px !important;
 
 }
@@ -105,8 +76,8 @@ body {
 /*active/focus icon style*/
 .w-md-editor-toolbar button:focus {
   outline: none !important;
-  background-color: #e9d4ff !important;
-  color: #007A99 !important;
+  background-color: var(--color-accent-100) !important;
+  color: var(--color-accent-secondary) !important;
   border-radius: 6px !important;
 }
 
