@@ -208,7 +208,7 @@ const approvePurchaseRequest = (req, res) =>
 const rejectPurchaseRequest = (req, res) =>
     reviewPurchaseRequest(req, res, {
         toStatus: 'rejected',
-        note: req.body.adminNote,
+        note: req.body?.adminNote,
         allowedFrom: ['pending'],
         actionVerb: 'reject',
     });
@@ -220,7 +220,7 @@ const rejectPurchaseRequest = (req, res) =>
 const revokePurchaseRequest = (req, res) =>
     reviewPurchaseRequest(req, res, {
         toStatus: 'revoked',
-        note: req.body.adminNote,
+        note: req.body?.adminNote,
         allowedFrom: ['approved'],
         actionVerb: 'revoke',
     });
