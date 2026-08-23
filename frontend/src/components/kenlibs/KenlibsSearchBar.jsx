@@ -30,7 +30,7 @@ const KenlibsSearchBar = ({
   }, [input]);
 
   return (
-    <div className="mb-10">
+    <div>
       <div className="relative max-w-md">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         <input

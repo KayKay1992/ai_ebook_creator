@@ -10,6 +10,12 @@ import KenlibsBundleCard from "../components/kenlibs/KenlibsBundleCard";
 import KenlibsCardSkeleton from "../components/kenlibs/KenlibsCardSkeleton";
 import KenlibsSearchBar from "../components/kenlibs/KenlibsSearchBar";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import kenlibsHero from "../assets/kenlibs-hero.png";
+
+const heroFadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+};
 
 // A book's genre badge can be set independently on the front or back cover
 // (Cover Designer, Step 22) — front is the one actually shown on the
@@ -188,28 +194,61 @@ const KenlibsPage = () => {
       <KenlibsNav />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
-        <motion.div
-          className="mb-12"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        {/* Hero — an illustration (cascading book spines rising into an open
+            book) sits as the section's background, right-aligned with
+            built-in negative space on its left for this text. Below lg, the
+            wide (1920x720) illustration would just crop down to an
+            unreadable sliver, so it's swapped for a plain brand gradient
+            instead via a media query on background-image (not a hidden
+            <img>, which browsers would still fetch even while invisible) —
+            genuinely skips the image request on narrow viewports rather
+            than just hiding it. */}
+        <motion.section
+          className="relative overflow-hidden rounded-3xl mb-12"
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.09 } } }}
         >
-          <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight">
-            Kenlibs
-          </h1>
-          <p className="text-gray-500 mt-2">
-            Browse books and bundles — hover a cover for a quick preview.
-          </p>
-        </motion.div>
+          <style>{`
+            .kenlibs-hero-bg {
+              background-image: linear-gradient(135deg, var(--color-accent-secondary), var(--color-accent));
+            }
+            @media (min-width: 1024px) {
+              .kenlibs-hero-bg {
+                background-image: url(${kenlibsHero});
+                background-size: cover;
+                background-position: right center;
+              }
+            }
+          `}</style>
+          <div className="kenlibs-hero-bg relative px-6 py-12 lg:px-14 lg:py-16 lg:min-h-[380px] flex flex-col justify-center">
+            <div className="max-w-md">
+              <motion.h1
+                variants={heroFadeUp}
+                className="font-serif text-3xl lg:text-5xl font-bold text-white lg:text-gray-900 leading-tight tracking-tight"
+              >
+                Your library of Kenlibs originals
+              </motion.h1>
+              <motion.p
+                variants={heroFadeUp}
+                className="text-white/85 lg:text-gray-600 mt-4 text-base lg:text-lg max-w-sm"
+              >
+                Browse books and bundles — hover a cover for a quick preview.
+              </motion.p>
 
-        {!isLoading && (books.length > 0 || bundles.length > 0) && (
-          <KenlibsSearchBar
-            onSearchChange={setSearchQuery}
-            genres={genres}
-            selectedGenre={selectedGenre}
-            onSelectGenre={setSelectedGenre}
-          />
-        )}
+              {!isLoading && (books.length > 0 || bundles.length > 0) && (
+                <motion.div variants={heroFadeUp} className="mt-7">
+                  <KenlibsSearchBar
+                    onSearchChange={setSearchQuery}
+                    genres={genres}
+                    selectedGenre={selectedGenre}
+                    onSelectGenre={setSelectedGenre}
+                  />
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </motion.section>
 
         {isLoading ? (
           <>
