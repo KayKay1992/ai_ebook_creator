@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { Mail, Lock, User, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -15,6 +15,10 @@ import getErrorMessage from "../utils/getErrorMessage";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
 const SUCCESS_DISPLAY_MS = 700;
+// Survives navigating around the storefront (book detail → login prompt →
+// back to signup) before actually submitting the form — a plain in-memory
+// value wouldn't.
+const REFERRAL_CODE_STORAGE_KEY = "kenlibs_referral_code";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -40,6 +44,16 @@ const KenlibsSignupPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from;
+  const [searchParams] = useSearchParams();
+
+  // Capture a ?ref=CODE link the moment it's seen, regardless of whether
+  // the visitor signs up immediately or browses first.
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) {
+      localStorage.setItem(REFERRAL_CODE_STORAGE_KEY, ref);
+    }
+  }, [searchParams]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -60,11 +74,21 @@ const KenlibsSignupPage = () => {
 
     setLoading(true);
     try {
-      const registerResponse = await axiosInstance.post(API_PATHS.AUTH.REGISTER, {
+      const refCode = localStorage.getItem(REFERRAL_CODE_STORAGE_KEY);
+      const registerUrl = refCode
+        ? `${API_PATHS.AUTH.REGISTER}?ref=${encodeURIComponent(refCode)}`
+        : API_PATHS.AUTH.REGISTER;
+
+      const registerResponse = await axiosInstance.post(registerUrl, {
         name: formData.name,
         email: formData.email,
         password: formData.password,
       });
+
+      // Spent — an invalid/unknown code is silently ignored server-side
+      // anyway, so there's nothing more this value could do for a later
+      // signup in the same browser.
+      localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
 
       // Auto-login right after signup — a shopper shouldn't have to fill
       // out the login form a second time to reach checkout.

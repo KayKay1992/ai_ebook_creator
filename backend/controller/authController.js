@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
+const { generateReferralCode } = require('../utils/referralCode');
 
 // Shared by both the self-service (forgotPassword below) and admin-initiated
 // (adminController.js's resetUserPassword) reset paths, so the two can never
@@ -28,6 +29,7 @@ const generateToken = (id) => {
 //@access  Public
 const registerUser = async (req, res) => {
     const { name, email, password } = req.body;
+    const { ref } = req.query;
 
     try {
         // Validate user data
@@ -41,12 +43,31 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
+        // Resolved *before* the new account exists — an invalid/unknown
+        // code is silently ignored rather than failing the signup.
+        let referrer = null;
+        if (ref) {
+            referrer = await User.findOne({ referralCode: ref });
+        }
+
+        const referralCode = await generateReferralCode(name);
+
         // Create new user
         const user = await User.create({
             name,
             email,
             password,
+            referralCode,
+            referredBy: referrer ? referrer._id : null,
         });
+
+        // Defensive only — `referrer` is always resolved before this
+        // account exists, so it can never actually equal `user._id`. Kept
+        // in case that resolution order ever changes.
+        if (user.referredBy && user.referredBy.toString() === user._id.toString()) {
+            user.referredBy = null;
+            await user.save();
+        }
 
         if (user) {
             res.status(201).json({
@@ -101,6 +122,8 @@ const getProfile = async (req, res) => {
                 isPro: user.isPro,
                 avatar: user.avatar,
                 role: user.role,
+                referralCode: user.referralCode,
+                creditBalance: user.creditBalance,
             });
         } else {
             res.status(404).json({ message: 'User not found' });

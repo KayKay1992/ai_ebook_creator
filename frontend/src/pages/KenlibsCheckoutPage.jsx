@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, UploadCloud, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, UploadCloud, ShieldAlert, CheckCircle2, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -12,6 +12,7 @@ import CoverPreview from "../components/cards/CoverPreview";
 import Button from "../components/ui/Button";
 import { formatNaira, getBookBadge } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import { useAuth } from "../context/AuthContext";
 
 const VALID_TYPES = ["book", "bundle"];
 
@@ -29,6 +30,7 @@ const KenlibsCheckoutPage = () => {
   useDocumentTitle("Checkout — Kenlibs");
   const { itemType, id } = useParams();
   const navigate = useNavigate();
+  const { user, updateUser } = useAuth();
 
   const isValidType = VALID_TYPES.includes(itemType);
 
@@ -40,6 +42,8 @@ const KenlibsCheckoutPage = () => {
   const [evidenceFile, setEvidenceFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [applyCredit, setApplyCredit] = useState(false);
+  const [creditToApply, setCreditToApply] = useState(0);
 
   useEffect(() => {
     if (!isValidType) return;
@@ -65,6 +69,19 @@ const KenlibsCheckoutPage = () => {
   const canBuy =
     itemType === "bundle" ? !!item : itemType === "book" && item && getBookBadge(item)?.type === "price";
   const price = item?.price;
+  const creditBalance = user?.creditBalance || 0;
+  const maxApplicableCredit = Math.min(creditBalance, price || 0);
+  const finalPrice = Math.max(0, (price || 0) - creditToApply);
+
+  // Defaults to applying the maximum available the moment the toggle is
+  // switched on — the reader can dial it down from there via the slider.
+  // By the time this control is interactive, `item`/`price` have already
+  // resolved (this section only renders past the loading/canBuy gates
+  // below), so there's no need to re-sync this via an effect.
+  const handleToggleApplyCredit = (checked) => {
+    setApplyCredit(checked);
+    setCreditToApply(checked ? maxApplicableCredit : 0);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -79,10 +96,21 @@ const KenlibsCheckoutPage = () => {
       formData.append("itemType", itemType);
       formData.append("item", id);
       formData.append("evidenceImage", evidenceFile);
+      if (creditToApply > 0) {
+        formData.append("creditApplied", String(creditToApply));
+      }
 
-      await axiosInstance.post(API_PATHS.PURCHASES.CREATE, formData, {
+      const res = await axiosInstance.post(API_PATHS.PURCHASES.CREATE, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+
+      // The server caps/deducts credit atomically and is the source of
+      // truth — reflect back exactly what it actually applied, not what was
+      // requested, in case the two ever diverge (stale balance, etc.).
+      const actuallyApplied = res.data?.creditApplied || 0;
+      if (actuallyApplied > 0) {
+        updateUser({ creditBalance: Math.max(0, creditBalance - actuallyApplied) });
+      }
 
       toast.success("Request submitted! We'll review it shortly.");
       setIsSubmitted(true);
@@ -171,10 +199,66 @@ const KenlibsCheckoutPage = () => {
                 <p className="text-sm text-gray-500">{item.author}</p>
               )}
             </div>
-            <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-accent text-white flex-shrink-0">
-              {formatNaira(price)}
-            </span>
+            <div className="flex-shrink-0 text-right">
+              {creditToApply > 0 && (
+                <p className="text-xs text-gray-400 line-through">{formatNaira(price)}</p>
+              )}
+              <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-accent text-white inline-block">
+                {formatNaira(finalPrice)}
+              </span>
+            </div>
           </motion.div>
+
+          {/* Store credit — only shown when there's actually a positive
+              balance to apply. Capped server-side too; this is just the
+              picker. */}
+          {creditBalance > 0 && (
+            <motion.div
+              variants={fadeUp}
+              className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6"
+            >
+              <div className="flex items-center justify-between gap-4 mb-1">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={applyCredit}
+                    onChange={(e) => handleToggleApplyCredit(e.target.checked)}
+                    className="w-4 h-4 accent-accent"
+                  />
+                  <span className="flex items-center gap-2 font-semibold text-gray-900">
+                    <Wallet className="w-4 h-4 text-accent" />
+                    Apply store credit
+                  </span>
+                </label>
+                <span className="text-sm text-gray-500">
+                  {formatNaira(creditBalance)} available
+                </span>
+              </div>
+
+              {applyCredit && (
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={maxApplicableCredit}
+                    step={Math.min(50, maxApplicableCredit) || 1}
+                    value={creditToApply}
+                    onChange={(e) => setCreditToApply(Number(e.target.value))}
+                    className="w-full accent-accent"
+                  />
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">
+                      Applying <span className="font-semibold text-gray-800">{formatNaira(creditToApply)}</span>
+                    </span>
+                    <span className="text-gray-500">
+                      Final price:{" "}
+                      <span className="font-semibold text-gray-900">{formatNaira(finalPrice)}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* Payment instructions — placeholder static content; the admin
               fills in real bank details later. */}
@@ -189,8 +273,14 @@ const KenlibsCheckoutPage = () => {
               <p>Account Number: <span className="font-medium text-gray-800">[Your Account Number]</span></p>
             </div>
             <p className="text-sm text-gray-500 mt-3">
-              Transfer <span className="font-semibold text-gray-700">{formatNaira(price)}</span> to
-              the account above, then upload your proof of payment below.
+              {finalPrice > 0 ? (
+                <>
+                  Transfer <span className="font-semibold text-gray-700">{formatNaira(finalPrice)}</span> to
+                  the account above, then upload your proof of payment below.
+                </>
+              ) : (
+                "Your store credit fully covers this — still upload any proof of payment to submit the request."
+              )}
             </p>
           </motion.div>
 

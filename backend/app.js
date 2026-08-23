@@ -9,6 +9,7 @@ const bundleRoutes = require('./routes/bundleRoute');
 const purchaseRoutes = require('./routes/purchaseRoute');
 const kenlibsRoutes = require('./routes/kenlibsRoute');
 const adminRoutes = require('./routes/adminRoute');
+const referralRoutes = require('./routes/referralRoute');
 const ogPreviewRoutes = require('./routes/ogPreviewRoute');
 
 // Pure Express app construction — no DB connection, no app.listen(). Split
@@ -41,6 +42,7 @@ app.use('/api/bundles', bundleRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/kenlibs', kenlibsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/referrals', referralRoutes);
 
 // Deliberately NOT under /api and matching the frontend's own SPA paths
 // (/kenlibs/book/:id, /kenlibs/bundle/:id) — this exists only to give

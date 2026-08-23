@@ -19,6 +19,12 @@ const createUser = async (overrides = {}) => {
         email: overrides.email || uniqueEmail(overrides.role || 'user'),
         password: overrides.password || 'password123',
         role: overrides.role || 'reader',
+        // Referral fields (Step 46) — undefined overrides fall through to
+        // the schema's own defaults (referralCode unset, referredBy null,
+        // creditBalance 0) rather than being forced here.
+        referralCode: overrides.referralCode,
+        referredBy: overrides.referredBy,
+        creditBalance: overrides.creditBalance,
     });
 };
 

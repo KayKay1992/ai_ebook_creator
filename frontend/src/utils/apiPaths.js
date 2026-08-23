@@ -64,4 +64,7 @@ export const API_PATHS = {
     USERS: "/api/admin/users",
     RESET_USER_PASSWORD: (id) => `/api/admin/users/${id}/reset-password`,
   },
+  REFERRALS: {
+    MINE: "/api/referrals/me",
+  },
 };

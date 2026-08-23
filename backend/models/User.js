@@ -51,6 +51,31 @@ const userSchema = new mongoose.Schema({
         type: Date,
         select: false,
     },
+    // Referral system (see controller/purchaseController.js's reward logic
+    // and utils/referralCode.js). `sparse: true` on referralCode matters —
+    // existing pre-referral-system accounts have no code, and a plain
+    // unique index would reject a second `null`/missing value (this is the
+    // same sparse-index lesson noted elsewhere in this project).
+    referralCode: {
+        type: String,
+        unique: true,
+        sparse: true,
+    },
+    // Set once at signup from a valid ?ref=CODE link and never changed
+    // afterward — a reader's referrer is fixed for the lifetime of the
+    // account.
+    referredBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+    },
+    // Store credit earned from referral rewards, in Naira — applicable
+    // toward this user's own future purchases (see
+    // purchaseController.js's createPurchaseRequest).
+    creditBalance: {
+        type: Number,
+        default: 0,
+    },
 },
     {
         timestamps: true

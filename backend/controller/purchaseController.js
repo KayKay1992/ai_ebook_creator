@@ -1,7 +1,13 @@
 const PurchaseRequest = require('../models/PurchaseRequest');
 const Book = require('../models/Book');
 const Bundle = require('../models/Bundle');
+const User = require('../models/User');
+const ReferralReward = require('../models/ReferralReward');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
+
+// Named so the payout rate is easy to find and tune later — currently 5% of
+// the triggering purchase's snapshotted `amount`.
+const REFERRAL_REWARD_PERCENTAGE = 0.05;
 
 // Loads the referenced item and confirms it's actually purchasable right
 // now — never trust the frontend to only ever send valid requests, since
@@ -85,6 +91,34 @@ const createPurchaseRequest = async (req, res) => {
             return res.status(400).json({ message: error });
         }
 
+        // Store credit is optional and reader-requested, but the amount
+        // actually applied is resolved server-side: capped so it can never
+        // exceed the item's price (no "refund" beyond what's owed) or the
+        // reader's real balance, and deducted atomically via a conditional
+        // update rather than a read-then-write, so two concurrent purchase
+        // requests can't both spend the same credit.
+        const requestedCredit = Math.max(0, Number(req.body.creditApplied) || 0);
+        let creditApplied = 0;
+        if (requestedCredit > 0) {
+            const reader = await User.findById(req.user._id).select('creditBalance');
+            const creditToApply = Math.min(requestedCredit, price, reader.creditBalance);
+            if (creditToApply > 0) {
+                // The cap above already accounts for the balance read just
+                // now; the `$gte` guard here only protects against a
+                // concurrent request spending that same balance in the gap
+                // between the read and this write — in that rare race,
+                // apply zero rather than let the balance go negative or
+                // fail the whole purchase over a credit mismatch.
+                const debited = await User.findOneAndUpdate(
+                    { _id: req.user._id, creditBalance: { $gte: creditToApply } },
+                    { $inc: { creditBalance: -creditToApply } }
+                );
+                if (debited) {
+                    creditApplied = creditToApply;
+                }
+            }
+        }
+
         const uploadResult = await uploadBufferToCloudinary(
             req.file.buffer,
             'ebook-creator/purchase-evidence'
@@ -95,6 +129,7 @@ const createPurchaseRequest = async (req, res) => {
             itemType,
             item,
             amount: price, // server-side snapshot — never trust a client-sent amount
+            creditApplied,
             evidenceImage: uploadResult.secure_url,
         });
 
@@ -147,6 +182,32 @@ const getAllPurchaseRequests = async (req, res) => {
     }
 };
 
+// A referred reader is rewarded for their FIRST ever approved purchase
+// only — checked via ReferralReward's existence for this reader, not by
+// counting currently-approved PurchaseRequests, so the reward stays
+// one-time even if that original purchase is later revoked and a different
+// one is subsequently approved.
+const maybeGrantReferralReward = async (purchaseRequest) => {
+    const reader = await User.findById(purchaseRequest.reader).select('referredBy');
+    if (!reader?.referredBy) {
+        return;
+    }
+
+    const alreadyRewarded = await ReferralReward.exists({ referredReader: purchaseRequest.reader });
+    if (alreadyRewarded) {
+        return;
+    }
+
+    const amount = Math.round(purchaseRequest.amount * REFERRAL_REWARD_PERCENTAGE);
+    await User.findByIdAndUpdate(reader.referredBy, { $inc: { creditBalance: amount } });
+    await ReferralReward.create({
+        referrer: reader.referredBy,
+        referredReader: purchaseRequest.reader,
+        triggeringPurchaseRequest: purchaseRequest._id,
+        amount,
+    });
+};
+
 // Shared by approve/reject/revoke — loads the request, rejects the review if
 // it isn't currently in one of the states this transition is allowed from
 // (so a request can't silently flip status twice, e.g. two admins reviewing
@@ -177,6 +238,11 @@ const reviewPurchaseRequest = async (req, res, { toStatus, note, allowedFrom, ac
             reviewedAt,
         });
         await request.save();
+
+        if (toStatus === 'approved') {
+            await maybeGrantReferralReward(request);
+        }
+
         // The admin queue's GET populates reader + reviewHistory.reviewedBy
         // — do the same here so an in-place UI update after approve/reject/
         // revoke doesn't drop the reader's name/email or reviewer names.

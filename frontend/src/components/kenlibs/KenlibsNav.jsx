@@ -12,6 +12,7 @@ const KenlibsNav = () => {
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isMyBooksActive = location.pathname.startsWith("/kenlibs/my-books");
+  const isReferralsActive = location.pathname.startsWith("/kenlibs/referrals");
 
   return (
     <header className="sticky top-0 z-40 bg-accent-secondary border-b-2 border-accent">
@@ -43,6 +44,19 @@ const KenlibsNav = () => {
                 >
                   My Books
                   {isMyBooksActive && (
+                    <motion.span
+                      layoutId="kenlibs-nav-active"
+                      className="absolute left-4 right-4 -bottom-[1px] h-0.5 bg-accent rounded-full"
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                </Link>
+                <Link
+                  to="/kenlibs/referrals"
+                  className="relative px-4 py-2 text-sm font-medium text-white/80 hover:text-white transition-colors"
+                >
+                  Referrals
+                  {isReferralsActive && (
                     <motion.span
                       layoutId="kenlibs-nav-active"
                       className="absolute left-4 right-4 -bottom-[1px] h-0.5 bg-accent rounded-full"
@@ -119,6 +133,17 @@ const KenlibsNav = () => {
                     }`}
                   >
                     My Books
+                  </Link>
+                  <Link
+                    to="/kenlibs/referrals"
+                    onClick={() => setIsMobileOpen(false)}
+                    className={`px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      isReferralsActive
+                        ? "bg-accent text-white"
+                        : "text-white/80 hover:bg-white/10"
+                    }`}
+                  >
+                    Referrals
                   </Link>
                   <button
                     onClick={() => {

@@ -65,6 +65,16 @@ const purchaseRequestSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        // How much of the reader's store credit was applied toward `amount`
+        // at request-creation time (see purchaseController.js's
+        // createPurchaseRequest) — spent immediately regardless of whether
+        // this request later gets approved or rejected, same as a coupon.
+        // Kept separately from `amount` so `amount` stays a stable snapshot
+        // of the item's actual price.
+        creditApplied: {
+            type: Number,
+            default: 0,
+        },
         // 'revoked' is deliberately distinct from 'rejected' — a revoked
         // request was once genuinely approved and later pulled, which
         // matters for records even though the access effect (no access) is

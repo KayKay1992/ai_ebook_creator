@@ -23,6 +23,7 @@ import KenlibsForgotPasswordPage from "./pages/KenlibsForgotPasswordPage";
 import KenlibsResetPasswordPage from "./pages/KenlibsResetPasswordPage";
 import KenlibsCheckoutPage from "./pages/KenlibsCheckoutPage";
 import KenlibsMyBooksPage from "./pages/KenlibsMyBooksPage";
+import KenlibsReferralsPage from "./pages/KenlibsReferralsPage";
 import KenlibsReadPage from "./pages/KenlibsReadPage";
 import KenlibsTermsPage from "./pages/KenlibsTermsPage";
 import KenlibsPrivacyPage from "./pages/KenlibsPrivacyPage";
@@ -81,6 +82,10 @@ const App = () => {
           <Route
             path="/kenlibs/my-books"
             element={<ReaderRoute><KenlibsMyBooksPage /></ReaderRoute>}
+          />
+          <Route
+            path="/kenlibs/referrals"
+            element={<ReaderRoute><KenlibsReferralsPage /></ReaderRoute>}
           />
           <Route
             path="/kenlibs/read/:bookId"
