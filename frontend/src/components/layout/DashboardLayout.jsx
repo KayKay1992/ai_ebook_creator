@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, Package, ShieldCheck, Users, BarChart3 } from "lucide-react";
+import { BookOpen, Package, ShieldCheck, Users, BarChart3, MessageSquareText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import axiosInstance from "../../utils/axiosInstance";
@@ -103,6 +103,15 @@ const DashboardLayout = ({ children }) => {
                 >
                   <BarChart3 className="w-4 h-4" />
                   Analytics
+                </Link>
+              )}
+              {user?.role === "admin" && (
+                <Link
+                  to="/admin/reviews"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <MessageSquareText className="w-4 h-4" />
+                  Reviews
                 </Link>
               )}
             </div>

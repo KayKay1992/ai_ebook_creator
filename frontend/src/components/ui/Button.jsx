@@ -11,6 +11,16 @@ const Button = ({
   const variants = {
     primary: "bg-gradient-to-r from-accent to-accent-secondary hover:from-accent-hover hover:to-accent-secondary-hover text-white shadow-lg shadow-accent-500/30",
     secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200",
+    // Solid colors, deliberately with no gradient/background-image at all
+    // (unlike primary) — a `className="bg-red-500 ..."` override on
+    // variant="primary" looks like it should work but doesn't: the
+    // primary variant's background-image gradient still paints on top of
+    // an overridden background-color, since they're different CSS
+    // properties, not a single class Tailwind can resolve a conflict
+    // between. These exist so a destructive/warning action can actually
+    // render as a plain color, not fall back to looking primary.
+    danger: "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30",
+    warning: "bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30",
   };
 
   const sizes = {

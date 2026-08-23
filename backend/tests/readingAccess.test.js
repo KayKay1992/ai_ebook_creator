@@ -21,6 +21,42 @@ describe('GET /api/kenlibs/read/:bookId — access resolution', () => {
         expect(res.body._id).toBe(book._id.toString());
     });
 
+    it('unpublishing a book via the REAL admin publish toggle does not revoke an existing approved reader\'s access (Step 50)', async () => {
+        // Not a direct DB write to book.status — goes through the actual
+        // PUT /api/books/:id/publish endpoint (bookController.js's
+        // togglePublishStatus), the same action BookDetailsTab's
+        // Publish/Unpublish button calls, so this proves the real
+        // admin-facing action, not just the underlying field.
+        const admin = await createUser({ role: 'admin' });
+        const reader = await createUser({ role: 'reader' });
+        const book = await createBook({ status: 'published', userId: admin._id });
+        await createPurchaseRequest({ reader, itemType: 'book', item: book._id, status: 'approved' });
+
+        const beforeToggle = await readAs(reader, book._id);
+        expect(beforeToggle.status).toBe(200);
+
+        const toggleRes = await request(app)
+            .put(`/api/books/${book._id}/publish`)
+            .set('Authorization', `Bearer ${tokenFor(admin)}`);
+        expect(toggleRes.status).toBe(200);
+        expect(toggleRes.body.status).toBe('draft');
+
+        const afterToggle = await readAs(reader, book._id);
+        expect(afterToggle.status).toBe(200);
+        expect(afterToggle.body._id).toBe(book._id.toString());
+    });
+
+    it('an unpublished book disappears from the public storefront (Step 50)', async () => {
+        const admin = await createUser({ role: 'admin' });
+        const book = await createBook({ status: 'published', userId: admin._id, isForSale: true, price: 1000 });
+
+        await request(app).put(`/api/books/${book._id}/publish`).set('Authorization', `Bearer ${tokenFor(admin)}`);
+
+        const storefrontRes = await request(app).get('/api/public/kenlibs');
+        expect(storefrontRes.status).toBe(200);
+        expect(storefrontRes.body.books.map((b) => b._id)).not.toContain(book._id.toString());
+    });
+
     it('grants access to EVERY book in an approved bundle, regardless of each book\'s own publish status', async () => {
         const reader = await createUser({ role: 'reader' });
         const publishedBook = await createBook({ status: 'published' });

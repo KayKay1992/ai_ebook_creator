@@ -64,8 +64,11 @@ export const API_PATHS = {
   },
   ADMIN: {
     USERS: "/api/admin/users",
+    DELETE_USER: (id) => `/api/admin/users/${id}`,
     RESET_USER_PASSWORD: (id) => `/api/admin/users/${id}/reset-password`,
     ANALYTICS: "/api/admin/analytics",
+    REVIEWS: "/api/admin/ratings",
+    DELETE_REVIEW: (id) => `/api/admin/ratings/${id}`,
   },
   REFERRALS: {
     MINE: "/api/referrals/me",

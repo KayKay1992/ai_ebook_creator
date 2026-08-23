@@ -76,6 +76,23 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    // Set by an admin-initiated delete (adminController.js's deleteUser)
+    // when the account has real purchase/referral history worth keeping for
+    // accounting/dispute purposes — the account is anonymized in place
+    // (name/email/password cleared to something unusable and unguessable)
+    // rather than the User document being removed. `protect` rejects any
+    // request for an isDeleted account outright, so this also cuts off an
+    // already-issued JWT immediately rather than only blocking future
+    // logins. A reader with zero history is hard-deleted instead and never
+    // gets this flag at all — see deleteUser's own comment for the full
+    // decision.
+    isDeleted: {
+        type: Boolean,
+        default: false,
+    },
+    deletedAt: {
+        type: Date,
+    },
 },
     {
         timestamps: true

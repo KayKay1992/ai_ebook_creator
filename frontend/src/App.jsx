@@ -31,6 +31,7 @@ import KenlibsRefundPolicyPage from "./pages/KenlibsRefundPolicyPage";
 import KenlibsSupportPage from "./pages/KenlibsSupportPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminAnalyticsPage from "./pages/AdminAnalyticsPage";
+import AdminReviewsPage from "./pages/AdminReviewsPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
 
@@ -105,6 +106,7 @@ const App = () => {
           <Route path='/admin/purchases' element={<AdminRoute><AdminPurchasesPage /></AdminRoute>} />
           <Route path='/admin/users' element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
           <Route path='/admin/analytics' element={<AdminRoute><AdminAnalyticsPage /></AdminRoute>} />
+          <Route path='/admin/reviews' element={<AdminRoute><AdminReviewsPage /></AdminRoute>} />
       </Routes>
     </div>
   );

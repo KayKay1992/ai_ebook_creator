@@ -18,6 +18,15 @@ const protect = async (req, res, next) => {
             // Get user from the token
             req.user = await User.findById(decoded.id).select('-password');
 
+            // An anonymized/deleted account (adminController.js's
+            // deleteUser) must lose access immediately, not just on their
+            // next login — this JWT could still be technically valid and
+            // unexpired for up to 30 days otherwise, since there's no
+            // separate session store to invalidate.
+            if (!req.user || req.user.isDeleted) {
+                return res.status(401).json({ message: 'Not authorized' });
+            }
+
             next();
         } catch (error) {
            return res.status(401).json({ message: 'Not authorized' });
