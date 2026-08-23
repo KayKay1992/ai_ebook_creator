@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Star } from "lucide-react";
+import { Star, Check } from "lucide-react";
 import FlipCover from "./FlipCover";
 import PriceBadge from "./PriceBadge";
 import { getBookBadge } from "../../utils/kenlibsPricing";
@@ -30,7 +30,7 @@ const TILT_PATTERN = [
   "rotate-1 -translate-y-2",
 ];
 
-const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0, rating }) => {
+const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0, rating, owned = false }) => {
   const badge = getBookBadge(book);
   const tiltClass = angled ? TILT_PATTERN[tiltIndex % TILT_PATTERN.length] : "";
 
@@ -57,7 +57,17 @@ const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0, rating }) => {
               angled ? "shadow-lg group-hover:shadow-2xl" : "shadow-sm group-hover:shadow-xl"
             }`}
           />
-          <PriceBadge badge={badge} />
+          {/* Owned takes over the price badge's exact spot rather than
+              showing alongside it — once a reader already has access, the
+              price is no longer relevant information. */}
+          {owned ? (
+            <span className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm backdrop-blur-sm bg-emerald-500 text-white">
+              <Check className="w-3 h-3" />
+              Owned
+            </span>
+          ) : (
+            <PriceBadge badge={badge} />
+          )}
         </div>
 
         <div className="mt-3">

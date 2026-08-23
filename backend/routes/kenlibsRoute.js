@@ -10,6 +10,8 @@ const {
     createOrUpdateRating,
     getRatings,
     getMyRating,
+    getBookAccess,
+    getMyAccessMap,
 } = require('../controller/kenlibsController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -39,6 +41,8 @@ const explainRateLimiter = rateLimit({
     },
 });
 
+router.get('/my-access-map', getMyAccessMap);
+router.get('/access/:bookId', getBookAccess);
 router.get('/read/:bookId', readBook);
 router.get('/progress/:bookId', getProgress);
 router.put('/progress/:bookId', updateProgress);

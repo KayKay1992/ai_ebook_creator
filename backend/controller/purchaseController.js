@@ -43,14 +43,15 @@ const enrichWithItemDetails = async (requests) => {
     const bundleIds = requests.filter((r) => r.itemType === 'bundle').map((r) => r.item);
 
     const [books, bundles] = await Promise.all([
-        Book.find({ _id: { $in: bookIds } }).select('title coverImage coverDesign'),
-        // Bundles also carry their books' titles — an approved bundle
-        // request doesn't map to one readable item, so the reader's
-        // "My Books" list needs each contained book to link to its own
-        // /kenlibs/read/:bookId.
+        Book.find({ _id: { $in: bookIds } }).select('title author coverImage coverDesign'),
+        // Bundles also carry their books' titles, authors, and cover art —
+        // an approved bundle request doesn't map to one readable item, so
+        // the reader's "My Books" list needs each contained book to link to
+        // its own /kenlibs/read/:bookId and show its own real cover, not
+        // just a title (Step 49's "Ready to Read" grid).
         Bundle.find({ _id: { $in: bundleIds } })
             .select('title coverImage books')
-            .populate('books', 'title'),
+            .populate('books', 'title author coverImage coverDesign'),
     ]);
 
     const bookMap = new Map(books.map((b) => [b._id.toString(), b]));
@@ -62,10 +63,16 @@ const enrichWithItemDetails = async (requests) => {
         return {
             ...r,
             itemTitle: source?.title || 'Item no longer available',
+            itemAuthor: r.itemType === 'book' ? source?.author || null : undefined,
             itemCoverImage: source?.coverDesign?.front?.backgroundImage || source?.coverImage || null,
             itemBooks:
                 r.itemType === 'bundle'
-                    ? (source?.books || []).map((b) => ({ _id: b._id, title: b.title }))
+                    ? (source?.books || []).map((b) => ({
+                          _id: b._id,
+                          title: b.title,
+                          author: b.author,
+                          coverImage: b.coverDesign?.front?.backgroundImage || b.coverImage || null,
+                      }))
                     : undefined,
         };
     });

@@ -59,6 +59,8 @@ export const API_PATHS = {
     EXPLAIN: (bookId) => `/api/kenlibs/explain/${bookId}`,
     RATINGS: (bookId) => `/api/kenlibs/ratings/${bookId}`,
     MY_RATING: (bookId) => `/api/kenlibs/ratings/${bookId}/mine`,
+    ACCESS: (bookId) => `/api/kenlibs/access/${bookId}`,
+    MY_ACCESS_MAP: "/api/kenlibs/my-access-map",
   },
   ADMIN: {
     USERS: "/api/admin/users",

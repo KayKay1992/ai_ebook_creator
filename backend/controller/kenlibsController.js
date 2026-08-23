@@ -83,6 +83,69 @@ const hasBookAccess = async (user, bookId) => {
     return false;
 };
 
+//@desc    Whether the requesting reader currently has access to this one
+//         book — for the storefront/detail page to show "Read Now" instead
+//         of a purchase prompt for a book already owned. Same access rule
+//         as readBook (hasBookAccess above), just without the book content
+//         itself.
+//@route   GET /api/kenlibs/access/:bookId
+//@access  Private
+const getBookAccess = async (req, res) => {
+    try {
+        const book = await Book.findById(req.params.bookId).select('_id');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+
+        const hasAccess = await hasBookAccess(req.user, book._id);
+        res.status(200).json({ hasAccess });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+//@desc    Every book the requesting reader currently has access to, as a
+//         flat list of ids — for the storefront grid, which needs an
+//         answer for every visible card at once. A bulk query here (a
+//         couple of PurchaseRequest/Bundle reads) rather than N calls to
+//         getBookAccess above, one per card: the storefront can show dozens
+//         of books at once, and that's N round trips for something this
+//         resolves in a small, fixed number of queries regardless of
+//         catalog size — same reasoning as Step 46's aggregation-over-
+//         per-item-queries choice, just applied to a boolean-set lookup
+//         instead of a sum.
+//@route   GET /api/kenlibs/my-access-map
+//@access  Private
+const getMyAccessMap = async (req, res) => {
+    try {
+        if (req.user.role === 'admin') {
+            // Consistent with hasBookAccess's own "admin always has access"
+            // rule — every book, not just ones tied to a purchase.
+            const allBooks = await Book.find({}).select('_id').lean();
+            return res.status(200).json({ bookIds: allBooks.map((b) => b._id.toString()) });
+        }
+
+        const [directBookRequests, approvedBundleRequests] = await Promise.all([
+            PurchaseRequest.find({ reader: req.user._id, itemType: 'book', status: 'approved' }).select('item'),
+            PurchaseRequest.find({ reader: req.user._id, itemType: 'bundle', status: 'approved' }).select('item'),
+        ]);
+
+        const directBookIds = directBookRequests.map((r) => r.item.toString());
+
+        let bundleBookIds = [];
+        if (approvedBundleRequests.length > 0) {
+            const bundles = await Bundle.find({
+                _id: { $in: approvedBundleRequests.map((r) => r.item) },
+            }).select('books');
+            bundleBookIds = bundles.flatMap((b) => b.books.map((id) => id.toString()));
+        }
+
+        res.status(200).json({ bookIds: Array.from(new Set([...directBookIds, ...bundleBookIds])) });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 //@desc    Read a book's full content, if the requesting user is allowed to.
 //@route   GET /api/kenlibs/read/:bookId
 //@access  Private (any authenticated user — reader or admin)
@@ -507,4 +570,6 @@ module.exports = {
     createOrUpdateRating,
     getRatings,
     getMyRating,
+    getBookAccess,
+    getMyAccessMap,
 };

@@ -10,6 +10,7 @@ import KenlibsBundleCard from "../components/kenlibs/KenlibsBundleCard";
 import KenlibsCardSkeleton from "../components/kenlibs/KenlibsCardSkeleton";
 import KenlibsSearchBar from "../components/kenlibs/KenlibsSearchBar";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import { useAuth } from "../context/AuthContext";
 import kenlibsHero from "../assets/kenlibs-hero.png";
 
 const heroFadeUp = {
@@ -85,11 +86,20 @@ const KenlibsRow = ({ title, children, physical = false }) => {
 
 const KenlibsPage = () => {
   useDocumentTitle("Kenlibs");
+  const { isAuthenticated } = useAuth();
   const [books, setBooks] = useState([]);
   const [bundles, setBundles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState(null);
+  // Book ids the current reader already has access to (Step 49) — a single
+  // bulk fetch rather than one access check per visible card, since the grid
+  // can show dozens of books at once (see GET /api/kenlibs/my-access-map's
+  // own comment for the full reasoning). Stays an empty set for a
+  // logged-out visitor, who never triggers the fetch below — same "behave
+  // exactly as today" contract as the ratings-mine pattern elsewhere on
+  // this page.
+  const [ownedBookIds, setOwnedBookIds] = useState(new Set());
   // Rating summaries per book _id (Step 44, point 5) — fetched once the
   // catalog itself has loaded, one request per unique book (this catalog is
   // small enough that this is simpler and more honest than inventing a bulk
@@ -117,6 +127,14 @@ const KenlibsPage = () => {
     };
     fetchStorefront();
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return; // stays at the empty-set default above
+    axiosInstance
+      .get(API_PATHS.KENLIBS.MY_ACCESS_MAP)
+      .then((res) => setOwnedBookIds(new Set(res.data.bookIds || [])))
+      .catch(() => setOwnedBookIds(new Set()));
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (books.length === 0) return;
@@ -290,7 +308,12 @@ const KenlibsPage = () => {
               variants={resultsGridVariants}
             >
               {filteredBooks.map((book) => (
-                <KenlibsBookCard key={book._id} book={book} rating={ratingsById[book._id]} />
+                <KenlibsBookCard
+                  key={book._id}
+                  book={book}
+                  rating={ratingsById[book._id]}
+                  owned={ownedBookIds.has(book._id)}
+                />
               ))}
               {filteredBundles.map((bundle) => (
                 <KenlibsBundleCard key={bundle._id} bundle={bundle} />
@@ -328,6 +351,7 @@ const KenlibsPage = () => {
                     angled
                     tiltIndex={i}
                     rating={ratingsById[book._id]}
+                    owned={ownedBookIds.has(book._id)}
                   />
                 ))}
               </KenlibsRow>
@@ -336,7 +360,12 @@ const KenlibsPage = () => {
             {books.length > 0 && (
               <KenlibsRow title="Latest Releases">
                 {books.map((book) => (
-                  <KenlibsBookCard key={book._id} book={book} rating={ratingsById[book._id]} />
+                  <KenlibsBookCard
+                    key={book._id}
+                    book={book}
+                    rating={ratingsById[book._id]}
+                    owned={ownedBookIds.has(book._id)}
+                  />
                 ))}
               </KenlibsRow>
             )}

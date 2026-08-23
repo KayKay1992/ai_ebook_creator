@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, BookX, ShoppingBag } from "lucide-react";
+import { ArrowLeft, BookX, ShoppingBag, BookOpenCheck } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
@@ -43,6 +43,11 @@ const KenlibsBookDetailPage = () => {
   // without needing a synchronous setState in that effect branch.
   const [myRating, setMyRating] = useState({ hasAccess: false, rating: null });
   const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
+  // Whether the current reader already owns this book (Step 49) — separate
+  // from myRating.hasAccess above (that one's scoped to a specific rating
+  // fetch's shape) so this page doesn't depend on the ratings feature to
+  // know whether to show "Read Now" instead of a purchase prompt.
+  const [hasAccess, setHasAccess] = useState(false);
 
   useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
 
@@ -89,6 +94,14 @@ const KenlibsBookDetailPage = () => {
       .get(API_PATHS.KENLIBS.MY_RATING(id))
       .then((res) => setMyRating(res.data))
       .catch(() => setMyRating({ hasAccess: false, rating: null }));
+  }, [id, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return; // stays at the "no access" default above
+    axiosInstance
+      .get(API_PATHS.KENLIBS.ACCESS(id))
+      .then((res) => setHasAccess(res.data.hasAccess))
+      .catch(() => setHasAccess(false));
   }, [id, isAuthenticated]);
 
   const refetchRatings = () => {
@@ -215,7 +228,12 @@ const KenlibsBookDetailPage = () => {
             </p>
 
             <div className="mt-5">
-              {badge?.type === "price" ? (
+              {hasAccess ? (
+                <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold bg-emerald-50 text-emerald-700">
+                  <BookOpenCheck className="w-4 h-4" />
+                  In your library
+                </span>
+              ) : badge?.type === "price" ? (
                 <span className="inline-flex px-5 py-2 rounded-full text-base font-extrabold tracking-tight bg-accent text-white shadow-md shadow-black/10">
                   {badge.label}
                 </span>
@@ -266,26 +284,35 @@ const KenlibsBookDetailPage = () => {
               </div>
             )}
 
-            <motion.div className="mt-10" whileTap={canBuy ? { scale: 0.97 } : undefined}>
-              <Button
-                size="xl"
-                disabled={!canBuy}
-                loading={isNavigatingToCheckout}
-                title={canBuy ? undefined : "This book isn't purchasable yet."}
-                onClick={() => {
-                  const checkoutPath = `/kenlibs/checkout/book/${id}`;
-                  if (!isAuthenticated) {
-                    navigate("/kenlibs/login", { state: { from: checkoutPath } });
-                    return;
-                  }
-                  setIsNavigatingToCheckout(true);
-                  setTimeout(() => navigate(checkoutPath), NAVIGATE_DELAY_MS);
-                }}
-                className="flex items-center gap-2"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                {canBuy ? "Request to Buy" : "Coming Soon"}
-              </Button>
+            <motion.div className="mt-10" whileTap={{ scale: 0.97 }}>
+              {hasAccess ? (
+                <Link to={`/kenlibs/read/${id}`}>
+                  <Button size="xl" className="flex items-center gap-2">
+                    <BookOpenCheck className="w-4 h-4" />
+                    Read Now
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  size="xl"
+                  disabled={!canBuy}
+                  loading={isNavigatingToCheckout}
+                  title={canBuy ? undefined : "This book isn't purchasable yet."}
+                  onClick={() => {
+                    const checkoutPath = `/kenlibs/checkout/book/${id}`;
+                    if (!isAuthenticated) {
+                      navigate("/kenlibs/login", { state: { from: checkoutPath } });
+                      return;
+                    }
+                    setIsNavigatingToCheckout(true);
+                    setTimeout(() => navigate(checkoutPath), NAVIGATE_DELAY_MS);
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  {canBuy ? "Request to Buy" : "Coming Soon"}
+                </Button>
+              )}
             </motion.div>
           </motion.div>
         </motion.div>
