@@ -4,6 +4,7 @@ const Book = require('../models/Book');
 const Bundle = require('../models/Bundle');
 const PurchaseRequest = require('../models/PurchaseRequest');
 const ReaderProgress = require('../models/ReaderProgress');
+const Rating = require('../models/Rating');
 const { fetchImageBuffer } = require('./exportController');
 const { renderCertificate } = require('../utils/certificateRenderer');
 
@@ -361,4 +362,149 @@ doesn't make that clear rather than guessing.
     }
 };
 
-module.exports = { readBook, getProgress, updateProgress, getCertificate, explainInContext };
+// Reviews list is limited/paginated rather than returned in full — a
+// popular book could accumulate far more written reviews than any page
+// should render at once. Star-only ratings (no review text) still count
+// toward the average/count below, just never appear in this list.
+const REVIEWS_PAGE_SIZE = 10;
+const REVIEW_MAX_LENGTH = 2000;
+
+//@desc    Create or update the requesting reader's rating for a book.
+//         Upserts on {reader, book} (see Rating.js's compound unique
+//         index) — a reader who already rated this book updates that same
+//         rating rather than creating a second one.
+//@route   POST /api/kenlibs/ratings/:bookId
+//@access  Private — same access rule as readBook. A reader without approved
+//         access (direct or via an approved bundle) has never actually read
+//         the book, so they can't rate it at all — reuses hasBookAccess,
+//         not a separate check.
+const createOrUpdateRating = async (req, res) => {
+    try {
+        const book = await Book.findById(req.params.bookId).select('_id');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+
+        if (!(await hasBookAccess(req.user, book._id))) {
+            return res.status(403).json({ message: "You can only rate books you've purchased" });
+        }
+
+        const stars = Number(req.body.stars);
+        if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
+            return res.status(400).json({ message: 'Stars must be a whole number between 1 and 5' });
+        }
+
+        const review = typeof req.body.review === 'string' ? req.body.review.trim() : '';
+        if (review.length > REVIEW_MAX_LENGTH) {
+            return res.status(400).json({ message: `Review must be ${REVIEW_MAX_LENGTH} characters or fewer` });
+        }
+
+        const rating = await Rating.findOneAndUpdate(
+            { reader: req.user._id, book: book._id },
+            { $set: { stars, review } },
+            { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            stars: rating.stars,
+            review: rating.review,
+            updatedAt: rating.updatedAt,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+//@desc    Public aggregate rating data for a book — average, count, and a
+//         page of written reviews (reviewer name only, never email/other
+//         account details).
+//@route   GET /api/kenlibs/ratings/:bookId
+//@access  Public — deliberately no access check at all: this is the same
+//         kind of trust signal a storefront listing itself already shows to
+//         a logged-out browser (see KENLIBS-ARCHITECTURE.md), not gated
+//         reader content.
+const getRatings = async (req, res) => {
+    try {
+        const book = await Book.findById(req.params.bookId).select('_id');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+
+        const [aggregateResult, totalReviews, reviews] = await Promise.all([
+            Rating.aggregate([
+                { $match: { book: book._id } },
+                { $group: { _id: null, average: { $avg: '$stars' }, count: { $sum: 1 } } },
+            ]),
+            Rating.countDocuments({ book: book._id, review: { $ne: '' } }),
+            Rating.find({ book: book._id, review: { $ne: '' } })
+                .sort({ createdAt: -1 })
+                .skip((page - 1) * REVIEWS_PAGE_SIZE)
+                .limit(REVIEWS_PAGE_SIZE)
+                .select('stars review createdAt reader')
+                .populate('reader', 'name'),
+        ]);
+
+        const { average = null, count = 0 } = aggregateResult[0] || {};
+
+        res.status(200).json({
+            // Rounded to 1 decimal for display (e.g. 4.3), not the raw
+            // floating-point average.
+            average: average !== null ? Math.round(average * 10) / 10 : null,
+            count,
+            reviews: reviews.map((r) => ({
+                _id: r._id,
+                stars: r.stars,
+                review: r.review,
+                createdAt: r.createdAt,
+                readerName: r.reader?.name || 'Kenlibs Reader',
+            })),
+            page,
+            totalReviews,
+            hasMore: page * REVIEWS_PAGE_SIZE < totalReviews,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+//@desc    The requesting reader's own rating for a book, if one exists, plus
+//         whether they even have access to rate it — one call gives the
+//         frontend everything it needs to decide what rating UI (if any) to
+//         show: no rating control at all when hasAccess is false, an empty
+//         "rate this book" form when hasAccess is true and rating is null,
+//         or their existing rating (editable) otherwise.
+//@route   GET /api/kenlibs/ratings/:bookId/mine
+//@access  Private — scoped to the requesting reader's own data only.
+const getMyRating = async (req, res) => {
+    try {
+        const book = await Book.findById(req.params.bookId).select('_id');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+
+        const hasAccess = await hasBookAccess(req.user, book._id);
+        const rating = hasAccess
+            ? await Rating.findOne({ reader: req.user._id, book: book._id }).select('stars review updatedAt')
+            : null;
+
+        res.status(200).json({
+            hasAccess,
+            rating: rating ? { stars: rating.stars, review: rating.review, updatedAt: rating.updatedAt } : null,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+module.exports = {
+    readBook,
+    getProgress,
+    updateProgress,
+    getCertificate,
+    explainInContext,
+    createOrUpdateRating,
+    getRatings,
+    getMyRating,
+};

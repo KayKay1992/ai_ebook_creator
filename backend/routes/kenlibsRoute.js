@@ -1,8 +1,24 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();
-const { readBook, getProgress, updateProgress, getCertificate, explainInContext } = require('../controller/kenlibsController');
+const {
+    readBook,
+    getProgress,
+    updateProgress,
+    getCertificate,
+    explainInContext,
+    createOrUpdateRating,
+    getRatings,
+    getMyRating,
+} = require('../controller/kenlibsController');
 const { protect } = require('../middleware/authMiddleware');
+
+// Genuinely public — same reasoning as the storefront itself (see
+// KENLIBS-ARCHITECTURE.md): an aggregate rating is a trust signal shown to
+// every visitor, not gated reader content. Registered before router.use
+// (protect) below, so it's the one route on this router Express reaches
+// without that middleware ever running.
+router.get('/ratings/:bookId', getRatings);
 
 // Any authenticated user (reader or admin) — deliberately no adminOnly;
 // the actual access decision happens per-book inside each controller
@@ -28,5 +44,7 @@ router.get('/progress/:bookId', getProgress);
 router.put('/progress/:bookId', updateProgress);
 router.get('/certificate/:bookId', getCertificate);
 router.post('/explain/:bookId', explainRateLimiter, explainInContext);
+router.post('/ratings/:bookId', createOrUpdateRating);
+router.get('/ratings/:bookId/mine', getMyRating);
 
 module.exports = router;

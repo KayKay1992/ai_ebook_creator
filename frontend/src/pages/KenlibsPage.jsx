@@ -84,6 +84,15 @@ const KenlibsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState(null);
+  // Rating summaries per book _id (Step 44, point 5) — fetched once the
+  // catalog itself has loaded, one request per unique book (this catalog is
+  // small enough that this is simpler and more honest than inventing a bulk
+  // endpoint for it, same reasoning as KenlibsMyBooksPage's per-book
+  // progress fetch). Deliberately a separate, non-blocking effect: a slow or
+  // failed ratings fetch should never delay or break the actual storefront
+  // grid rendering, so cards simply render without a rating badge until (or
+  // unless) this resolves.
+  const [ratingsById, setRatingsById] = useState({});
 
   useEffect(() => {
     const fetchStorefront = async () => {
@@ -102,6 +111,31 @@ const KenlibsPage = () => {
     };
     fetchStorefront();
   }, []);
+
+  useEffect(() => {
+    if (books.length === 0) return;
+    let cancelled = false;
+
+    Promise.all(
+      books.map((book) =>
+        axiosInstance
+          .get(API_PATHS.KENLIBS.RATINGS(book._id))
+          .then((res) => [book._id, { average: res.data.average, count: res.data.count }])
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const map = {};
+      results.forEach((entry) => {
+        if (entry) map[entry[0]] = entry[1];
+      });
+      setRatingsById(map);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [books]);
 
   // No dedicated "featured" flag exists on Book yet (see KENLIBS-ARCHITECTURE.md)
   // — until one is added, "Featured" is the currently-for-sale, priced books,
@@ -217,7 +251,7 @@ const KenlibsPage = () => {
               variants={resultsGridVariants}
             >
               {filteredBooks.map((book) => (
-                <KenlibsBookCard key={book._id} book={book} />
+                <KenlibsBookCard key={book._id} book={book} rating={ratingsById[book._id]} />
               ))}
               {filteredBundles.map((bundle) => (
                 <KenlibsBundleCard key={bundle._id} bundle={bundle} />
@@ -249,7 +283,13 @@ const KenlibsPage = () => {
             {featured.length > 0 && (
               <KenlibsRow title="Featured" physical>
                 {featured.map((book, i) => (
-                  <KenlibsBookCard key={book._id} book={book} angled tiltIndex={i} />
+                  <KenlibsBookCard
+                    key={book._id}
+                    book={book}
+                    angled
+                    tiltIndex={i}
+                    rating={ratingsById[book._id]}
+                  />
                 ))}
               </KenlibsRow>
             )}
@@ -257,7 +297,7 @@ const KenlibsPage = () => {
             {books.length > 0 && (
               <KenlibsRow title="Latest Releases">
                 {books.map((book) => (
-                  <KenlibsBookCard key={book._id} book={book} />
+                  <KenlibsBookCard key={book._id} book={book} rating={ratingsById[book._id]} />
                 ))}
               </KenlibsRow>
             )}

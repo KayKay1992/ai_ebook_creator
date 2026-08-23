@@ -7,6 +7,8 @@ import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import FlipCover from "../components/kenlibs/FlipCover";
+import StarRating from "../components/kenlibs/StarRating";
+import BookReviewsSection from "../components/kenlibs/BookReviewsSection";
 import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
@@ -31,6 +33,16 @@ const KenlibsBookDetailPage = () => {
   const [book, setBook] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
+  // Ratings (Step 44) — fetched here, not inside BookReviewsSection, same
+  // reasoning as `book` itself already being page-level state: the compact
+  // "near the price" summary and the full reviews section below both read
+  // from this one source of truth rather than each fetching independently.
+  const [aggregate, setAggregate] = useState(null);
+  // Defaults to "no access" so an unauthenticated visitor (who never
+  // triggers the /mine fetch below) correctly renders no rating control,
+  // without needing a synchronous setState in that effect branch.
+  const [myRating, setMyRating] = useState({ hasAccess: false, rating: null });
+  const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
 
   useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
 
@@ -59,6 +71,53 @@ const KenlibsBookDetailPage = () => {
     };
     fetchBook();
   }, [id]);
+
+  // Aggregate rating is genuinely public (no auth header needed) — fetched
+  // unconditionally. "My rating" is only meaningful for a signed-in reader;
+  // an unauthenticated visitor gets the same { hasAccess: false, rating:
+  // null } shape a real API response would give a non-purchaser, so
+  // BookReviewsSection doesn't need to special-case "not logged in" vs "no
+  // access" — both correctly render no rating control.
+  useEffect(() => {
+    axiosInstance
+      .get(API_PATHS.KENLIBS.RATINGS(id))
+      .then((res) => setAggregate(res.data))
+      .catch(() => setAggregate(null));
+
+    if (!isAuthenticated) return; // stays at the "no access" default above
+    axiosInstance
+      .get(API_PATHS.KENLIBS.MY_RATING(id))
+      .then((res) => setMyRating(res.data))
+      .catch(() => setMyRating({ hasAccess: false, rating: null }));
+  }, [id, isAuthenticated]);
+
+  const refetchRatings = () => {
+    axiosInstance
+      .get(API_PATHS.KENLIBS.RATINGS(id))
+      .then((res) => setAggregate(res.data))
+      .catch(() => {});
+    if (isAuthenticated) {
+      axiosInstance
+        .get(API_PATHS.KENLIBS.MY_RATING(id))
+        .then((res) => setMyRating(res.data))
+        .catch(() => {});
+    }
+  };
+
+  const loadMoreReviews = async () => {
+    if (!aggregate?.hasMore || isLoadingMoreReviews) return;
+    setIsLoadingMoreReviews(true);
+    try {
+      const res = await axiosInstance.get(API_PATHS.KENLIBS.RATINGS(id), {
+        params: { page: aggregate.page + 1 },
+      });
+      setAggregate((prev) => ({ ...res.data, reviews: [...(prev?.reviews || []), ...res.data.reviews] }));
+    } catch {
+      // silently degrade — "show more" staying available to retry is enough
+    } finally {
+      setIsLoadingMoreReviews(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -167,6 +226,20 @@ const KenlibsBookDetailPage = () => {
               )}
             </div>
 
+            {/* Aggregate rating — a real trust/conversion signal, so it sits
+                right under the price rather than buried near the reviews
+                section further down the page. Absent (not a "0.0 · 0
+                ratings" placeholder) until at least one rating exists. */}
+            {aggregate?.count > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <StarRating value={aggregate.average} size="sm" />
+                <span className="text-sm font-semibold text-gray-900">{aggregate.average}</span>
+                <span className="text-sm text-gray-400">
+                  ({aggregate.count} rating{aggregate.count === 1 ? "" : "s"})
+                </span>
+              </div>
+            )}
+
             {blurb && (
               <p className="mt-6 text-gray-700 leading-relaxed font-serif italic max-w-xl">
                 {blurb}
@@ -216,6 +289,15 @@ const KenlibsBookDetailPage = () => {
             </motion.div>
           </motion.div>
         </motion.div>
+
+        <BookReviewsSection
+          bookId={id}
+          aggregate={aggregate}
+          myRating={myRating}
+          onRatingChange={refetchRatings}
+          isLoadingMore={isLoadingMoreReviews}
+          onLoadMore={loadMoreReviews}
+        />
       </div>
       <KenlibsFooter />
     </div>

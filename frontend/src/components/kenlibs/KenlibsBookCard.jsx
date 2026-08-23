@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { Star } from "lucide-react";
 import FlipCover from "./FlipCover";
 import PriceBadge from "./PriceBadge";
 import { getBookBadge } from "../../utils/kenlibsPricing";
@@ -29,7 +30,7 @@ const TILT_PATTERN = [
   "rotate-1 -translate-y-2",
 ];
 
-const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0 }) => {
+const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0, rating }) => {
   const badge = getBookBadge(book);
   const tiltClass = angled ? TILT_PATTERN[tiltIndex % TILT_PATTERN.length] : "";
 
@@ -66,6 +67,18 @@ const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0 }) => {
           <p className="text-xs text-gray-500 mt-0.5 truncate">
             {book.author || "Unknown Author"}
           </p>
+          {/* Compact single-star + average + count (Step 44, point 5) —
+              deliberately not the full 5-star StarRating used on the detail
+              page, which would be too wide at this card's w-40/w-48. Only
+              renders once the book has at least one rating, so an
+              unrated book's card looks exactly as it did before this step. */}
+          {rating?.count > 0 && (
+            <div className="flex items-center gap-1 mt-1">
+              <Star className="w-3 h-3 fill-accent text-accent flex-shrink-0" />
+              <span className="text-xs font-medium text-gray-700">{rating.average}</span>
+              <span className="text-xs text-gray-400">({rating.count})</span>
+            </div>
+          )}
         </div>
       </motion.div>
     </Link>
