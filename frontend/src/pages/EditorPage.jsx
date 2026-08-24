@@ -398,8 +398,8 @@ const EditorPage = () => {
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsSidebarOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 w-80 bg-white shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="absolute inset-y-0 left-0 w-80 bg-white shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
               <span className="font-semibold text-gray-900">Chapters</span>
               <button
                 onClick={() => setIsSidebarOpen(false)}
@@ -408,19 +408,29 @@ const EditorPage = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <ChapterSidebar
-              book={book}
-              selectedChapterIndex={selectedChapterIndex}
-              onSelectChapter={(index) => {
-                setSelectedChapterIndex(index);
-                setIsSidebarOpen(false);
-              }}
-              onAddChapter={handleAddChapter}
-              onDeleteChapter={handleDeleteChapter}
-              onReorderChapters={handleReorderChapters}
-              onGenerateChapterContent={handleGenerateChapterContent}
-              isGenerating={isGenerating}
-            />
+            {/* ChapterSidebar's root is `h-full` — without this wrapper
+                being a bounded flex child, `h-full` resolves against this
+                whole panel (100% of the viewport) *on top of* the "Chapters"
+                header already above it, overflowing the panel with no
+                scroll route and pushing the "Add New Chapter" footer button
+                off-screen entirely. min-h-0 is required alongside flex-1 —
+                a flex child otherwise refuses to shrink below its content's
+                natural height. */}
+            <div className="flex-1 min-h-0">
+              <ChapterSidebar
+                book={book}
+                selectedChapterIndex={selectedChapterIndex}
+                onSelectChapter={(index) => {
+                  setSelectedChapterIndex(index);
+                  setIsSidebarOpen(false);
+                }}
+                onAddChapter={handleAddChapter}
+                onDeleteChapter={handleDeleteChapter}
+                onReorderChapters={handleReorderChapters}
+                onGenerateChapterContent={handleGenerateChapterContent}
+                isGenerating={isGenerating}
+              />
+            </div>
           </div>
         </div>
       )}

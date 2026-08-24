@@ -83,7 +83,11 @@ const SortableItem = ({
         </div>
       </button>
 
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Same hover-gating issue as the dashboard book-card icons: Tailwind's
+          hover:/group-hover: variants are wrapped in `@media (hover: hover)`
+          and never activate on touchscreens — always show below md, keep
+          the desktop fade-in-on-hover above it. */}
+      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => onGenerateChapterContent(index)}
           disabled={isGeneratingThis}

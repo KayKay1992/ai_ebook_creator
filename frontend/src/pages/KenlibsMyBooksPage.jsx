@@ -51,8 +51,12 @@ const ReadyBookCard = ({ bookId, title, author, coverImage, fromBundle, complete
         rounded="rounded-2xl"
         className="shadow-sm group-hover:shadow-xl transition-shadow duration-300"
       />
-      <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
-        <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-black/50 backdrop-blur-sm">
+      <div className="absolute inset-0 rounded-2xl bg-black/0 md:group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+        {/* Cosmetic only — the whole cover is already a Link, so tapping it
+            navigates regardless — but the "Read Now" cue itself was
+            invisible on mobile from the same hover-gating issue fixed
+            elsewhere this session. */}
+        <span className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-black/50 backdrop-blur-sm">
           <BookOpenCheck className="w-4 h-4" />
           Read Now
         </span>
