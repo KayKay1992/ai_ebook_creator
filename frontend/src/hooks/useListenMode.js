@@ -32,6 +32,16 @@ const VOICE_START_TIMEOUT_MS = 2500;
 // to highlight.
 const hasSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
 
+// Content is English-only today (no per-book language field exists yet —
+// see the architecture doc's Step 37 for planned per-book translations);
+// prefer any installed voice whose lang is English rather than whatever the
+// device happens to list first. Confirmed via a real Android device that
+// the naive "first voice" pick can land on an arbitrary regional voice
+// (e.g. "Assamese India") whose synthesis backend isn't actually
+// functional, producing a "synthesis-failed" error with no audio at all.
+const pickDefaultVoice = (available) =>
+  available.find((v) => v.lang?.toLowerCase().startsWith("en")) || available[0];
+
 const useListenMode = ({ onChapterEnd }) => {
   // Known synchronously at mount, so the "unsupported" case never needs a
   // setState call inside the effect body below — it's just the initial
@@ -90,8 +100,9 @@ const useListenMode = ({ onChapterEnd }) => {
         setVoices(available);
         setSelectedVoiceURI((prev) => {
           if (prev) return prev;
-          voiceRef.current = available[0];
-          return available[0].voiceURI;
+          const preferred = pickDefaultVoice(available);
+          voiceRef.current = preferred;
+          return preferred.voiceURI;
         });
         setIsSupported(true);
         setIsCheckingSupport(false);
@@ -129,10 +140,39 @@ const useListenMode = ({ onChapterEnd }) => {
   // null and is only ever set from a genuine success, so there's nothing to
   // fall back to until at least one voice has proven itself.
   const lastWorkingVoiceRef = useRef(null);
-  // Voices that have already timed out once this page load — skipped
-  // (falling straight back to lastWorkingVoiceRef) rather than re-attempted
-  // and re-timed-out every single time they're picked again.
+  // Voices that have already timed out or errored once this page load —
+  // skipped (falling straight back to lastWorkingVoiceRef, or excluded from
+  // fallback selection) rather than re-attempted and re-failed every single
+  // time they're picked again.
   const unavailableVoiceURIsRef = useRef(new Set());
+
+  // Mirrors `voices` state into a ref so speakFrom (deliberately `[]`-deps,
+  // see below) can read the current voice list without becoming stale —
+  // same reasoning as rateRef/voiceRef.
+  const voicesRef = useRef([]);
+  useEffect(() => {
+    voicesRef.current = voices;
+  }, [voices]);
+
+  // True once this specific playback attempt has already tried one
+  // fallback voice after an error — reset at the top of every non-retry
+  // speakFrom call (a fresh play, chapter change, rate/voice change), so
+  // "retry once" means once per attempt, not once ever.
+  const hasRetriedThisAttemptRef = useRef(false);
+
+  // Picks a voice to fall back to after the current one errors out:
+  // whatever's already confirmed working this session, else the first
+  // untried English voice, else nothing left to try.
+  const pickFallbackVoice = () => {
+    const notTried = (v) => !unavailableVoiceURIsRef.current.has(v.voiceURI);
+    if (lastWorkingVoiceRef.current && notTried(lastWorkingVoiceRef.current)) {
+      return lastWorkingVoiceRef.current;
+    }
+    return (
+      voicesRef.current.find((v) => notTried(v) && v.lang?.toLowerCase().startsWith("en")) ||
+      null
+    );
+  };
 
   const stop = useCallback(() => {
     utteranceTokenRef.current += 1; // invalidate any in-flight utterance's callbacks
@@ -159,10 +199,14 @@ const useListenMode = ({ onChapterEnd }) => {
   // resume mechanism too (restarting the current block rather than
   // resuming mid-utterance; a well-understood, common tradeoff for TTS
   // readers).
-  const speakFrom = useCallback((material, fromBlockIndex = 0) => {
+  const speakFrom = useCallback((material, fromBlockIndex = 0, { isRetry = false } = {}) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const { spokenText, blocks } = material;
     if (!spokenText || blocks.length === 0) return;
+
+    // A fresh attempt (anything that isn't itself the one error-triggered
+    // retry below) gets its own new chance to retry once if it errors too.
+    if (!isRetry) hasRetriedThisAttemptRef.current = false;
 
     const synth = window.speechSynthesis;
     const clampedIndex = Math.min(Math.max(fromBlockIndex, 0), blocks.length - 1);
@@ -249,6 +293,44 @@ const useListenMode = ({ onChapterEnd }) => {
       // for diagnosing a silent Android failure, and was previously
       // discarded entirely by routing straight to handleEnd with no log.
       console.warn(`[ListenMode] speech error: "${event.error}" (voice: "${voice?.name || "(default/none)"}", lang: ${utterance.lang})`);
+
+      // An error for an utterance we've already superseded (our own
+      // cancel() from stop()/pause()/a newer speakFrom()) is expected noise
+      // — not a live failure worth retrying or warning the reader about.
+      if (myToken !== utteranceTokenRef.current) {
+        handleEnd();
+        return;
+      }
+
+      if (voice) unavailableVoiceURIsRef.current.add(voice.voiceURI);
+
+      // Real device data (Android, "synthesis-failed") showed the default
+      // voice pick can be flat-out broken on-device with zero audio — one
+      // automatic retry on a different, more standard voice recovers most
+      // of the time without the reader having to know to change voice
+      // themselves.
+      if (!hasRetriedThisAttemptRef.current) {
+        const fallback = pickFallbackVoice();
+        if (fallback) {
+          hasRetriedThisAttemptRef.current = true;
+          if (startTimeoutId) clearTimeout(startTimeoutId);
+          voiceRef.current = fallback;
+          setSelectedVoiceURI(fallback.voiceURI);
+          setVoiceWarning(
+            `${voice?.name ? `"${voice.name}"` : "The selected voice"} failed on this device — switched to "${fallback.name}."`
+          );
+          speakFromRef.current(material, currentBlockIndexRef.current, { isRetry: true });
+          return;
+        }
+      }
+
+      // Out of retries (or none were possible) — a real, readable message
+      // for the reader instead of a silent failure, pointing at the voice
+      // picker (see ListenModeControls, which surfaces this in the UI, not
+      // just the console).
+      setVoiceWarning(
+        `${voice?.name ? `"${voice.name}"` : "This voice"} isn't available on your device — try selecting a different one.`
+      );
       handleEnd();
     };
 

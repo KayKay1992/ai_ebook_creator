@@ -143,7 +143,14 @@ const ListenModeControls = ({ listenMode, isActive, onToggle, onReplay }) => {
               value={selectedVoiceURI || ""}
               onChange={(e) => selectVoice(e.target.value)}
               title="Voice"
-              className="hidden md:block h-8 max-w-[7rem] rounded-xl border-0 bg-transparent text-xs text-gray-600 hover:bg-white focus:outline-none focus:ring-1 focus:ring-accent-300"
+              // Hidden on mobile by default to save header space, but a
+              // voice-failure warning tells the reader to "try selecting a
+              // different one" — that instruction is useless if the exact
+              // control it's pointing at stays invisible on their screen,
+              // so it becomes reachable for as long as that warning is up.
+              className={`${
+                visibleWarning ? "block" : "hidden"
+              } md:block h-8 max-w-[7rem] rounded-xl border-0 bg-transparent text-xs text-gray-600 hover:bg-white focus:outline-none focus:ring-1 focus:ring-accent-300`}
             >
               {voices.map((v) => (
                 <option key={v.voiceURI} value={v.voiceURI}>
