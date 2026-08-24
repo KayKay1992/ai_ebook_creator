@@ -102,7 +102,13 @@ const useListenMode = ({ onChapterEnd }) => {
     synth.addEventListener("voiceschanged", loadVoices);
 
     const timeout = setTimeout(() => {
-      if (synth.getVoices().length === 0) {
+      const finalCount = synth.getVoices().length;
+      if (finalCount === 0) {
+        // Permanent, low-noise diagnostic — this is the exact "why is the
+        // button gone/disabled" signal worth keeping in the console
+        // (mirrors the visible "Listen unavailable" fallback in
+        // ListenModeControls.jsx).
+        console.warn(`[ListenMode] no text-to-speech voices reported after ${VOICE_DETECTION_TIMEOUT_MS}ms — marking Listen Mode unsupported on this device/browser.`);
         setIsSupported(false);
       }
       setIsCheckingSupport(false);
@@ -187,12 +193,18 @@ const useListenMode = ({ onChapterEnd }) => {
     const utterance = new SpeechSynthesisUtterance(textFromStart);
     utterance.rate = rateRef.current;
     if (voice) utterance.voice = voice;
+    // Explicitly set even when no voice is selected — utterance.lang
+    // otherwise defaults to "" (empty string), which some Android TTS
+    // engines are known to silently fail to match to any installed voice
+    // (no error, no audio) rather than falling back to a system default.
+    utterance.lang = voice?.lang || (typeof navigator !== "undefined" ? navigator.language : "") || "en-US";
 
     let hasStarted = false;
     let startTimeoutId = null;
     const confirmStarted = () => {
       if (hasStarted) return;
       hasStarted = true;
+      console.log(`[ListenMode] speech started — voice: "${voice?.name || "(default/none)"}", lang: ${utterance.lang}`);
       if (startTimeoutId) clearTimeout(startTimeoutId);
       if (voice) lastWorkingVoiceRef.current = voice;
       // Deliberately doesn't clear voiceWarning here: a fallback's own
@@ -230,7 +242,15 @@ const useListenMode = ({ onChapterEnd }) => {
       onChapterEndRef.current?.();
     };
     utterance.onend = handleEnd;
-    utterance.onerror = handleEnd;
+    utterance.onerror = (event) => {
+      // event.error is a spec'd reason string (e.g. "not-allowed",
+      // "language-unavailable", "voice-unavailable", "synthesis-failed",
+      // "audio-busy", "network") — this is the single most useful signal
+      // for diagnosing a silent Android failure, and was previously
+      // discarded entirely by routing straight to handleEnd with no log.
+      console.warn(`[ListenMode] speech error: "${event.error}" (voice: "${voice?.name || "(default/none)"}", lang: ${utterance.lang})`);
+      handleEnd();
+    };
 
     currentMaterialRef.current = material;
     currentBlockIndexRef.current = clampedIndex;
@@ -257,6 +277,7 @@ const useListenMode = ({ onChapterEnd }) => {
       // detects that "silently fails" case.
       startTimeoutId = setTimeout(() => {
         if (hasStarted || myToken !== utteranceTokenRef.current) return;
+        console.warn(`[ListenMode] "${utterance.voice?.name || "(default/none)"}" produced no start/boundary/end/error within ${VOICE_START_TIMEOUT_MS}ms — treating as a silent failure.`);
         unavailableVoiceURIsRef.current.add(utterance.voice?.voiceURI);
         utteranceTokenRef.current += 1; // invalidate this dead utterance
         synth.cancel();
@@ -301,11 +322,19 @@ const useListenMode = ({ onChapterEnd }) => {
       synth.cancel();
       setTimeout(proceed, 300);
     } else {
-      // Nothing was actively speaking — cancel() is a no-op here, but
-      // Chrome (and others) can still drop a speak() call issued in the
-      // same tick as a cancel() call, so a beat's delay is kept for safety.
-      synth.cancel();
-      setTimeout(doSpeak, 0);
+      // Nothing was actively speaking, so there's nothing to cancel and
+      // nothing to wait on — call doSpeak() synchronously, right here in
+      // the same call stack as speakFrom's caller. This matters on mobile:
+      // this is the "fresh play" path a tap on the Listen button normally
+      // takes, and Android Chrome/Brave require speechSynthesis.speak() to
+      // be invoked directly within a user-gesture's call stack — even a
+      // setTimeout(fn, 0) here forfeits that "user activation" context and
+      // can make speak() silently no-op with no error at all. A previous
+      // version deferred this call by one tick "for safety" against a
+      // desktop Chrome quirk (a speak() issued in the same tick as a
+      // cancel() call could get dropped) — but that concern doesn't apply
+      // here since cancel() is never called in this branch to begin with.
+      doSpeak();
     }
   }, []);
 

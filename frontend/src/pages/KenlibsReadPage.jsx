@@ -192,9 +192,18 @@ const KenlibsReadPage = () => {
   // clears any open popup here; WordExplainPopup's own click-away listener
   // covers dismissing it from clicks that land outside the content area
   // entirely (e.g. the notepad, the completion banner).
+  //
+  // Also invoked (with a delay) from touchend and from a debounced
+  // 'selectionchange' listener below — mouseup never fires on a
+  // touchscreen at all, so this is the only handler and both those extra
+  // triggers just call it at moments better suited to touch. Dedupe below
+  // stops those extra triggers from reopening/remounting the popup for a
+  // selection this function has already handled.
+  const lastHandledSelectionRef = useRef(null);
   const handleSelectionEnd = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      lastHandledSelectionRef.current = null;
       setExplainSelection(null);
       return;
     }
@@ -210,12 +219,17 @@ const KenlibsReadPage = () => {
 
     const text = selection.toString().trim();
     if (!text || text.length > EXPLAIN_SELECTION_MAX_LENGTH) {
+      lastHandledSelectionRef.current = null;
       setExplainSelection(null);
       return;
     }
 
+    // getBoundingClientRect() is intentionally used here instead of any
+    // mouse/touch event coordinate (e.g. e.clientX/Y vs.
+    // touches[0].clientX/Y) — it comes from the Selection Range itself, so
+    // positioning is correct regardless of what kind of pointer created the
+    // selection, with no separate touch-coordinate handling needed.
     const range = selection.getRangeAt(0);
-    const sentence = extractSentenceContext(range, text);
     const rect = range.getBoundingClientRect();
 
     const left = Math.min(
@@ -223,6 +237,16 @@ const KenlibsReadPage = () => {
       window.innerWidth - EXPLAIN_POPUP_WIDTH - 12
     );
     const top = Math.min(rect.bottom + 10, window.innerHeight - EXPLAIN_POPUP_HEIGHT_ESTIMATE);
+
+    // A touchend-triggered call and the selectionchange debounce below can
+    // both end up re-observing the exact same already-handled selection —
+    // skip re-opening/remounting WordExplainPopup (and re-running its
+    // dictionary lookup) when nothing actually changed.
+    const dedupeKey = `${text}|${Math.round(top)}|${Math.round(left)}`;
+    if (lastHandledSelectionRef.current === dedupeKey) return;
+    lastHandledSelectionRef.current = dedupeKey;
+
+    const sentence = extractSentenceContext(range, text);
 
     setExplainSelection({
       key: `${text}-${Date.now()}`,
@@ -232,12 +256,54 @@ const KenlibsReadPage = () => {
     });
   };
 
+  // Android/iOS finalize touch text-selection (the long-press + drag-handle
+  // UI) slightly AFTER touchend fires — reading window.getSelection()
+  // synchronously inside the touchend handler itself often sees a stale or
+  // still-collapsed selection. A short delay lets it settle first.
+  const touchSelectionTimeoutRef = useRef(null);
+  const handleTouchSelectionEnd = () => {
+    if (touchSelectionTimeoutRef.current) clearTimeout(touchSelectionTimeoutRef.current);
+    touchSelectionTimeoutRef.current = setTimeout(handleSelectionEnd, 250);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (touchSelectionTimeoutRef.current) clearTimeout(touchSelectionTimeoutRef.current);
+    };
+  }, []);
+
+  // touchend alone isn't sufficient on its own: once the native selection
+  // handles appear, dragging one to adjust the selection is handled entirely
+  // inside the browser's own selection UI — it never dispatches a further
+  // touchend to this container — but it does keep firing 'selectionchange'
+  // on the document the whole time. Debounced (rather than acted on
+  // immediately) since it can fire on every pixel of handle movement;
+  // scoped to touch-capable devices only so it never runs a second,
+  // redundant check after every ordinary desktop mouse-drag selection
+  // (already handled instantly by onMouseUp above).
+  useEffect(() => {
+    const isTouchCapable =
+      typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+    if (!isTouchCapable) return;
+
+    let debounceId = null;
+    const onSelectionChange = () => {
+      if (debounceId) clearTimeout(debounceId);
+      debounceId = setTimeout(handleSelectionEnd, 300);
+    };
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", onSelectionChange);
+      if (debounceId) clearTimeout(debounceId);
+    };
+  }, []);
+
   const renderChapterContent = (chapter, chapterIndex, fontSize) => {
     const { blocks } = buildSpeechBlocks(chapter.content);
     const isFinalChapter = chapterIndex === (book?.chapters?.length ?? 0) - 1;
 
     const body = (
-      <div ref={contentContainerRef} onMouseUp={handleSelectionEnd}>
+      <div ref={contentContainerRef} onMouseUp={handleSelectionEnd} onTouchEnd={handleTouchSelectionEnd}>
         {blocks.length === 0 ? (
           <MarkdownContent
             content={chapter.content}

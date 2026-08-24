@@ -48,12 +48,18 @@ const ListenModeControls = ({ listenMode, isActive, onToggle, onReplay }) => {
   }
 
   if (!isSupported) {
+    // Was `hidden sm:flex` — invisible below the sm breakpoint, which is
+    // every phone. On a device with genuinely zero TTS voices, that made
+    // this fallback state indistinguishable from the button just not being
+    // there at all: no message, no error, exactly the "nothing happens"
+    // symptom this was supposed to prevent. Now visible at every width, and
+    // switched to text short enough not to force header-row wrapping.
     return (
       <span
-        className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 px-2"
-        title="Your browser isn't reporting any text-to-speech voices, so Listen Mode isn't available here."
+        className="flex items-center gap-1 text-xs text-gray-400 px-1.5 whitespace-nowrap"
+        title="Text-to-speech isn't available on this device or browser (no voices were reported)."
       >
-        <Headphones className="w-3.5 h-3.5 opacity-50" />
+        <Headphones className="w-3.5 h-3.5 opacity-50 flex-shrink-0" />
         Listen unavailable
       </span>
     );
