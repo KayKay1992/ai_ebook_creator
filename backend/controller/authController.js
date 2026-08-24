@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 const { generateReferralCode } = require('../utils/referralCode');
+const { sendPasswordResetEmail } = require('../utils/sendEmail');
 
 // Shared by both the self-service (forgotPassword below) and admin-initiated
 // (adminController.js's resetUserPassword) reset paths, so the two can never
@@ -16,6 +17,13 @@ const generateResetToken = async (user) => {
     await user.save();
     return token;
 };
+
+// Shared by both reset flows so the actual URL shape only ever lives in one
+// place — points at the Kenlibs-branded reset page (KenlibsResetPasswordPage),
+// not the admin one, since every reader who could receive this email reaches
+// the app through the Kenlibs surface.
+const buildResetLink = (token) =>
+    `${process.env.FRONTEND_URL || 'http://localhost:5173'}/kenlibs/reset-password/${token}`;
 
 //Helpers: Generate JWT Token
 const generateToken = (id) => {
@@ -163,17 +171,17 @@ const updateUserProfile = async (req, res) => {
     }
 };
 
-//@desc    Request a password reset token for the given email.
+//@desc    Request a password reset for the given email — sends the reset
+//         link to the account's real inbox via sendPasswordResetEmail
+//         (Step 53; previously this handed the raw token back in the HTTP
+//         response, which anyone who could see that response could use to
+//         reset the account).
 //
-//         TODO — SECURITY, MUST FIX BEFORE PRODUCTION: no email service is
-//         wired up yet, so this hands the raw reset token back in the HTTP
-//         response instead of emailing it privately to the account owner.
-//         That means anyone who can see this response (browser devtools, a
-//         proxy, a shared screen) can reset this account's password — this
-//         is NOT a secure reset flow as-is. Before any real/production use,
-//         wire up a real provider (e.g. SendGrid, Resend, Postmark) to send
-//         the reset link to the user's actual inbox, and stop returning
-//         `resetToken` from this endpoint.
+//         Always returns the same generic response whether or not an
+//         account exists for that email — a different response (e.g. a 404
+//         only for unknown emails) would let someone enumerate which email
+//         addresses have accounts here just by calling this endpoint
+//         repeatedly.
 //@route   POST /api/auth/forgot-password
 //@access  Public
 const forgotPassword = async (req, res) => {
@@ -184,15 +192,23 @@ const forgotPassword = async (req, res) => {
         }
 
         const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ message: 'No account found for that email' });
+        if (user) {
+            try {
+                const resetToken = await generateResetToken(user);
+                await sendPasswordResetEmail({ to: user.email, resetLink: buildResetLink(resetToken) });
+            } catch (emailError) {
+                // The token is already saved on the user regardless — if
+                // the email genuinely never arrives, it just goes unused
+                // and expires normally in an hour. Logged, not surfaced:
+                // a different response here (e.g. "email failed to send")
+                // would itself leak that this address has an account,
+                // defeating the enumeration protection above.
+                console.error('Failed to send password reset email:', emailError);
+            }
         }
 
-        const resetToken = await generateResetToken(user);
-
         res.status(200).json({
-            message: 'Password reset token generated.',
-            resetToken,
+            message: 'If an account exists for that email, a password reset link has been sent.',
         });
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
@@ -239,4 +255,5 @@ module.exports = {
     forgotPassword,
     resetPassword,
     generateResetToken,
+    buildResetLink,
 };

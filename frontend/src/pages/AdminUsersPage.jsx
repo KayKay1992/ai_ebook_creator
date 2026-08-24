@@ -74,7 +74,15 @@ const AdminUsersPage = () => {
     setActingOnId(resetTarget._id);
     try {
       const res = await axiosInstance.post(API_PATHS.ADMIN.RESET_USER_PASSWORD(resetTarget._id));
-      setResetResult({ reader: resetTarget, resetToken: res.data.resetToken });
+      if (res.data.emailSent) {
+        // Nothing further to show — the reader now has the link in their
+        // own inbox, same as the self-service flow.
+        toast.success(`Reset email sent to ${resetTarget.name}.`);
+      } else {
+        // Sending failed but the token is still valid (Step 53) — fall
+        // back to the manual-link modal so the admin isn't left stuck.
+        setResetResult({ reader: resetTarget, resetLink: res.data.resetLink });
+      }
       setResetTarget(null);
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to reset password"));
@@ -107,9 +115,7 @@ const AdminUsersPage = () => {
     }
   };
 
-  const resetLink = resetResult
-    ? `${window.location.origin}/kenlibs/reset-password/${resetResult.resetToken}`
-    : "";
+  const resetLink = resetResult?.resetLink || "";
 
   const copyResetLink = async () => {
     try {
@@ -290,9 +296,11 @@ const AdminUsersPage = () => {
         </motion.div>
       </div>
 
-      {/* Reset result — the token/link the admin passes along manually
-          (e.g. WhatsApp) since no email service exists yet. See
-          authController.js's forgotPassword TODO for the same caveat. */}
+      {/* Reset result — only shown when the reset email genuinely failed
+          to send (Step 53's fallback). The token is still valid, so this
+          hands the admin the raw link to pass along manually rather than
+          leaving the reset stuck. On a successful send there's nothing to
+          show here — the reader already has it in their inbox. */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" inert={!resetResult}>
         <motion.div
           animate={{ opacity: resetResult ? 1 : 0 }}
@@ -304,19 +312,18 @@ const AdminUsersPage = () => {
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8"
         >
-          <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mb-4">
-            <KeyRound className="w-6 h-6 text-emerald-500" />
+          <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
+            <KeyRound className="w-6 h-6 text-amber-500" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">
-            Reset link generated for {resetResult?.reader.name}
+            Couldn't email {resetResult?.reader.name}
           </h3>
           <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 text-amber-700 text-xs rounded-2xl px-4 py-3 mb-4">
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>
-              No email service is configured yet — this link is shown here
-              instead of being emailed to {resetResult?.reader.name} privately.
-              Anyone who sees it can reset this account, so pass it along
-              carefully (e.g. a direct WhatsApp message), not a public
+              The reset email failed to send, but the link below is still
+              valid. Anyone who sees it can reset this account, so pass it
+              along carefully (e.g. a direct WhatsApp message), not a public
               channel.
             </span>
           </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Mail, BookOpen, AlertTriangle, ArrowRight } from "lucide-react";
+import { Mail, BookOpen, MailCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
 import InputField from "../components/ui/inputField";
@@ -14,25 +14,25 @@ import getErrorMessage from "../utils/getErrorMessage";
 // password?" link, so it should read as the same surface, not a jump to an
 // unrelated page.
 //
-// TEMPORARY, NOT PRODUCTION-SAFE: no email service is wired up yet (see
-// authController.js's forgotPassword), so the backend hands the raw reset
-// token back in this request's response instead of emailing it privately.
-// This page shows it on-screen and links straight to the reset form as a
-// stand-in for "check your email" — anyone who can see this screen can
-// reset the account. Replace with real email delivery before production use.
+// Step 53: the backend now emails the reset link directly (never returns it
+// in the response, and always responds with the same generic message
+// whether or not the address has an account — see authController.js's
+// forgotPassword) — so this just confirms the request went through and
+// points the admin at their inbox, it can't show a "continue" button
+// anymore.
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resetToken, setResetToken] = useState(null);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await axiosInstance.post(API_PATHS.AUTH.FORGOT_PASSWORD, { email });
-      setResetToken(response.data.resetToken);
+      await axiosInstance.post(API_PATHS.AUTH.FORGOT_PASSWORD, { email });
+      setIsSubmitted(true);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Couldn't generate a reset token"));
+      toast.error(getErrorMessage(error, "Couldn't request a password reset"));
     } finally {
       setLoading(false);
     }
@@ -54,7 +54,7 @@ const ForgotPasswordPage = () => {
         </div>
 
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-100">
-          {!resetToken ? (
+          {!isSubmitted ? (
             <form onSubmit={handleSubmit} className="space-y-6">
               <InputField
                 type="email"
@@ -71,25 +71,15 @@ const ForgotPasswordPage = () => {
               </Button>
             </form>
           ) : (
-            <div className="space-y-5">
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 text-amber-700 text-xs rounded-2xl px-4 py-3">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>
-                  No email service is configured yet — in production this
-                  link would be emailed to you privately, not shown here.
-                  Anyone who sees this screen can reset this account.
-                </span>
+            <div className="space-y-4 text-center">
+              <div className="w-12 h-12 rounded-full bg-accent-50 flex items-center justify-center mx-auto">
+                <MailCheck className="w-6 h-6 text-accent" />
               </div>
               <p className="text-sm text-gray-600">
-                A reset token was generated for <strong>{email}</strong>.
-                Continue to set a new password:
+                If an account exists for <strong>{email}</strong>, a
+                password reset link has been sent. Check your inbox (and
+                spam folder) — the link expires in 1 hour.
               </p>
-              <Link to={`/reset-password/${resetToken}`}>
-                <Button className="w-full py-3.5 text-base flex items-center justify-center gap-2">
-                  Continue to Reset Password
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
             </div>
           )}
 

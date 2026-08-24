@@ -4,7 +4,8 @@ const PurchaseRequest = require('../models/PurchaseRequest');
 const ReferralReward = require('../models/ReferralReward');
 const Rating = require('../models/Rating');
 const ReaderProgress = require('../models/ReaderProgress');
-const { generateResetToken } = require('./authController');
+const { generateResetToken, buildResetLink } = require('./authController');
+const { sendPasswordResetEmail } = require('../utils/sendEmail');
 
 //@desc    List every reader account with a summary of their purchase and
 //         referral activity.
@@ -63,10 +64,14 @@ const getReaders = async (req, res) => {
 //         forgot-password flow (generateResetToken, shared from
 //         authController.js) rather than a second "admin sets the password
 //         directly" path — the admin never sees or handles the reader's
-//         actual new password, only a one-time reset token/link to pass
-//         along manually (e.g. via WhatsApp) until real email delivery
-//         exists. Same insecure-token-in-response caveat as
-//         forgotPassword — see that function's TODO.
+//         actual new password. As of Step 53 the reset link is emailed
+//         directly to the reader (same sendPasswordResetEmail as
+//         forgotPassword) rather than shown on-screen for the admin to pass
+//         along. If sending fails, the token is still valid — this
+//         responds with `emailSent: false` and the raw `resetLink` as a
+//         fallback, so the admin can still deliver it manually rather than
+//         the reset being silently stuck; the link is never included when
+//         the email actually sends.
 //@route   POST /api/admin/users/:id/reset-password
 //@access  Private/Admin
 const resetUserPassword = async (req, res) => {
@@ -77,11 +82,22 @@ const resetUserPassword = async (req, res) => {
         }
 
         const resetToken = await generateResetToken(user);
+        const resetLink = buildResetLink(resetToken);
 
-        res.status(200).json({
-            message: `Reset token generated for ${user.email}.`,
-            resetToken,
-        });
+        try {
+            await sendPasswordResetEmail({ to: user.email, resetLink, isAdminInitiated: true });
+            res.status(200).json({
+                message: `Reset email sent to ${user.email}.`,
+                emailSent: true,
+            });
+        } catch (emailError) {
+            console.error('Failed to send admin-initiated reset email:', emailError);
+            res.status(200).json({
+                message: `Couldn't email ${user.email} — the token is still valid, so you can pass this link along manually.`,
+                emailSent: false,
+                resetLink,
+            });
+        }
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
     }

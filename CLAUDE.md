@@ -17,7 +17,7 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 **Backend** (`backend/`):
 - `npm run dev` — start with nodemon (auto-reload)
 - `npm start` — start with node
-- No test suite and no lint script configured.
+- `npm test` — Jest + Supertest + mongodb-memory-server (`--runInBand`); no real MongoDB or third-party credentials needed, everything network-facing (Cloudinary, email) is mocked. No lint script configured.
 
 **Frontend** (`frontend/`):
 - `npm run dev` — start Vite dev server
@@ -28,7 +28,7 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 
 ## Environment
 
-Backend expects a `.env` file in `backend/` (gitignored) with at least: `PORT` (8000 in dev), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL` (the allowed CORS origin — defaults to `http://localhost:5173` if unset), `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below).
+Backend expects a `.env` file in `backend/` (gitignored) with at least: `PORT` (8000 in dev), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL` (the allowed CORS origin — defaults to `http://localhost:5173` if unset; also used to build password reset links, see below), `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below), `GMAIL_USER`, `GMAIL_APP_PASSWORD` (password reset emails — see below).
 
 The frontend's API base URL is **hardcoded** in `frontend/src/utils/apiPaths.js` (`BASE_URL`), not read from a Vite env var — it must be kept in sync with the backend's actual port/URL manually, including for production.
 
