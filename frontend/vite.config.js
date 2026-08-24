@@ -17,9 +17,9 @@ export default defineConfig({
       // PNGs are covered by the workbox globPatterns below already.
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'AI Book Creator',
-        short_name: 'Book Creator',
-        description: 'Create, edit, and read AI-generated ebooks — including offline.',
+        name: 'Kenlibs — Your Library',
+        short_name: 'Kenlibs',
+        description: 'Browse, buy, and read your library of books — including offline.',
         // Matches frontend/src/index.css's @theme --color-accent (Step 47's
         // terracotta/navy palette promotion).
         theme_color: '#c4592f',

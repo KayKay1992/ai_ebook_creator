@@ -292,7 +292,7 @@ title, blurb) instead of a bare link.
 
 Built after Steps 29-33 landed, based on direct usage/feedback:
 
-**Step 34 — Storefront search + Open Graph tags (DONE, split into two parts)**
+**Step 34 — Storefront search + Open Graph tags (DONE, commit f8d7a10)**
 - Part 1, search/filter on /kenlibs: DONE. Client-side title/author search
   (200ms debounce) + genre pills (only render when 2+ distinct genre values
   exist in the catalog). Sectioned Featured/Latest/Bundles view when no
@@ -304,9 +304,12 @@ Built after Steps 29-33 landed, based on direct usage/feedback:
   via a useOpenGraphTags hook) was confirmed NOT sufficient — verified via curl
   impersonating Facebook's crawler that social/messaging crawlers never
   execute JS and only ever saw the generic static index.html. A real fix was
-  built as a follow-up (see "OG crawler route" below).
+  built in the same commit as Part 1 (see "OG crawler route" below) — despite
+  the two being unrelated features, both landed together under a commit
+  message ("add real Open Graph link previews for crawler traffic") that only
+  names the OG half.
 
-**OG crawler route (DONE, follow-up to Step 34 Part 2)**
+**OG crawler route (DONE, same commit as Step 34 — f8d7a10)**
 backend/routes/ogPreviewRoute.js — GET /kenlibs/book/:id and
 /kenlibs/bundle/:id, mounted directly (not under /api). Detects 13 known
 crawler user-agents (Facebook, Twitter, WhatsApp, LinkedIn, Slack, Discord,
@@ -340,7 +343,7 @@ fetchImageBuffer/fetchImageToTempFile/resolveChapterImagesForEpub,
 ogPreviewRoute.js's asAbsoluteImage) already guards on absolute-URL-only and
 degrades gracefully rather than crashing on a stale path.
 
-**Step 35 — Completion badge/certificate (DONE)**
+**Step 35 — Completion badge/certificate (DONE, commit 27767cd)**
 ReaderProgress gained a completedAt field (backend/models/ReaderProgress.js),
 set once in updateProgress when an incoming lastChapterIndex update equals
 the book's final chapter index and completedAt isn't already set — never
@@ -379,13 +382,16 @@ pdfkit's bundled JPEG parser mishandles (DCTDecode bytes embedded directly,
 no re-encoding) — fixed by requesting a small Cloudinary-transformed
 thumbnail with fl_progressive:none forcing baseline encoding.
 
-**Step 36 — Word explanation popup (scoped, not yet sent)**
-Select/tap a word in the reader → popup definition. Primary: free Dictionary
-API (api.dictionaryapi.dev), no backend change. Fallback for dictionary
-misses (proper nouns, invented terms): explicit "Explain in context" button
-calling a new backend endpoint (reusing existing AI auth/rate-limit pattern)
-that sends the word + surrounding sentence to Gemini. AI fallback is
-opt-in-per-lookup only, never automatic, to control cost.
+**Step 36 — Word explanation popup (DONE, commit d288028)**
+Select/tap a word in the reader → popup definition
+(frontend/src/components/kenlibs/WordExplainPopup.jsx). Primary: free
+Dictionary API (api.dictionaryapi.dev) queried directly from the client, no
+backend involvement for the common case. Fallback for dictionary misses
+(proper nouns, invented terms, multi-word phrases): explicit "Explain in
+context" button calling a new backend endpoint (kenlibsController.js,
+reusing the existing AI auth/rate-limit pattern) that sends the word +
+surrounding sentence to Gemini. AI fallback is opt-in-per-lookup only, never
+automatic, matching the cost-control intent this step was scoped around.
 
 **Step 37 — Multi-language translation, Nigerian languages first (scoped, not
 yet sent)**
@@ -405,12 +411,18 @@ resume position (ReaderProgress) applies globally per book, not per
 language, for v1. Requires a GCP project + Translation API credentials —
 not yet set up, needed before this step can start.
 
-**Step 38 — Design revisit of Step 31 (deferred, not scheduled)**
-Reader-facing motion/visual design pass was committed but explicitly flagged
-as not meeting the bar wanted ("physical outlook... so so poor"). Revisit
-scope not yet defined — needs a concrete comparison pass (e.g. against the
-Kotobee reference used earlier) to identify specific gaps rather than a
-vague "make it better" re-run.
+**Step 38 — Design revisit of Step 31 (DONE, commits b2a998e + bd2ab21)**
+Step 31's Framer Motion pass was flagged as not meeting the bar wanted
+("physical outlook... so so poor"). The revisit landed as a real palette/
+typography overhaul rather than a motion-only patch: b2a998e redesigned
+every reader-facing Kenlibs page (storefront, book/bundle detail, checkout,
+login/signup, my-books, the reader itself) onto the classical terracotta/
+navy/cream bookstore palette referenced elsewhere in this doc; bd2ab21
+followed up by unifying the admin pages onto the same palette, so the
+product no longer reads as two visually distinct halves. A related
+regression from Step 31's original Framer Motion usage — a widespread
+AnimatePresence freeze bug — was found and fixed separately in d9bc0e8
+(which also added the mobile admin sidebar).
 
 ---
 
