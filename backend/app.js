@@ -20,11 +20,74 @@ const ogPreviewRoutes = require('./routes/ogPreviewRoute');
 // and starts listening; this file has zero side effects on require.
 const app = express();
 
+// FRONTEND_URL is kept as a single canonical URL for non-CORS uses (email
+// links — authController.js's buildResetLink, ogPreviewRoute.js's crawler
+// redirects) where "one real production frontend" is the only meaningful
+// answer. CORS itself needs to allow more than one origin at once (a real
+// prod Vercel URL + Vercel preview-deployment URLs during testing), so it's
+// driven by the separate ALLOWED_ORIGINS/ALLOWED_ORIGIN_PATTERN vars below
+// instead of reusing FRONTEND_URL. FRONTEND_URL is still folded into the
+// allowlist so a bare single-origin setup (e.g. local dev) doesn't also
+// need ALLOWED_ORIGINS explicitly set.
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// Comma-separated list, e.g. "https://kenlibs.app,https://kenlibs-git-main-me.vercel.app".
+// Falls back to FRONTEND_URL alone if unset, so local dev and single-origin
+// setups need nothing extra configured.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || FRONTEND_URL)
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+// Opt-in wildcard-subdomain matcher — for Vercel's per-branch/PR preview
+// URLs, which are unpredictable random subdomains that can't be
+// hand-maintained in ALLOWED_ORIGINS. ONLY consulted when
+// ALLOWED_ORIGIN_PATTERN is explicitly set in the environment; a deploy
+// that only configures ALLOWED_ORIGINS behaves exactly like a plain fixed
+// allowlist, with no wildcard matching at all. There is no default pattern
+// and no separate "enable" flag — setting the var IS the opt-in.
+//
+// Pattern syntax: a single `*` stands for exactly one DNS label (letters,
+// digits, hyphens — never `.`), everything else is matched literally and
+// the whole thing is anchored (^...$). So "https://*.vercel.app":
+//   - matches      https://my-app-git-feature-me.vercel.app
+//   - rejects      https://vercel.app.evil.com        (suffix isn't exact — anchored $)
+//   - rejects      https://a.b.vercel.app              (`*` is one label, not `.*`)
+//   - rejects      httpsx://foo.vercel.app             (scheme is matched literally too)
+// This keeps the blast radius of enabling it to "any single-label Vercel
+// preview subdomain", not an open wildcard over arbitrary hosts.
+const ORIGIN_PATTERN_RAW = process.env.ALLOWED_ORIGIN_PATTERN;
+const ORIGIN_PATTERN = ORIGIN_PATTERN_RAW
+    ? new RegExp(
+        '^' +
+            ORIGIN_PATTERN_RAW
+                .split('*')
+                .map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+                .join('[a-z0-9-]+') +
+            '$',
+        'i'
+    )
+    : null;
+
+const isOriginAllowed = (origin) => {
+    // No Origin header at all means this isn't a cross-origin browser
+    // request (server-to-server calls, curl, same-origin navigation) —
+    // nothing for CORS to restrict here regardless of allowlist contents.
+    if (!origin) return true;
+    if (ALLOWED_ORIGINS.includes(origin)) return true;
+    if (ORIGIN_PATTERN && ORIGIN_PATTERN.test(origin)) return true;
+    return false;
+};
 
 //middleware to handle CORS
 app.use(cors({
-    origin: FRONTEND_URL,
+    origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error(`Not allowed by CORS: ${origin}`));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE'], // allow specific HTTP methods
     allowedHeaders: ['Content-Type', 'Authorization'] // allow specific headers
 }));

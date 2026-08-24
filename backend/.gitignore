@@ -23,4 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
+# Env files — .env.example is intentionally NOT matched by this
 .env
+.env.*
+!.env.example

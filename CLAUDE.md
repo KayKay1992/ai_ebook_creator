@@ -28,15 +28,21 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 
 ## Environment
 
-Backend expects a `.env` file in `backend/` (gitignored) with at least: `PORT` (8000 in dev), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL` (the allowed CORS origin — defaults to `http://localhost:5173` if unset; also used to build password reset links, see below), `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below), `GMAIL_USER`, `GMAIL_APP_PASSWORD` (password reset emails — see below).
+Backend expects a `.env` file in `backend/` (gitignored, see `backend/.env.example`) with at least: `PORT` (8000 in dev; Render sets this itself in production), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below), `GMAIL_USER`, `GMAIL_APP_PASSWORD` (password reset emails — see below).
 
-The frontend's API base URL is **hardcoded** in `frontend/src/utils/apiPaths.js` (`BASE_URL`), not read from a Vite env var — it must be kept in sync with the backend's actual port/URL manually, including for production.
+`FRONTEND_URL` (defaults to `http://localhost:5173` if unset) is the single canonical production frontend URL, used only for building password reset email links (`authController.js`'s `buildResetLink`) and the OG-preview crawler redirect (`routes/ogPreviewRoute.js`) — both contexts where "one real answer" is what's needed, not a set.
+
+CORS is driven by a separate pair of vars (`app.js`), since it needs to allow more than one origin at once (production + Vercel preview deployments):
+- `ALLOWED_ORIGINS` — comma-separated list of exact allowed origins. Falls back to `FRONTEND_URL` alone if unset, so local dev needs nothing extra.
+- `ALLOWED_ORIGIN_PATTERN` — optional, opt-in only (unset = no wildcard matching at all). A single-`*`-wildcard host pattern (one `*` = one DNS label, anchored) for allowing e.g. `https://*.vercel.app` preview subdomains without hand-maintaining every preview URL in `ALLOWED_ORIGINS`. See `app.js`'s `ORIGIN_PATTERN` comment for exactly what it does and doesn't match, and `backend/tests/cors.test.js` for the behavior under test.
+
+The frontend's API base URL is read from `import.meta.env.VITE_API_URL` in `frontend/src/utils/apiPaths.js` (`BASE_URL`), with a `http://localhost:8000` fallback for local dev only — it's **required** in every deployed environment (see `frontend/.env.example`).
 
 ## Architecture
 
 ### Backend (`backend/`)
 
-Standard Express MVC-ish layering: `routes/` → `controller/` → `models/`, with `middleware/` for cross-cutting concerns. `server.js` wires everything together and mounts routers under `/api/auth`, `/api/books`, `/api/ai`, `/api/export`.
+Standard Express MVC-ish layering: `routes/` → `controller/` → `models/`, with `middleware/` for cross-cutting concerns. `app.js` builds the Express app and mounts every router (`/api/auth`, `/api/books`, `/api/ai`, `/api/export`, etc.) with zero side effects on require, so tests can import it directly with supertest; `server.js` is the only file that connects to Mongo and calls `app.listen`.
 
 - **Auth**: JWT-based. `middleware/authMiddleware.js`'s `protect` reads a `Bearer` token, verifies it, and attaches `req.user` (password excluded). Every books/ai/export route is protected; ownership is enforced in each controller by comparing `book.userId` to `req.user._id`, not by middleware.
 - **Data model** (`models/Book.js`): a `Book` embeds its `chapters` as a subdocument array (title/description/content) rather than a separate collection — chapters are always loaded/saved with their parent book. `models/User.js` hashes passwords via a `pre('save')` hook and exposes `matchPassword`.
@@ -58,6 +64,6 @@ Standard Express MVC-ish layering: `routes/` → `controller/` → `models/`, wi
 
 ### Cross-cutting notes
 
-- CORS in `server.js` is restricted to `FRONTEND_URL` (defaults to `http://localhost:5173`).
+- CORS is configured in `app.js` (not `server.js`, which only connects to Mongo and starts listening) via `ALLOWED_ORIGINS`/`ALLOWED_ORIGIN_PATTERN` — see Environment above.
 - AI generation routes (`/api/ai/generate-outline`, `/api/ai/generate-chapter-content`) are rate-limited to 20 requests/user/hour (`backend/routes/aiRoute.js`), keyed on `req.user._id`.
 - There's no shared types/schema between frontend and backend — chapter/book shapes are duplicated implicitly (Mongoose schema vs. JS object literals in React state). Keep them in sync by hand when changing the `Book`/chapter shape.

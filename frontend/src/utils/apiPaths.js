@@ -1,4 +1,7 @@
-export const BASE_URL = "http://localhost:8000";   // Change this to your backend URL in production
+// Required in every deployed environment (Vercel prod + preview builds) —
+// see frontend/.env.example. The localhost fallback only ever applies to
+// local `npm run dev`, where VITE_API_URL is optional.
+export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const API_PATHS = {
   AUTH: {

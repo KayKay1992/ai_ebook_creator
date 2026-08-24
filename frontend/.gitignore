@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Env files — .env.example is intentionally NOT matched by this
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
