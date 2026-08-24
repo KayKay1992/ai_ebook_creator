@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
+import { FlipHorizontal2 } from "lucide-react";
 import CoverPreview from "../cards/CoverPreview";
 
 // Front/back flip on hover — same perspective + preserve-3d technique as
@@ -22,43 +24,67 @@ const FlipCover = ({
   size = "sm",
   rounded = "rounded-2xl",
   className = "",
-}) => (
-  <motion.div
-    className={`relative [perspective:1500px] ${className}`}
-    initial="rest"
-    whileHover="hover"
-  >
+}) => {
+  // Touch devices have no hover, so `whileHover` above never fires there —
+  // this button is the touch equivalent, self-contained so it works whether
+  // or not a caller (e.g. KenlibsBookCard) has this whole component nested
+  // inside a Link: preventDefault/stopPropagation keep the tap from also
+  // triggering that Link's navigation. Hidden at md+ since desktop already
+  // has hover for this.
+  const [flipped, setFlipped] = useState(false);
+
+  return (
     <motion.div
-      className="relative w-full [transform-style:preserve-3d]"
-      variants={flipVariants}
-      transition={{ type: "spring", stiffness: 280, damping: 28 }}
+      className={`relative [perspective:1500px] ${className}`}
+      initial="rest"
+      animate={flipped ? "hover" : "rest"}
+      whileHover="hover"
     >
-      <div className="[backface-visibility:hidden]">
-        <CoverPreview
-          side="front"
-          title={title}
-          subtitle={subtitle}
-          author={author}
-          coverImage={coverImage}
-          coverDesign={coverDesign}
-          size={size}
-          rounded={rounded}
-        />
-      </div>
-      <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-        <CoverPreview
-          side="back"
-          title={title}
-          subtitle={subtitle}
-          author={author}
-          coverImage={coverImage}
-          coverDesign={coverDesign}
-          size={size}
-          rounded={rounded}
-        />
-      </div>
+      <motion.div
+        className="relative w-full [transform-style:preserve-3d]"
+        variants={flipVariants}
+        transition={{ type: "spring", stiffness: 280, damping: 28 }}
+      >
+        <div className="[backface-visibility:hidden]">
+          <CoverPreview
+            side="front"
+            title={title}
+            subtitle={subtitle}
+            author={author}
+            coverImage={coverImage}
+            coverDesign={coverDesign}
+            size={size}
+            rounded={rounded}
+          />
+        </div>
+        <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+          <CoverPreview
+            side="back"
+            title={title}
+            subtitle={subtitle}
+            author={author}
+            coverImage={coverImage}
+            coverDesign={coverDesign}
+            size={size}
+            rounded={rounded}
+          />
+        </div>
+      </motion.div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setFlipped((f) => !f);
+        }}
+        aria-label={flipped ? "Show front cover" : "Show back cover"}
+        className="md:hidden absolute bottom-2 right-2 z-10 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center shadow-md active:scale-90 transition-transform"
+      >
+        <FlipHorizontal2 className="w-4 h-4" />
+      </button>
     </motion.div>
-  </motion.div>
-);
+  );
+};
 
 export default FlipCover;

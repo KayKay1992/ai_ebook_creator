@@ -56,7 +56,11 @@ const BookCard = ({ book, onDelete }) => {
 
         {/* Action Buttons — flat UI chrome, deliberately outside the 3D
             rotating layer so they stay easy to click and undistorted. */}
-        <div className="absolute top-3 right-3 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        {/* Tailwind's `hover:`/`group-hover:` variants are wrapped in
+            `@media (hover: hover)`, so they never activate on real
+            touchscreens (no amount of tapping reveals them) — always show
+            these on mobile widths, keep the desktop fade-in-on-hover. */}
+        <div className="absolute top-3 right-3 z-10 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
           <button
             onClick={(e) => {
               e.stopPropagation();
