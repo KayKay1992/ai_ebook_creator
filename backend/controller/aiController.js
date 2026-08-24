@@ -26,11 +26,12 @@ You are an elite book architect and professional non-fiction outline designer.
 
 Create a high-quality, modern, and well-structured book outline based on the following details:
 
-Book Title / Topic: "${title || topic}"
-${description ? `Description: "${description}"` : ""}
+Book Title: "${title || topic}"
+${topic ? `Topic/Category: "${topic}"` : ""}
+${description ? `Specific Description: "${description}"` : ""}
 Voice & Tone: ${voiceInstruction}
 Number of Chapters: ${numChapters || 5}
-
+${description ? `\nThe Specific Description above is this book's actual angle, argument, audience, or premise, not just a restatement of the topic. The entire outline, every chapter title and every chapter description, must be built around this specific description. Someone reading only the outline should be able to tell what makes this particular book's approach distinct, not just recognize the general topic.\n` : ""}
 ### Outline Requirements:
 1. Generate exactly ${numChapters || 5} chapters.
 2. Chapter titles must be clear, elegant, and engaging.

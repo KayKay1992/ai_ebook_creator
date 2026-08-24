@@ -16,11 +16,16 @@ const TONE_OPTIONS = [
   "Technical",
   "Philosophical",
   "Fictional",
+  "Storytelling",
+  "Brutal Honest",
+  "Humour",
+  "Practical Wisdom",
+  "Nigerian Realities",
 ];
 
-const MAX_TONES = 3;
+const MAX_TONES = 7;
 
-// Chip/tag multi-select for a book's voice profile — select 1-3 tones.
+// Chip/tag multi-select for a book's voice profile — select 1-7 tones.
 // `value` is the currently-selected tone array; `onChange` receives the
 // next array. The combined instruction text is derived server-side (see
 // backend/utils/voiceProfile.js), never computed here.

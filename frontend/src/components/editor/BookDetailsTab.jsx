@@ -65,6 +65,23 @@ const BookDetailsTab = ({
             onChange={onBookChange}
             placeholder="A short and catchy subtitle"
           />
+
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">
+              Description (Optional)
+            </label>
+            <textarea
+              name="description"
+              value={book.description || ""}
+              onChange={onBookChange}
+              placeholder="This book's specific angle, argument, audience, or premise"
+              rows={3}
+              className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200 resize-none"
+            />
+            <p className="text-xs text-gray-400">
+              Guides AI outline generation, same as at creation time.
+            </p>
+          </div>
         </div>
       </div>
 

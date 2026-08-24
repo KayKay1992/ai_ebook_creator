@@ -30,6 +30,16 @@ const bookSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    // The book's specific angle, argument, audience, or premise — distinct
+    // from coverDesign.back.blurb (storefront sales copy) and from the
+    // one-off `topic` sent to /api/ai/generate-outline (a broad
+    // category/genre hint, never persisted). This is guiding context fed
+    // into outline generation (see aiController.js) and is editable later
+    // in BookDetailsTab.jsx, same as subtitle.
+    description: {
+        type: String,
+        default: ''
+    },
     author: {
         type: String,
         required: true

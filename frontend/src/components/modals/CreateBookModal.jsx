@@ -26,6 +26,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
   const [bookTitle, setBookTitle] = useState("");
   const [numChapters, setNumChapters] = useState(5);
   const [aiTopic, setAiTopic] = useState("");
+  const [aiDescription, setAiDescription] = useState("");
   const [selectedTones, setSelectedTones] = useState(["Informative"]);
   const [chapters, setChapters] = useState([]);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
@@ -37,6 +38,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
     setBookTitle("");
     setNumChapters(5);
     setAiTopic("");
+    setAiDescription("");
     setSelectedTones(["Informative"]);
     setChapters([]);
     setIsGeneratingOutline(false);
@@ -58,6 +60,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
         title: bookTitle,
         numChapters: Number(numChapters),
         topic: aiTopic || "",
+        description: aiDescription || "",
         tones: selectedTones,
       });
       setChapters(response.data.outline || []);
@@ -98,6 +101,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
       const response = await axiosInstance.post(API_PATHS.BOOKS.CREATE_BOOK, {
         title: bookTitle,
         author: user?.name || "Unknown Author",
+        description: aiDescription || "",
         chapters,
         tones: selectedTones,
       });
@@ -194,6 +198,23 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
             onChange={(e) => setAiTopic(e.target.value)}
             placeholder="e.g. Personal growth, science fiction, history..."
           />
+
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">
+              Description (Optional)
+            </label>
+            <textarea
+              value={aiDescription}
+              onChange={(e) => setAiDescription(e.target.value)}
+              placeholder="e.g. A practical guide for young professionals on breaking financial trauma and building wealth from scratch"
+              rows={3}
+              className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200 resize-none"
+            />
+            <p className="text-xs text-gray-400">
+              Topic is a broad category (e.g. "personal finance"). Description
+              is this book's specific angle, argument, audience, or premise.
+            </p>
+          </div>
 
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">

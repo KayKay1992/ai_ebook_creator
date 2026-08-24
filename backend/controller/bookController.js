@@ -8,13 +8,13 @@ const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
 //@access  Private
 const createBook = async (req, res) => {
     try {
-          const { title, author, subtitle, chapters, tones } = req.body;
+          const { title, author, subtitle, description, chapters, tones } = req.body;
 
           if (!title || !author) {
             return res.status(400).json({ message: 'Title and author are required' });
         }
 
-        const voiceTones = Array.isArray(tones) ? tones.slice(0, 3) : [];
+        const voiceTones = Array.isArray(tones) ? tones.slice(0, 7) : [];
 
         // Create a new book
         const book = await Book.create({
@@ -22,6 +22,7 @@ const createBook = async (req, res) => {
             title,
             author,
             subtitle,
+            description,
             chapters,
             voiceProfile: {
                 tones: voiceTones,
@@ -83,7 +84,7 @@ const updateBook = async (req, res) => {
         // client-supplied instruction string, so it can't drift from what
         // buildVoiceProfileInstruction would actually produce.
         if (updates.voiceProfile && Array.isArray(updates.voiceProfile.tones)) {
-            const voiceTones = updates.voiceProfile.tones.slice(0, 3);
+            const voiceTones = updates.voiceProfile.tones.slice(0, 7);
             updates.voiceProfile = {
                 tones: voiceTones,
                 instruction: buildVoiceProfileInstruction(voiceTones),
