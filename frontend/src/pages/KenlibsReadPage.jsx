@@ -97,6 +97,24 @@ const KenlibsReadPage = () => {
   // this.
   const contentContainerRef = useRef(null);
 
+  // TEMPORARY — Android Listen Mode / word-popup debugging (remove once
+  // diagnosed). Loads Eruda (an on-screen mobile debug console) ONLY when
+  // ?debug=1 is present in the URL, so ordinary readers never load or pay
+  // for this third-party script. Not a real access-control boundary — it's
+  // a public query param anyone could type, not a secret — so this should
+  // come out again once the real device debugging session is done, same as
+  // the [ListenMode] console logging it's meant to surface.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("debug") !== "1") return;
+    if (document.getElementById("eruda-debug-script")) return; // already loaded
+    const script = document.createElement("script");
+    script.id = "eruda-debug-script";
+    script.src = "https://cdn.jsdelivr.net/npm/eruda";
+    script.onload = () => window.eruda?.init();
+    document.body.appendChild(script);
+  }, []);
+
   const notesSaveTimerRef = useRef(null);
   // Latest not-yet-confirmed-saved notes value, or null once saved — lets
   // the beforeunload/pagehide handlers below fire one last best-effort
