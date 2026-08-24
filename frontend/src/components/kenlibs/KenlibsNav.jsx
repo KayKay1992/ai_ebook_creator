@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { BookOpen, LifeBuoy, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
@@ -87,87 +87,91 @@ const KenlibsNav = () => {
             className="sm:hidden w-10 h-10 rounded-xl flex items-center justify-center text-white/80 hover:bg-white/10 transition-colors"
             aria-label="Toggle menu"
           >
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={isMobileOpen ? "close" : "open"}
-                initial={{ opacity: 0, rotate: -45 }}
-                animate={{ opacity: 1, rotate: 0 }}
-                exit={{ opacity: 0, rotate: 45 }}
-                transition={{ duration: 0.15 }}
-              >
-                {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </motion.span>
-            </AnimatePresence>
+            {/* No AnimatePresence/exit here (Step 52 audit) — dropping the
+                exit half of the crossfade removes any risk of a stuck
+                unmount without giving up much: the new icon still fades
+                and rotates in on every toggle, it just doesn't also fade
+                the old one out first. */}
+            <motion.span
+              key={isMobileOpen ? "close" : "open"}
+              initial={{ opacity: 0, rotate: -45 }}
+              animate={{ opacity: 1, rotate: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </motion.span>
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
-      <AnimatePresence>
-        {isMobileOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="sm:hidden overflow-hidden border-t border-white/10"
+      {/* Mobile menu — always mounted, animated via `animate` only + `inert`
+          when closed, not AnimatePresence-conditional mounting (Step 52
+          audit: see DashboardLayout.jsx's original fix for the full story
+          on why AnimatePresence's exit-complete unmount isn't reliable
+          here). This one is in-flow rather than a fixed overlay, so a
+          stuck exit wouldn't block clicks elsewhere on the page the way a
+          fixed overlay would — fixed anyway, for the same reason as every
+          other instance in this audit: correctness, not just risk level. */}
+      <motion.div
+        animate={{ height: isMobileOpen ? "auto" : 0, opacity: isMobileOpen ? 1 : 0 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        className="sm:hidden overflow-hidden border-t border-white/10"
+        inert={!isMobileOpen}
+      >
+        <div className="px-6 py-4 flex flex-col gap-1">
+          <Link
+            to="/kenlibs/support"
+            onClick={() => setIsMobileOpen(false)}
+            className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-white/80 hover:bg-white/10 transition-colors"
           >
-            <div className="px-6 py-4 flex flex-col gap-1">
+            <LifeBuoy className="w-4 h-4" />
+            Support
+          </Link>
+          {isAuthenticated ? (
+            <>
               <Link
-                to="/kenlibs/support"
+                to="/kenlibs/my-books"
                 onClick={() => setIsMobileOpen(false)}
-                className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-white/80 hover:bg-white/10 transition-colors"
+                className={`px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  isMyBooksActive
+                    ? "bg-accent text-white"
+                    : "text-white/80 hover:bg-white/10"
+                }`}
               >
-                <LifeBuoy className="w-4 h-4" />
-                Support
+                My Books
               </Link>
-              {isAuthenticated ? (
-                <>
-                  <Link
-                    to="/kenlibs/my-books"
-                    onClick={() => setIsMobileOpen(false)}
-                    className={`px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
-                      isMyBooksActive
-                        ? "bg-accent text-white"
-                        : "text-white/80 hover:bg-white/10"
-                    }`}
-                  >
-                    My Books
-                  </Link>
-                  <Link
-                    to="/kenlibs/referrals"
-                    onClick={() => setIsMobileOpen(false)}
-                    className={`px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
-                      isReferralsActive
-                        ? "bg-accent text-white"
-                        : "text-white/80 hover:bg-white/10"
-                    }`}
-                  >
-                    Referrals
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setIsMobileOpen(false);
-                      logout();
-                    }}
-                    className="text-left px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:bg-white/10 transition-colors"
-                  >
-                    {user?.name?.split(" ")[0] || "Account"} · Log out
-                  </button>
-                </>
-              ) : (
-                <Link
-                  to="/kenlibs/login"
-                  onClick={() => setIsMobileOpen(false)}
-                  className="px-4 py-3 rounded-xl text-sm font-semibold text-white bg-accent hover:bg-accent-hover transition-colors"
-                >
-                  Login
-                </Link>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <Link
+                to="/kenlibs/referrals"
+                onClick={() => setIsMobileOpen(false)}
+                className={`px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  isReferralsActive
+                    ? "bg-accent text-white"
+                    : "text-white/80 hover:bg-white/10"
+                }`}
+              >
+                Referrals
+              </Link>
+              <button
+                onClick={() => {
+                  setIsMobileOpen(false);
+                  logout();
+                }}
+                className="text-left px-4 py-3 rounded-xl text-sm font-medium text-white/60 hover:bg-white/10 transition-colors"
+              >
+                {user?.name?.split(" ")[0] || "Account"} · Log out
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/kenlibs/login"
+              onClick={() => setIsMobileOpen(false)}
+              className="px-4 py-3 rounded-xl text-sm font-semibold text-white bg-accent hover:bg-accent-hover transition-colors"
+            >
+              Login
+            </Link>
+          )}
+        </div>
+      </motion.div>
     </header>
   );
 };

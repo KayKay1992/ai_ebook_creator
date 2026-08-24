@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import {
   Clock,
@@ -298,10 +298,15 @@ const KenlibsMyBooksPage = () => {
                           </span>
                         </div>
 
+                        {/* No AnimatePresence/exit here (Step 52 audit) —
+                            same simplification applied throughout: the
+                            trigger/form branches swap instantly instead of
+                            cross-fading, trading a small nicety for zero
+                            risk of a stuck-exit blocker on this row. */}
                         {isRejected && (
-                          <AnimatePresence mode="wait" initial={false}>
+                          <>
                             {!isResubmitOpen ? (
-                              <motion.div key="trigger" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                              <motion.div key="trigger" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                                 <motion.button
                                   whileTap={{ scale: 0.97 }}
                                   onClick={() => openResubmit(req._id)}
@@ -316,7 +321,6 @@ const KenlibsMyBooksPage = () => {
                                 key="form"
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
                                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                                 className="overflow-hidden"
                               >
@@ -353,7 +357,7 @@ const KenlibsMyBooksPage = () => {
                                 </div>
                               </motion.div>
                             )}
-                          </AnimatePresence>
+                          </>
                         )}
 
                         {/* This is the moment a reader is most likely to

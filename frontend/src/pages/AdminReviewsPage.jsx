@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { MessageSquareText, Star, Trash2, Loader2 } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
@@ -130,48 +130,47 @@ const AdminReviewsPage = () => {
         )}
       </div>
 
-      <AnimatePresence>
-        {deleteTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() => setDeleteTarget(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8"
-            >
-              <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
-                <Trash2 className="w-6 h-6 text-red-500" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete this review?</h3>
-              <p className="text-gray-500 mb-6">
-                "{deleteTarget.review}" by {deleteTarget.readerName} on {deleteTarget.bookTitle} will be
-                permanently removed. This can't be undone.
-              </p>
-              <div className="flex gap-3">
-                <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="danger"
-                  className="flex-1"
-                  loading={deletingId === deleteTarget._id}
-                  onClick={confirmDelete}
-                >
-                  Delete
-                </Button>
-              </div>
-            </motion.div>
+      {/* Always mounted, animated via `animate` only + `inert` when closed —
+          not AnimatePresence-conditional mounting. Confirmed live (Step 51):
+          framer-motion 13.1.0 + React 19 here never fires AnimatePresence's
+          exit-complete unmount — the exit animation finishes visually but
+          the fixed inset-0 z-50 overlay stays in the DOM, silently blocking
+          every click on the page underneath it until a full reload. This
+          sidesteps that entirely: nothing ever needs to unmount. */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" inert={!deleteTarget}>
+        <motion.div
+          animate={{ opacity: deleteTarget ? 1 : 0 }}
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          onClick={() => setDeleteTarget(null)}
+        />
+        <motion.div
+          animate={{ opacity: deleteTarget ? 1 : 0, scale: deleteTarget ? 1 : 0.96 }}
+          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8"
+        >
+          <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
+            <Trash2 className="w-6 h-6 text-red-500" />
           </div>
-        )}
-      </AnimatePresence>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Delete this review?</h3>
+          <p className="text-gray-500 mb-6">
+            "{deleteTarget?.review}" by {deleteTarget?.readerName} on {deleteTarget?.bookTitle} will be
+            permanently removed. This can't be undone.
+          </p>
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              loading={!!deleteTarget && deletingId === deleteTarget._id}
+              onClick={confirmDelete}
+            >
+              Delete
+            </Button>
+          </div>
+        </motion.div>
+      </div>
     </DashboardLayout>
   );
 };

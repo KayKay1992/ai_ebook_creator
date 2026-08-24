@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { MessageSquare, Pencil, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "../../utils/axiosInstance";
@@ -73,72 +73,69 @@ const BookReviewsSection = ({ bookId, aggregate, myRating, onRatingChange, isLoa
           access, per the product rule (not a disabled/explained control). */}
       {hasAccess && (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-8 max-w-xl">
-          <AnimatePresence mode="wait" initial={false}>
-            {!isEditing ? (
-              <motion.div
-                key="summary"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                {existingRating ? (
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1.5">You rated this book</p>
-                      <StarRating value={existingRating.stars} size="md" />
-                    </div>
-                    <button
-                      onClick={openEditor}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-accent-hover bg-accent-50 hover:bg-accent-100 transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      Edit
-                    </button>
+          {/* No AnimatePresence/exit here (Step 52 audit) — same
+              simplification as the auth pages' success/form swaps: the
+              old branch disappears instantly rather than fading out first,
+              which trades a small nicety for zero risk of a stuck-exit
+              overlay blocking this card. */}
+          {!isEditing ? (
+            <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              {existingRating ? (
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1.5">You rated this book</p>
+                    <StarRating value={existingRating.stars} size="md" />
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 mb-1.5">Rate this book</p>
-                      <p className="text-xs text-gray-500">Share what you thought with other readers.</p>
-                    </div>
-                    <Button size="sm" onClick={openEditor} className="flex-shrink-0">
-                      Rate it
-                    </Button>
+                  <button
+                    onClick={openEditor}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-accent-hover bg-accent-50 hover:bg-accent-100 transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 mb-1.5">Rate this book</p>
+                    <p className="text-xs text-gray-500">Share what you thought with other readers.</p>
                   </div>
-                )}
-              </motion.div>
-            ) : (
-              <motion.div
-                key="form"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <p className="text-sm font-semibold text-gray-900 mb-3">
-                  {existingRating ? "Edit your rating" : "Rate this book"}
-                </p>
-                <StarRating value={draftStars} size="lg" interactive onChange={setDraftStars} />
-                <textarea
-                  value={draftReview}
-                  onChange={(e) => setDraftReview(e.target.value)}
-                  placeholder="Optional — write a review other readers can see…"
-                  rows={4}
-                  maxLength={2000}
-                  className="w-full mt-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all resize-none"
-                />
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" loading={isSubmitting} onClick={submitRating}>
-                    {existingRating ? "Update Rating" : "Submit Rating"}
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setIsEditing(false)}>
-                    Cancel
+                  <Button size="sm" onClick={openEditor} className="flex-shrink-0">
+                    Rate it
                   </Button>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="form"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <p className="text-sm font-semibold text-gray-900 mb-3">
+                {existingRating ? "Edit your rating" : "Rate this book"}
+              </p>
+              <StarRating value={draftStars} size="lg" interactive onChange={setDraftStars} />
+              <textarea
+                value={draftReview}
+                onChange={(e) => setDraftReview(e.target.value)}
+                placeholder="Optional — write a review other readers can see…"
+                rows={4}
+                maxLength={2000}
+                className="w-full mt-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all resize-none"
+              />
+              <div className="flex gap-2 mt-3">
+                <Button size="sm" loading={isSubmitting} onClick={submitRating}>
+                  {existingRating ? "Update Rating" : "Submit Rating"}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setIsEditing(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </motion.div>
+          )}
         </div>
       )}
 

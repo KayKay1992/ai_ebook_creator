@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { BookOpenText, Loader2, Sparkles, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -31,12 +31,35 @@ const isLookupPhrase = (word) => {
   return !cleaned || /\s/.test(cleaned);
 };
 
+// How long the fade-out plays before the parent actually unmounts this
+// component (matches the transition below).
+const CLOSE_ANIMATION_MS = 140;
+
 const WordExplainPopup = ({ word, sentence, bookId, position, onClose }) => {
   // 'dictionary' | 'miss' | 'ai-loading' | 'ai-result'
   const [phase, setPhase] = useState(() => (isLookupPhrase(word) ? "miss" : "dictionary"));
   const [entry, setEntry] = useState(null);
   const [aiExplanation, setAiExplanation] = useState("");
+  // Not AnimatePresence — this component is remounted fresh (via a `key`)
+  // for every new selection, so there's no stable instance to keep mounted
+  // and toggle `inert` on the way DashboardLayout's sidebar does. Instead:
+  // play the fade via a plain boolean + setTimeout (same pattern
+  // ViewBook.jsx already established for exactly this reason — "testing
+  // turned up [AnimatePresence] getting stuck mid-transition in this
+  // environment"), then call the real onClose once the animation has
+  // actually had time to finish, so the parent's unmount always happens on
+  // a plain timer, never on a framer-motion completion promise that isn't
+  // reliably firing.
+  const [isClosing, setIsClosing] = useState(false);
   const popupRef = useRef(null);
+
+  const requestClose = useCallback(() => {
+    setIsClosing((already) => {
+      if (already) return already;
+      setTimeout(onClose, CLOSE_ANIMATION_MS);
+      return true;
+    });
+  }, [onClose]);
 
   useEffect(() => {
     if (isLookupPhrase(word)) return undefined; // already initialized to "miss" above
@@ -76,11 +99,11 @@ const WordExplainPopup = ({ word, sentence, bookId, position, onClose }) => {
   useEffect(() => {
     const handlePointerDown = (e) => {
       if (popupRef.current && !popupRef.current.contains(e.target)) {
-        onClose();
+        requestClose();
       }
     };
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") requestClose();
     };
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -88,7 +111,7 @@ const WordExplainPopup = ({ word, sentence, bookId, position, onClose }) => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [requestClose]);
 
   const handleExplainInContext = async () => {
     setPhase("ai-loading");
@@ -112,11 +135,11 @@ const WordExplainPopup = ({ word, sentence, bookId, position, onClose }) => {
     <motion.div
       ref={popupRef}
       initial={{ opacity: 0, scale: 0.96, y: -4 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.14, ease: "easeOut" }}
+      animate={isClosing ? { opacity: 0, scale: 0.96, y: -4 } : { opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: CLOSE_ANIMATION_MS / 1000, ease: "easeOut" }}
       className="fixed z-50 w-80 max-w-[calc(100vw-24px)] max-h-[70vh] overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-xl"
       style={position}
+      inert={isClosing}
     >
       <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-2">
         <div className="min-w-0">
@@ -125,7 +148,7 @@ const WordExplainPopup = ({ word, sentence, bookId, position, onClose }) => {
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={requestClose}
           className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
           <X className="w-3.5 h-3.5" />

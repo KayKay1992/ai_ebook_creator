@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import MDEditor from "@uiw/react-md-editor";
 import toast from "react-hot-toast";
 import { Lock, BookX, ArrowLeft, NotebookPen, X, Award, Download } from "lucide-react";
@@ -530,71 +530,72 @@ const KenlibsReadPage = () => {
         {/* Step 36: word/phrase explanation popup — anchored near the
             selection via inline position style, closed by setting
             explainSelection back to null (click-away/Escape are handled
-            inside WordExplainPopup itself). */}
-        <AnimatePresence>
-          {explainSelection && (
-            <WordExplainPopup
-              key={explainSelection.key}
-              word={explainSelection.word}
-              sentence={explainSelection.sentence}
-              bookId={bookId}
-              position={{ top: explainSelection.position.top, left: explainSelection.position.left }}
-              onClose={() => setExplainSelection(null)}
-            />
-          )}
-        </AnimatePresence>
+            inside WordExplainPopup itself). Deliberately plain conditional
+            rendering, not AnimatePresence — WordExplainPopup plays its own
+            fade-out via a boolean + setTimeout before calling onClose (Step
+            52 audit), so by the time this actually unmounts it, the
+            component is already invisible; there's nothing left for
+            AnimatePresence to coordinate. */}
+        {explainSelection && (
+          <WordExplainPopup
+            key={explainSelection.key}
+            word={explainSelection.word}
+            sentence={explainSelection.sentence}
+            bookId={bookId}
+            position={{ top: explainSelection.position.top, left: explainSelection.position.left }}
+            onClose={() => setExplainSelection(null)}
+          />
+        )}
 
-        <AnimatePresence>
-          {isNotepadOpen && (
-            <>
-              <motion.div
-                key="notepad-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="fixed inset-0 bg-black/20 z-40"
-                onClick={() => setIsNotepadOpen(false)}
-              />
-              <motion.div
-                key="notepad-panel"
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                transition={{ type: "spring", stiffness: 320, damping: 34 }}
-                className="fixed top-0 right-0 h-full w-full sm:w-96 bg-white shadow-2xl z-50 flex flex-col"
-              >
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-                  <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <NotebookPen className="w-4 h-4 text-accent" />
-                    My Notes
-                  </h2>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400">
-                      {notesSaveStatus === "saving"
-                        ? "Saving…"
-                        : notesSaveStatus === "unsaved"
-                          ? "Unsaved"
-                          : "Saved"}
-                    </span>
-                    <button
-                      onClick={() => setIsNotepadOpen(false)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={notes}
-                  onChange={handleNotesChange}
-                  placeholder="Jot down thoughts as you read — only you can see this."
-                  className="flex-1 w-full resize-none p-5 text-sm text-gray-700 leading-relaxed focus:outline-none"
-                />
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+        {/* Always mounted, animated via `animate` only + `inert` when
+            closed — not AnimatePresence-conditional mounting (Step 52 audit:
+            framer-motion 13.1.0 + React 19 never fires AnimatePresence's
+            exit-complete unmount here, so the exit animation finishes
+            visually but the fixed inset-0/full-height overlay stays in the
+            DOM, silently blocking every click on the page underneath it
+            until a full reload — see DashboardLayout.jsx's original fix for
+            the full story). */}
+        <div className="fixed inset-0 z-40" inert={!isNotepadOpen}>
+          <motion.div
+            animate={{ opacity: isNotepadOpen ? 1 : 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 bg-black/20"
+            onClick={() => setIsNotepadOpen(false)}
+          />
+          <motion.div
+            animate={{ x: isNotepadOpen ? 0 : "100%" }}
+            transition={{ type: "spring", stiffness: 320, damping: 34 }}
+            className="absolute top-0 right-0 h-full w-full sm:w-96 bg-white shadow-2xl z-50 flex flex-col"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <NotebookPen className="w-4 h-4 text-accent" />
+                My Notes
+              </h2>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400">
+                  {notesSaveStatus === "saving"
+                    ? "Saving…"
+                    : notesSaveStatus === "unsaved"
+                      ? "Unsaved"
+                      : "Saved"}
+                </span>
+                <button
+                  onClick={() => setIsNotepadOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={notes}
+              onChange={handleNotesChange}
+              placeholder="Jot down thoughts as you read — only you can see this."
+              className="flex-1 w-full resize-none p-5 text-sm text-gray-700 leading-relaxed focus:outline-none"
+            />
+          </motion.div>
+        </div>
       </>
     );
   }
