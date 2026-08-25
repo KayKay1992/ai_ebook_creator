@@ -144,7 +144,8 @@ const ChapterSidebar = ({
   isGenerating,
   onGenerateMoreChapters,
   isGeneratingMoreChapters,
-  onBookChange,
+  onToggleIntroConclusionStructure,
+  isGeneratingIntroConclusion,
 }) => {
   const navigate = useNavigate();
   const [isGenerateMoreOpen, setIsGenerateMoreOpen] = useState(false);
@@ -274,9 +275,14 @@ const ChapterSidebar = ({
         {/* Small settings affordance, deliberately understated compared to
             the two actions above (smaller switch, smaller text, muted
             background) — same underlying book.useIntroConclusionStructure
-            field as BookDetailsTab.jsx's toggle, wired through the same
-            onBookChange/autosave path, so there's one source of truth
-            regardless of which screen last touched it. */}
+            field as BookDetailsTab.jsx's toggle. Routed through
+            onToggleIntroConclusionStructure (EditorPage.jsx) rather than
+            the plain onBookChange used elsewhere — turning this ON can
+            trigger a retrofit confirmation + AI generation for an existing
+            book's Intro/Conclusion, so it needs its own decision tree, not
+            just a field write. Still one source of truth: the flag itself
+            still lands via the same handleBookChange/autosave path once
+            that decision tree resolves. */}
         <div
           className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2"
           title="When on, AI outline generation (initial or Generate More Chapters) frames the first chapter as an Introduction and the last as a Conclusion with action steps."
@@ -286,15 +292,9 @@ const ChapterSidebar = ({
           </span>
           <button
             type="button"
-            onClick={() =>
-              onBookChange({
-                target: {
-                  name: "useIntroConclusionStructure",
-                  value: !book.useIntroConclusionStructure,
-                },
-              })
-            }
-            className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors ${
+            onClick={onToggleIntroConclusionStructure}
+            disabled={isGeneratingIntroConclusion}
+            className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors disabled:opacity-60 ${
               book.useIntroConclusionStructure ? "bg-accent" : "bg-gray-300"
             }`}
           >

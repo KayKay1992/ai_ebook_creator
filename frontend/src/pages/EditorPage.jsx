@@ -22,11 +22,20 @@ import { arrayMove } from "@dnd-kit/sortable";
 
 import Dropdown, { DropdownItem } from "../components/ui/Dropdown";
 import Button from "../components/ui/Button";
+import Modal from "../components/ui/Modal";
 import ChapterSidebar from "../components/editor/ChapterSidebar";
 import ChapterEditorTab from "../components/editor/ChapterEditorTab";
 import BookDetailsTab from "../components/editor/BookDetailsTab";
 import VitalsTab from "../components/editor/VitalsTab";
 import EditorSkeleton from "../components/skeletons/EditorSkeleton";
+
+// Same word-in-title detection used server-side (aiController.js's
+// isConclusionChapter) — kept in sync by hand, same pattern as
+// TonePicker.jsx mirroring backend/utils/voiceProfile.js. Used here purely
+// to decide whether the retrofit confirmation modal is even necessary, not
+// as a security boundary, so client-side duplication is fine.
+const looksLikeIntroduction = (chapter) => /introduction/i.test(chapter?.title || "");
+const looksLikeConclusion = (chapter) => /conclusion/i.test(chapter?.title || "");
 
 const EditorPage = () => {
   const { bookId } = useParams();
@@ -42,6 +51,8 @@ const EditorPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(null); // null | number
   const [isGeneratingMoreChapters, setIsGeneratingMoreChapters] = useState(false);
+  const [isIntroConclusionConfirmOpen, setIsIntroConclusionConfirmOpen] = useState(false);
+  const [isGeneratingIntroConclusion, setIsGeneratingIntroConclusion] = useState(false);
   const [saveStatus, setSaveStatus] = useState("saved"); // 'saved' | 'saving' | 'unsaved' | 'error'
 
   const fileInputRef = useRef(null);
@@ -183,6 +194,90 @@ const EditorPage = () => {
       toast.error(getErrorMessage(error, "Failed to generate more chapters"));
     } finally {
       setIsGeneratingMoreChapters(false);
+    }
+  };
+
+  // Entry point for the Intro/Conclusion toggle wherever it's flipped
+  // (ChapterSidebar.jsx or BookDetailsTab.jsx both call this instead of the
+  // plain onBookChange, so there's one shared decision tree regardless of
+  // which screen triggered it). Turning it off is always a no-op on
+  // chapters — only turning it on can trigger a retrofit, and only when
+  // there's actually something to retrofit.
+  const handleToggleIntroConclusionStructure = () => {
+    const turningOn = !book.useIntroConclusionStructure;
+
+    if (!turningOn) {
+      handleBookChange({
+        target: { name: "useIntroConclusionStructure", value: false },
+      });
+      return;
+    }
+
+    const chapters = book.chapters || [];
+    const needsRetrofit =
+      chapters.length > 0 &&
+      !looksLikeIntroduction(chapters[0]) &&
+      !looksLikeConclusion(chapters[chapters.length - 1]);
+
+    if (!needsRetrofit) {
+      // No chapters yet, or the book already has a real Introduction/
+      // Conclusion at one end — nothing to retrofit, just flip the flag.
+      handleBookChange({
+        target: { name: "useIntroConclusionStructure", value: true },
+      });
+      return;
+    }
+
+    setIsIntroConclusionConfirmOpen(true);
+  };
+
+  // shouldGenerate is false when the user declines the retrofit modal —
+  // the flag still turns on (matching the plain-toggle behavior), it just
+  // doesn't touch any chapters.
+  const handleIntroConclusionConfirm = async (shouldGenerate) => {
+    setIsIntroConclusionConfirmOpen(false);
+
+    if (!shouldGenerate) {
+      handleBookChange({
+        target: { name: "useIntroConclusionStructure", value: true },
+      });
+      return;
+    }
+
+    setIsGeneratingIntroConclusion(true);
+    try {
+      const response = await axiosInstance.post(
+        API_PATHS.AI.GENERATE_INTRO_CONCLUSION(bookId)
+      );
+      const { introduction, conclusion } = response.data;
+
+      // Purely additive — the existing first/last chapters are spread back
+      // in untouched, just no longer first/last.
+      const updatedChapters = [
+        { title: introduction.title, description: introduction.description || "", content: "" },
+        ...book.chapters,
+        { title: conclusion.title, description: conclusion.description || "", content: "" },
+      ];
+      const updatedBook = {
+        ...book,
+        chapters: updatedChapters,
+        useIntroConclusionStructure: true,
+      };
+      setBook(updatedBook);
+      setSelectedChapterIndex(0);
+      // Unlike handleGenerateMoreChapters, this also flips a book-level
+      // flag — every OTHER path that flips this same flag (turning off,
+      // declining the retrofit, no-retrofit-needed) already autosaves via
+      // handleBookChange, so this path persists immediately too rather than
+      // leaving the toggle looking "on" but actually unsaved.
+      scheduleAutosave(updatedBook);
+      toast.success("Introduction and Conclusion chapters added!");
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, "Failed to generate introduction/conclusion")
+      );
+    } finally {
+      setIsGeneratingIntroConclusion(false);
     }
   };
 
@@ -477,7 +572,8 @@ const EditorPage = () => {
                 isGenerating={isGenerating}
                 onGenerateMoreChapters={handleGenerateMoreChapters}
                 isGeneratingMoreChapters={isGeneratingMoreChapters}
-                onBookChange={handleBookChange}
+                onToggleIntroConclusionStructure={handleToggleIntroConclusionStructure}
+                isGeneratingIntroConclusion={isGeneratingIntroConclusion}
               />
             </div>
           </div>
@@ -497,7 +593,8 @@ const EditorPage = () => {
           isGenerating={isGenerating}
           onGenerateMoreChapters={handleGenerateMoreChapters}
           isGeneratingMoreChapters={isGeneratingMoreChapters}
-          onBookChange={handleBookChange}
+          onToggleIntroConclusionStructure={handleToggleIntroConclusionStructure}
+          isGeneratingIntroConclusion={isGeneratingIntroConclusion}
         />
       </div>
 
@@ -631,6 +728,8 @@ const EditorPage = () => {
                 book={book}
                 onCoverUpload={handleCoverImageUpload}
                 onBookChange={handleBookChange}
+                onToggleIntroConclusionStructure={handleToggleIntroConclusionStructure}
+                isGeneratingIntroConclusion={isGeneratingIntroConclusion}
                 isUploading={isUploading}
                 fileInputRef={fileInputRef}
                 onTogglePublish={handleTogglePublish}
@@ -642,6 +741,32 @@ const EditorPage = () => {
           </div>
         </main>
       </div>
+
+      {/* Shared between ChapterSidebar.jsx and BookDetailsTab.jsx — one
+          confirmation regardless of which screen flips the toggle, rather
+          than duplicating this decision in both places. */}
+      <Modal
+        isOpen={isIntroConclusionConfirmOpen}
+        onClose={() => handleIntroConclusionConfirm(false)}
+        title="Add Introduction & Conclusion?"
+      >
+        <p className="text-gray-600 leading-relaxed mb-6">
+          This will add a new Introduction chapter at the start and a new
+          Conclusion chapter at the end. Your existing chapters won't be
+          changed. Continue?
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => handleIntroConclusionConfirm(false)}
+          >
+            No
+          </Button>
+          <Button onClick={() => handleIntroConclusionConfirm(true)}>
+            Yes, add them
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };

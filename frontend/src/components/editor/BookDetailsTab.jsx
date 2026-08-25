@@ -11,6 +11,8 @@ import TonePicker from "../shared/TonePicker";
 const BookDetailsTab = ({
   book,
   onBookChange,
+  onToggleIntroConclusionStructure,
+  isGeneratingIntroConclusion,
   onCoverUpload,
   isUploading,
   fileInputRef,
@@ -92,20 +94,16 @@ const BookDetailsTab = ({
                 Applies to future AI outline generation (initial or
                 "Generate More Chapters") — first chapter frames a genuine
                 introduction, last chapter a genuine conclusion with action
-                steps.
+                steps. Turning this on for a book that already has chapters
+                but no real Introduction/Conclusion offers to add them,
+                without changing any existing chapter.
               </p>
             </div>
             <button
               type="button"
-              onClick={() =>
-                onBookChange({
-                  target: {
-                    name: "useIntroConclusionStructure",
-                    value: !book.useIntroConclusionStructure,
-                  },
-                })
-              }
-              className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
+              onClick={onToggleIntroConclusionStructure}
+              disabled={isGeneratingIntroConclusion}
+              className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors disabled:opacity-60 ${
                 book.useIntroConclusionStructure ? "bg-accent" : "bg-gray-300"
               }`}
             >

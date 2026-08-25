@@ -238,6 +238,112 @@ Generate the ${count} new chapters now:
   }
 };
 
+// A short excerpt is enough signal for framing an Introduction/Conclusion
+// around a chapter without ballooning the prompt — same reasoning and size
+// as generateBlurb's chapterExcerpts. Falls back to the chapter's
+// description when it has no content yet (e.g. its outline entry was
+// generated or added but per-chapter content generation hasn't run).
+const chapterContextExcerpt = (chapter) => {
+  const content = (chapter?.content || "").trim();
+  if (content) return content.slice(0, 1000);
+  return chapter?.description || "(no description available)";
+};
+
+//@desc Generate a dedicated Introduction chapter and Conclusion chapter to retrofit onto an existing book, without touching any existing chapter
+//@route POST /api/ai/generate-intro-conclusion/:bookId
+//@access Private
+const generateIntroConclusion = async (req, res) => {
+  try {
+    const { bookId } = req.params;
+
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const chapters = book.chapters || [];
+    if (chapters.length === 0) {
+      return res.status(400).json({ message: "This book has no chapters yet." });
+    }
+
+    const firstChapter = chapters[0];
+    const lastChapter = chapters[chapters.length - 1];
+    const voiceInstruction = book.voiceProfile?.instruction || "";
+
+    const prompt = `
+You are an elite book architect retrofitting a dedicated Introduction and Conclusion onto an existing, already-written book. You are NOT writing or rewriting the book itself, only these two bookend chapters that go around it.
+
+Book Title: "${book.title}"
+${book.description ? `Specific Description: "${book.description}"` : ""}
+Voice & Tone: ${voiceInstruction}
+
+### The book's actual first chapter (what the new Introduction must set up)
+Title: "${firstChapter.title}"
+${chapterContextExcerpt(firstChapter)}
+
+### The book's actual last chapter (what the new Conclusion must synthesize)
+Title: "${lastChapter.title}"
+${chapterContextExcerpt(lastChapter)}
+
+### Task
+Generate exactly two new chapters:
+1. An Introduction that will be placed BEFORE the first chapter above. It must set up this specific book's actual premise and the promise being made to the reader, grounded in what the first chapter above actually covers, not a generic "welcome to this book" filler chapter. Its title must literally include the word "Introduction".
+2. A Conclusion that will be placed AFTER the last chapter above. It must synthesize the whole book's arc, picking up from the actual note the last chapter above leaves off on, and give the reader concrete, actionable next steps or takeaways they can apply. Its title must literally include the word "Conclusion".
+
+Match this voice and tone throughout: ${voiceInstruction}
+
+### Chapter Description Rules:
+- Each description must be 2–3 well-written sentences
+- Clearly explain what the reader will learn
+- Make it specific and valuable
+- Avoid filler language
+- Never use the em dash symbol (—). Use a comma, period, or colon instead.
+
+### Output Format:
+Return ONLY a valid JSON object, no markdown, no explanations, no extra text, in exactly this shape:
+{
+  "introduction": { "title": "Chapter title here", "description": "2-3 sentence description" },
+  "conclusion": { "title": "Chapter title here", "description": "2-3 sentence description" }
+}
+
+Generate them now:
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    const text = response.text;
+    const startIndex = text.indexOf("{");
+    const endIndex = text.lastIndexOf("}");
+
+    if (startIndex === -1 || endIndex === -1) {
+      console.error("JSON object not found in AI response:", text);
+      return res.status(500).json({ message: "Failed to generate introduction/conclusion" });
+    }
+
+    const jsonString = text.substring(startIndex, endIndex + 1);
+
+    try {
+      const result = JSON.parse(jsonString);
+      if (!result.introduction?.title || !result.conclusion?.title) {
+        throw new Error("Response missing introduction or conclusion");
+      }
+      res.status(200).json(result);
+    } catch (e) {
+      console.error("Failed to parse AI response:", jsonString);
+      res.status(500).json({ message: "Failed to generate introduction/conclusion" });
+    }
+  } catch (error) {
+    console.error("Error generating introduction/conclusion:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 //@desc Generate book content for a chapter
 //@route POST /api/ai/generate-chapter-content
 //@access Private
@@ -550,6 +656,7 @@ Return ONLY the blurb text. No heading, no wrapping quotation marks, no commenta
 module.exports = {
   generateOutline,
   extendOutline,
+  generateIntroConclusion,
   generateChapterContent,
   editSelection,
   generateBlurb,
