@@ -6,6 +6,41 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
+// The @google/genai SDK throws an ApiError with a real HTTP `.status` for
+// anything the Gemini API itself rejected (quota exhaustion, transient
+// overload, etc.) — surfacing that distinction instead of a generic
+// "Server Error" is the difference between a reader knowing to just try
+// again shortly and a dead end that looks like a real bug. Confirmed via a
+// real reproduction (see generate-intro-conclusion's original fix): this
+// project's Gemini key hit its free-tier daily quota (429/RESOURCE_EXHAUSTED)
+// during testing, and an undifferentiated catch-all was what turned that
+// into an unhelpful bare 500 with no way for the reader to know it was
+// transient. Returns null for anything that isn't a recognized Gemini API
+// error, so callers can fall back to their own generic message.
+const aiErrorMessage = (error) => {
+  if (error?.status === 429) {
+    return "The AI service has hit its usage limit for now. Please try again in a few minutes.";
+  }
+  if (error?.status === 503) {
+    return "The AI service is temporarily overloaded. Please try again in a moment.";
+  }
+  return null;
+};
+
+// Shared by every non-streaming AI endpoint below. Streaming endpoints
+// (generateChapterContent, editSelection) can't use this — by the time
+// their Gemini call runs, res.writeHead(200, ...) has already committed
+// the response, so a later error can only be communicated through the SSE
+// "error" event's message field, not a different HTTP status. They call
+// aiErrorMessage directly instead.
+const sendAiErrorResponse = (res, error, fallbackMessage) => {
+  const message = aiErrorMessage(error);
+  if (message) {
+    return res.status(error.status).json({ message });
+  }
+  return res.status(500).json({ message: fallbackMessage });
+};
+
 //@desc Generate a book outline
 //@route POST /api/ai/generate-outline
 //@access Private
@@ -99,7 +134,7 @@ Generate the outline now:
     }
   } catch (error) {
     console.error("Error generating outline:", error);
-    res.status(500).json({ message: "Server Error" });
+    sendAiErrorResponse(res, error, "Server Error");
   }
 };
 
@@ -234,7 +269,7 @@ Generate the ${count} new chapters now:
     }
   } catch (error) {
     console.error("Error extending outline:", error);
-    res.status(500).json({ message: "Server Error" });
+    sendAiErrorResponse(res, error, "Server Error");
   }
 };
 
@@ -340,7 +375,7 @@ Generate them now:
     }
   } catch (error) {
     console.error("Error generating introduction/conclusion:", error);
-    res.status(500).json({ message: "Server Error" });
+    sendAiErrorResponse(res, error, "Server Error");
   }
 };
 
@@ -445,7 +480,13 @@ Return only the clean Markdown content. No extra commentary.
     } catch (streamError) {
       console.error("Error streaming chapter content:", streamError);
       if (!clientDisconnected) {
-        sendEvent("error", { message: "Failed to generate content" });
+        // By this point res.writeHead(200, ...) has already committed the
+        // response — an HTTP status can no longer change, so the same
+        // quota/overload distinction aiErrorMessage gives every other AI
+        // endpoint travels through the SSE "error" event's message field
+        // instead (see EditorPage.jsx: this becomes the thrown Error's
+        // .message, which the toast then shows directly).
+        sendEvent("error", { message: aiErrorMessage(streamError) || "Failed to generate content" });
       }
     } finally {
       res.end();
@@ -453,7 +494,7 @@ Return only the clean Markdown content. No extra commentary.
   } catch (error) {
     console.error("Error generating chapter content:", error);
     if (!res.headersSent) {
-      res.status(500).json({ message: "Server Error" });
+      sendAiErrorResponse(res, error, "Server Error");
     } else {
       res.end();
     }
@@ -562,7 +603,11 @@ ${voiceInstruction ? `\n### Voice & tone\nThis book has an established voice pro
     } catch (streamError) {
       console.error("Error streaming selection edit:", streamError);
       if (!clientDisconnected) {
-        sendEvent("error", { message: "Failed to generate edit" });
+        // Same reasoning as generateChapterContent: headers are already
+        // committed by this point, so the quota/overload distinction
+        // travels through the SSE "error" event's message field instead of
+        // an HTTP status.
+        sendEvent("error", { message: aiErrorMessage(streamError) || "Failed to generate edit" });
       }
     } finally {
       res.end();
@@ -570,7 +615,7 @@ ${voiceInstruction ? `\n### Voice & tone\nThis book has an established voice pro
   } catch (error) {
     console.error("Error editing selection:", error);
     if (!res.headersSent) {
-      res.status(500).json({ message: "Server Error" });
+      sendAiErrorResponse(res, error, "Server Error");
     } else {
       res.end();
     }
@@ -649,7 +694,7 @@ Return ONLY the blurb text. No heading, no wrapping quotation marks, no commenta
     res.status(200).json({ blurb });
   } catch (error) {
     console.error("Error generating blurb:", error);
-    res.status(500).json({ message: "Server Error" });
+    sendAiErrorResponse(res, error, "Server Error");
   }
 };
 
