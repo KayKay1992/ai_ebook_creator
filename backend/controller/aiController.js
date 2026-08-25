@@ -11,7 +11,7 @@ const ai = new GoogleGenAI({
 //@access Private
 const generateOutline = async (req, res) => {
   try {
-    const { topic, tones, numChapters, description, title } = req.body;
+    const { topic, tones, numChapters, description, title, useIntroConclusionStructure } = req.body;
 
     if (!topic && !title) {
       return res.status(400).json({ message: "Topic or title is required" });
@@ -20,6 +20,10 @@ const generateOutline = async (req, res) => {
     const voiceInstruction = buildVoiceProfileInstruction(
       Array.isArray(tones) && tones.length ? tones : ["Informative"]
     );
+
+    // Default-on, same as the Book schema's default — only an explicit
+    // `false` (the toggle actually switched off) skips the forced structure.
+    const useIntroConclusion = useIntroConclusionStructure !== false;
 
     const prompt = `
 You are an elite book architect and professional non-fiction outline designer.
@@ -32,6 +36,7 @@ ${description ? `Specific Description: "${description}"` : ""}
 Voice & Tone: ${voiceInstruction}
 Number of Chapters: ${numChapters || 5}
 ${description ? `\nThe Specific Description above is this book's actual angle, argument, audience, or premise, not just a restatement of the topic. The entire outline, every chapter title and every chapter description, must be built around this specific description. Someone reading only the outline should be able to tell what makes this particular book's approach distinct, not just recognize the general topic.\n` : ""}
+${useIntroConclusion ? `\n### Introduction & Conclusion Convention\nChapter 1 must be a genuine Introduction: it sets up the book's core premise and the specific promise being made to the reader, establishes why this matters to them right now, and previews the journey ahead, not a generic "welcome to this book" filler chapter. Its title must literally include the word "Introduction".\nThe final chapter (chapter ${numChapters || 5}) must be a genuine Conclusion: it synthesizes the book's key ideas and gives the reader concrete, actionable next steps or takeaways they can actually apply, not a vague summary or restatement. Its title must literally include the word "Conclusion".\nThe chapters in between carry the book's actual core content and progression.\n` : ""}
 ### Outline Requirements:
 1. Generate exactly ${numChapters || 5} chapters.
 2. Chapter titles must be clear, elegant, and engaging.
@@ -94,6 +99,141 @@ Generate the outline now:
     }
   } catch (error) {
     console.error("Error generating outline:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+const MAX_EXTEND_CHAPTERS = 10;
+
+// A chapter counts as "the Conclusion" only if its title literally says so
+// — the same word generateOutline is instructed to put there when
+// useIntroConclusionStructure is on (see above), so this stays reliable
+// against outlines this app actually generated rather than trusting the
+// book-level toggle blindly (a manually renamed or manually added final
+// chapter shouldn't be silently treated as a conclusion just because the
+// toggle happens to be on).
+const isConclusionChapter = (chapter) => /conclusion/i.test(chapter?.title || "");
+
+//@desc Generate N new chapter outline entries that continue an existing book's arc
+//@route POST /api/ai/extend-outline/:bookId
+//@access Private
+const extendOutline = async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    const requestedCount = Number(req.body.count);
+    const count = Math.min(
+      MAX_EXTEND_CHAPTERS,
+      Math.max(1, Number.isFinite(requestedCount) ? requestedCount : 5)
+    );
+
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const existingChapters = book.chapters || [];
+    const hasConclusion =
+      book.useIntroConclusionStructure &&
+      existingChapters.length > 0 &&
+      isConclusionChapter(existingChapters[existingChapters.length - 1]);
+
+    // Context chapters exclude the trailing Conclusion, if any — the new
+    // chapters need to be written as leading UP TO it, not past it, and
+    // showing the model its own conclusion as "recent context to continue
+    // from" would invite it to write a second ending.
+    const contextChapters = hasConclusion
+      ? existingChapters.slice(0, -1)
+      : existingChapters;
+    const conclusionChapter = hasConclusion
+      ? existingChapters[existingChapters.length - 1]
+      : null;
+
+    const voiceInstruction = buildVoiceProfileInstruction(
+      Array.isArray(book.voiceProfile?.tones) && book.voiceProfile.tones.length
+        ? book.voiceProfile.tones
+        : ["Informative"]
+    );
+
+    const existingChaptersList = contextChapters.length
+      ? contextChapters
+          .map((c, i) => `${i + 1}. "${c.title}" — ${c.description || "(no description)"}`)
+          .join("\n")
+      : "(none yet — this book has no chapters written yet)";
+
+    const prompt = `
+You are an elite book architect continuing the outline of an existing, in-progress book. You are NOT starting a new book, you are extending one that already has a defined arc and voice.
+
+Book Title: "${book.title}"
+${book.description ? `Specific Description: "${book.description}"` : ""}
+Voice & Tone: ${voiceInstruction}
+
+### Existing chapters (in order, already written into this book's outline)
+${existingChaptersList}
+${conclusionChapter ? `\nThis book already ends with a Conclusion chapter, titled "${conclusionChapter.title}", which must remain the final chapter of the book. Do NOT write another conclusion, wrap-up, or "final thoughts" chapter, and do NOT reference this as the end of the book, the ${count} new chapters you generate come BEFORE it, extending the book's core content.` : ""}
+
+### Task
+Generate exactly ${count} NEW chapters that continue this book's actual arc coherently from where the existing chapters leave off. They must:
+- Follow logically from the last existing chapter above, not restart the topic or repeat ground already covered
+- Stay tightly connected to this specific book's established premise, argument, and voice, not just be generically related to the same broad subject
+- Build in the same natural progression the rest of the book already established (deeper insight, new angles, or the next logical stage of the argument)
+- Match this voice and tone throughout: ${voiceInstruction}
+
+### Chapter Description Rules:
+- Each description must be 2–3 well-written sentences
+- Clearly explain what the reader will learn
+- Make it specific and valuable
+- Avoid filler language
+- Never use the em dash symbol (—). Use a comma, period, or colon instead.
+
+### Output Format:
+Return ONLY a valid JSON array of exactly ${count} entries. No markdown, no explanations, no extra text.
+
+Example format:
+[
+  {
+    "title": "Chapter Title Here",
+    "description": "2-3 sentence description of what this chapter covers and what the reader will learn."
+  }
+]
+
+Generate the ${count} new chapters now:
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    const text = response.text;
+    const startIndex = text.indexOf("[");
+    const endIndex = text.lastIndexOf("]");
+
+    if (startIndex === -1 || endIndex === -1) {
+      console.error("JSON array not found in AI response:", text);
+      return res.status(500).json({ message: "Failed to generate additional chapters" });
+    }
+
+    const jsonString = text.substring(startIndex, endIndex + 1);
+
+    try {
+      const outline = JSON.parse(jsonString);
+      // insertBeforeIndex tells the client exactly where in the CURRENT
+      // book.chapters array to splice these new entries in — computed here,
+      // once, rather than asking the client to re-derive the same
+      // conclusion-detection logic and risk drifting out of sync with it.
+      const insertBeforeIndex = hasConclusion
+        ? existingChapters.length - 1
+        : existingChapters.length;
+      res.status(200).json({ outline, insertBeforeIndex });
+    } catch (e) {
+      console.error("Failed to parse AI response:", jsonString);
+      res.status(500).json({ message: "Failed to generate additional chapters" });
+    }
+  } catch (error) {
+    console.error("Error extending outline:", error);
     res.status(500).json({ message: "Server Error" });
   }
 };
@@ -409,6 +549,7 @@ Return ONLY the blurb text. No heading, no wrapping quotation marks, no commenta
 
 module.exports = {
   generateOutline,
+  extendOutline,
   generateChapterContent,
   editSelection,
   generateBlurb,

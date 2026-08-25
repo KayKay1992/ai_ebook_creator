@@ -82,6 +82,40 @@ const BookDetailsTab = ({
               Guides AI outline generation, same as at creation time.
             </p>
           </div>
+
+          <div className="flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5">
+            <div>
+              <p className="text-sm font-medium text-gray-700">
+                Introduction & Conclusion Structure
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Applies to future AI outline generation (initial or
+                "Generate More Chapters") — first chapter frames a genuine
+                introduction, last chapter a genuine conclusion with action
+                steps.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                onBookChange({
+                  target: {
+                    name: "useIntroConclusionStructure",
+                    value: !book.useIntroConclusionStructure,
+                  },
+                })
+              }
+              className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
+                book.useIntroConclusionStructure ? "bg-accent" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                  book.useIntroConclusionStructure ? "translate-x-5" : ""
+                }`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 

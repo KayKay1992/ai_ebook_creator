@@ -1,7 +1,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 
-const { generateOutline, generateChapterContent, editSelection, generateBlurb } = require('../controller/aiController');
+const { generateOutline, extendOutline, generateChapterContent, editSelection, generateBlurb } = require('../controller/aiController');
 const { protect } = require('../middleware/authMiddleware');
 
 
@@ -25,6 +25,7 @@ const aiRateLimiter = rateLimit({
 });
 
 router.post('/generate-outline', aiRateLimiter, generateOutline);
+router.post('/extend-outline/:bookId', aiRateLimiter, extendOutline);
 router.post('/generate-chapter-content', aiRateLimiter, generateChapterContent);
 router.post('/edit-selection', aiRateLimiter, editSelection);
 router.post('/generate-blurb', aiRateLimiter, generateBlurb);

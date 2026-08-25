@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -6,6 +7,7 @@ import {
   Plus,
   GripVertical,
   BookOpen,
+  Wand2,
 } from "lucide-react";
 import {
   DndContext,
@@ -23,6 +25,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Button from "../ui/Button";
+import Modal from "../ui/Modal";
+
+const MAX_GENERATE_MORE_CHAPTERS = 10;
 
 const SortableItem = ({
   chapter,
@@ -137,8 +142,13 @@ const ChapterSidebar = ({
   onReorderChapters,
   onGenerateChapterContent,
   isGenerating,
+  onGenerateMoreChapters,
+  isGeneratingMoreChapters,
+  onBookChange,
 }) => {
   const navigate = useNavigate();
+  const [isGenerateMoreOpen, setIsGenerateMoreOpen] = useState(false);
+  const [moreChapterCount, setMoreChapterCount] = useState(5);
 
   // No `sensors` prop previously meant dnd-kit's default (PointerSensor with
   // no activation constraint) — it starts a drag on the very first pointer
@@ -179,6 +189,11 @@ const ChapterSidebar = ({
     if (oldIndex !== -1 && newIndex !== -1) {
       onReorderChapters(oldIndex, newIndex);
     }
+  };
+
+  const handleConfirmGenerateMore = async () => {
+    await onGenerateMoreChapters(moreChapterCount);
+    setIsGenerateMoreOpen(false);
   };
 
   return (
@@ -236,7 +251,7 @@ const ChapterSidebar = ({
         </DndContext>
       </div>
 
-      <div className="p-4 border-t border-gray-100">
+      <div className="p-4 border-t border-gray-100 space-y-2">
         <Button
           variant="secondary"
           onClick={onAddChapter}
@@ -245,7 +260,104 @@ const ChapterSidebar = ({
           <Plus className="w-4 h-4" />
           Add New Chapter
         </Button>
+
+        <Button
+          variant="secondary"
+          onClick={() => setIsGenerateMoreOpen(true)}
+          disabled={isGeneratingMoreChapters}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl"
+        >
+          <Wand2 className="w-4 h-4" />
+          Generate More Chapters
+        </Button>
+
+        {/* Small settings affordance, deliberately understated compared to
+            the two actions above (smaller switch, smaller text, muted
+            background) — same underlying book.useIntroConclusionStructure
+            field as BookDetailsTab.jsx's toggle, wired through the same
+            onBookChange/autosave path, so there's one source of truth
+            regardless of which screen last touched it. */}
+        <div
+          className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2"
+          title="When on, AI outline generation (initial or Generate More Chapters) frames the first chapter as an Introduction and the last as a Conclusion with action steps."
+        >
+          <span className="text-xs text-gray-500 leading-snug">
+            Introduction first / Conclusion last
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              onBookChange({
+                target: {
+                  name: "useIntroConclusionStructure",
+                  value: !book.useIntroConclusionStructure,
+                },
+              })
+            }
+            className={`relative w-9 h-5 rounded-full flex-shrink-0 transition-colors ${
+              book.useIntroConclusionStructure ? "bg-accent" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                book.useIntroConclusionStructure ? "translate-x-4" : ""
+              }`}
+            />
+          </button>
+        </div>
       </div>
+
+      <Modal
+        isOpen={isGenerateMoreOpen}
+        onClose={() => !isGeneratingMoreChapters && setIsGenerateMoreOpen(false)}
+        title="Generate More Chapters"
+      >
+        <p className="text-gray-600 leading-relaxed mb-6">
+          AI continues this book's actual arc from where it currently leaves
+          off, using the existing chapters, voice profile, and description as
+          context, not generic chapters loosely related to the topic.
+        </p>
+
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          Number of chapters to generate
+        </label>
+        <input
+          type="number"
+          min={1}
+          max={MAX_GENERATE_MORE_CHAPTERS}
+          value={moreChapterCount}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            setMoreChapterCount(
+              Number.isFinite(next)
+                ? Math.min(MAX_GENERATE_MORE_CHAPTERS, Math.max(1, next))
+                : 1
+            );
+          }}
+          className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-gray-900 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200"
+        />
+        <p className="text-xs text-gray-400 mt-1.5">
+          Up to {MAX_GENERATE_MORE_CHAPTERS} at a time.
+        </p>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <Button
+            variant="secondary"
+            onClick={() => setIsGenerateMoreOpen(false)}
+            disabled={isGeneratingMoreChapters}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmGenerateMore}
+            loading={isGeneratingMoreChapters}
+            className="flex items-center gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            Generate
+          </Button>
+        </div>
+      </Modal>
     </aside>
   );
 };

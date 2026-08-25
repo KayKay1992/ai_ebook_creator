@@ -41,6 +41,7 @@ const EditorPage = () => {
   const [activeTab, setActiveTab] = useState("editor");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(null); // null | number
+  const [isGeneratingMoreChapters, setIsGeneratingMoreChapters] = useState(false);
   const [saveStatus, setSaveStatus] = useState("saved"); // 'saved' | 'saving' | 'unsaved' | 'error'
 
   const fileInputRef = useRef(null);
@@ -138,6 +139,51 @@ const EditorPage = () => {
       chapters: arrayMove(prev.chapters, oldIndex, newIndex),
     }));
     setSelectedChapterIndex(newIndex);
+  };
+
+  // Appends AI-generated outline entries — same shape/placement as a
+  // manually-added chapter (empty content, filled in afterward via the
+  // normal per-chapter generate flow) — so this only updates local state,
+  // matching handleAddChapter/handleDeleteChapter/handleReorderChapters
+  // above rather than persisting immediately. insertBeforeIndex is computed
+  // server-side (see aiController.js's extendOutline) from the book as
+  // currently saved in the DB, so it accounts for the Conclusion-stays-last
+  // convention without the frontend needing its own copy of that logic.
+  const handleGenerateMoreChapters = async (count) => {
+    setIsGeneratingMoreChapters(true);
+    try {
+      const response = await axiosInstance.post(
+        API_PATHS.AI.EXTEND_OUTLINE(bookId),
+        { count }
+      );
+      const { outline, insertBeforeIndex } = response.data;
+      const newChapters = (outline || []).map((entry) => ({
+        title: entry.title,
+        description: entry.description || "",
+        content: "",
+      }));
+
+      if (newChapters.length === 0) {
+        toast.error("No new chapters were generated.");
+        return;
+      }
+
+      const updatedChapters = [...book.chapters];
+      const insertAt = Math.min(
+        Math.max(insertBeforeIndex ?? updatedChapters.length, 0),
+        updatedChapters.length
+      );
+      updatedChapters.splice(insertAt, 0, ...newChapters);
+      setBook((prev) => ({ ...prev, chapters: updatedChapters }));
+      setSelectedChapterIndex(insertAt);
+      toast.success(
+        `${newChapters.length} new chapter${newChapters.length !== 1 ? "s" : ""} generated!`
+      );
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to generate more chapters"));
+    } finally {
+      setIsGeneratingMoreChapters(false);
+    }
   };
 
   const handleSaveChanges = async (bookToSave = book, showToast = true) => {
@@ -429,6 +475,9 @@ const EditorPage = () => {
                 onReorderChapters={handleReorderChapters}
                 onGenerateChapterContent={handleGenerateChapterContent}
                 isGenerating={isGenerating}
+                onGenerateMoreChapters={handleGenerateMoreChapters}
+                isGeneratingMoreChapters={isGeneratingMoreChapters}
+                onBookChange={handleBookChange}
               />
             </div>
           </div>
@@ -446,6 +495,9 @@ const EditorPage = () => {
           onReorderChapters={handleReorderChapters}
           onGenerateChapterContent={handleGenerateChapterContent}
           isGenerating={isGenerating}
+          onGenerateMoreChapters={handleGenerateMoreChapters}
+          isGeneratingMoreChapters={isGeneratingMoreChapters}
+          onBookChange={handleBookChange}
         />
       </div>
 

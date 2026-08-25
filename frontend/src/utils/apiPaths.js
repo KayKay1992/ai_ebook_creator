@@ -34,6 +34,7 @@ export const API_PATHS = {
   },
   AI: {
     GENERATE_OUTLINE: "/api/ai/generate-outline",
+    EXTEND_OUTLINE: (bookId) => `/api/ai/extend-outline/${bookId}`,
     GENERATE_CHAPTER_CONTENT: "/api/ai/generate-chapter-content",
     EDIT_SELECTION: "/api/ai/edit-selection",
     GENERATE_BLURB: "/api/ai/generate-blurb",

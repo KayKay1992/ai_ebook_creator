@@ -40,6 +40,18 @@ const bookSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    // Whether outline generation (generateOutline) and "Generate More
+    // Chapters" (extendOutline) should enforce the Introduction-first /
+    // Conclusion-last convention. Default true so existing books behave the
+    // same as new ones unless an admin deliberately turns it off. See
+    // aiController.js for where this actually shapes the prompt, and
+    // extendOutline's conclusion-detection (checks the last chapter's title
+    // for the literal word "Conclusion" — the same word generateOutline is
+    // instructed to put there when this is on, so the two stay consistent).
+    useIntroConclusionStructure: {
+        type: Boolean,
+        default: true
+    },
     author: {
         type: String,
         required: true

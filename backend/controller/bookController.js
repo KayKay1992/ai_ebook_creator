@@ -8,7 +8,7 @@ const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
 //@access  Private
 const createBook = async (req, res) => {
     try {
-          const { title, author, subtitle, description, chapters, tones } = req.body;
+          const { title, author, subtitle, description, chapters, tones, useIntroConclusionStructure } = req.body;
 
           if (!title || !author) {
             return res.status(400).json({ message: 'Title and author are required' });
@@ -23,6 +23,10 @@ const createBook = async (req, res) => {
             author,
             subtitle,
             description,
+            // Omitted entirely (rather than passed as undefined) when the
+            // client doesn't send it, so the schema's own `default: true`
+            // applies instead of Mongoose writing an explicit undefined.
+            ...(typeof useIntroConclusionStructure === 'boolean' ? { useIntroConclusionStructure } : {}),
             chapters,
             voiceProfile: {
                 tones: voiceTones,

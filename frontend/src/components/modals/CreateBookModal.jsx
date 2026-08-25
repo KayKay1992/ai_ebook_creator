@@ -27,6 +27,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
   const [numChapters, setNumChapters] = useState(5);
   const [aiTopic, setAiTopic] = useState("");
   const [aiDescription, setAiDescription] = useState("");
+  const [useIntroConclusion, setUseIntroConclusion] = useState(true);
   const [selectedTones, setSelectedTones] = useState(["Informative"]);
   const [chapters, setChapters] = useState([]);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
@@ -39,6 +40,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
     setNumChapters(5);
     setAiTopic("");
     setAiDescription("");
+    setUseIntroConclusion(true);
     setSelectedTones(["Informative"]);
     setChapters([]);
     setIsGeneratingOutline(false);
@@ -62,6 +64,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
         topic: aiTopic || "",
         description: aiDescription || "",
         tones: selectedTones,
+        useIntroConclusionStructure: useIntroConclusion,
       });
       setChapters(response.data.outline || []);
       setStep(2);
@@ -104,6 +107,7 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
         description: aiDescription || "",
         chapters,
         tones: selectedTones,
+        useIntroConclusionStructure: useIntroConclusion,
       });
       onBookCreated(response.data._id);
       toast.success("Book created successfully!");
@@ -216,11 +220,36 @@ const CreateBookModal = ({ isOpen, onClose, onBookCreated }) => {
             </p>
           </div>
 
+          <div className="flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5">
+            <div>
+              <p className="text-sm font-medium text-gray-700">
+                Introduction & Conclusion Structure
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                First chapter frames a genuine introduction, last chapter a
+                genuine conclusion with action steps.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUseIntroConclusion((v) => !v)}
+              className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
+                useIntroConclusion ? "bg-accent" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                  useIntroConclusion ? "translate-x-5" : ""
+                }`}
+              />
+            </button>
+          </div>
+
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
               <Palette className="w-4 h-4 text-gray-400" />
               Tone & Voice
-              <span className="text-gray-400 font-normal">(choose 1-3)</span>
+              <span className="text-gray-400 font-normal">(choose 1-7)</span>
             </label>
             <TonePicker value={selectedTones} onChange={setSelectedTones} />
           </div>
