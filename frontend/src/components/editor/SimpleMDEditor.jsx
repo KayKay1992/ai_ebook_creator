@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Type,
   Image as ImageIcon,
@@ -6,6 +6,7 @@ import {
   Wand2,
   SpellCheck,
   PenLine,
+  Repeat,
   Loader2,
 } from "lucide-react";
 import MDEditor, { commands } from "@uiw/react-md-editor";
@@ -24,11 +25,19 @@ const CONTEXT_CHARS = 400;
 const EDIT_ACTIONS = [
   { key: "shorten", label: "Shorten", icon: Scissors },
   { key: "improve", label: "Improve", icon: Wand2 },
+  { key: "rewrite", label: "Rewrite", icon: Repeat },
   { key: "fix-grammar", label: "Fix Grammar", icon: SpellCheck },
   { key: "continue", label: "Continue", icon: PenLine },
 ];
 
 const ACTION_LABELS = EDIT_ACTIONS.reduce((acc, a) => ({ ...acc, [a.key]: a.label }), {});
+
+// Same reasoning as KenlibsReadPage.jsx's word-explain selection fix: a
+// plain `mouseup`/`keyup` pair never fires on a touchscreen at all, so the
+// toolbar never appeared on mobile no matter how a passage was selected.
+// Checked once at module scope since it doesn't change during a session.
+const isTouchCapable =
+  typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 
 const SimpleMDEditor = ({ value, onChange, bookId }) => {
   const fileInputRef = useRef(null);
@@ -88,12 +97,35 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
     }
   };
 
-  // Fires on mouseup/keyup in the underlying textarea (wired via
-  // textareaProps below) — the only reliable way to read selection offsets
-  // on a plain <textarea>, since it has no Range/getClientRects API like
-  // contenteditable does.
+  // Fires on mouseup/keyup/select/touchend in the underlying textarea
+  // (wired via textareaProps below) — the only reliable way to read
+  // selection offsets on a plain <textarea>, since it has no
+  // Range/getClientRects API like contenteditable does.
+  //
+  // mouseup/keyup alone never fire on a touchscreen at all, which is why
+  // this toolbar never appeared on mobile no matter how a passage was
+  // selected. Two more triggers cover touch, mirroring KenlibsReadPage.jsx's
+  // word-explain selection fix:
+  // - touchend (below, with a short delay): Android/iOS finalize the
+  //   long-press + drag-handle selection UI slightly after touchend fires,
+  //   so reading selectionStart/End synchronously inside the touchend
+  //   handler itself often sees a stale or still-collapsed selection.
+  // - the native 'select' event: fires whenever a <textarea>'s internal
+  //   selection changes, including dragging one of the native touch
+  //   selection handles to adjust it — touchend alone doesn't catch that,
+  //   since adjusting via the handles is handled entirely inside the
+  //   browser's own selection UI and never dispatches a further touchend.
+  //   This is the <textarea>-native equivalent of contenteditable's
+  //   document-level 'selectionchange' (which doesn't fire for a
+  //   textarea's own internal text at all). Scoped to touch-capable
+  //   devices only: on desktop, 'select' can fire alongside mouseup for
+  //   the very same drag-selection, and — carrying no clientX/Y — would
+  //   overwrite mouseup's precise cursor-anchored toolbar position with
+  //   the less precise fallback below.
   const handleSelectionEvent = (e) => {
     if (activeAction) return; // don't disturb an in-flight edit
+    if (e.type === "select" && !isTouchCapable) return;
+
     const target = e.target;
     const { selectionStart, selectionEnd, value: currentValue } = target;
 
@@ -112,14 +144,16 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
 
     setSelection({ start: selectionStart, end: selectionEnd, text });
 
-    // Mouse selections: anchor near the cursor. Keyboard selections (no
-    // usable clientX/Y) fall back to just below the top of the textarea —
-    // less precise, but keeps the toolbar reachable either way.
+    // Mouse selections: anchor near the cursor. Keyboard/touch/select-event
+    // selections (no usable clientX/Y) fall back to just below the top of
+    // the textarea — less precise, but keeps the toolbar reachable either
+    // way, and a per-selection bounding rect isn't available in a plain
+    // <textarea> the way it is for a Range-based rich-text selection.
     const rect = target.getBoundingClientRect();
-    // Estimated on-screen width of the 4-button toolbar — it isn't
-    // rendered yet at this point, so this is a conservative measured
-    // guess (not exact), clamped against the viewport as a hard bound.
-    const TOOLBAR_WIDTH = 340;
+    // Estimated on-screen width of the toolbar — it isn't rendered yet at
+    // this point, so this is a conservative measured guess (not exact),
+    // clamped against the viewport as a hard bound.
+    const TOOLBAR_WIDTH = 400;
     const maxLeft = window.innerWidth - TOOLBAR_WIDTH - 12;
     if (e.type === "mouseup" && e.clientY > 0) {
       const left = Math.min(Math.max(e.clientX - 90, rect.left + 8, 8), maxLeft);
@@ -128,6 +162,28 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
       setToolbarPos({ top: rect.top + 12, left: Math.min(rect.left + 12, maxLeft) });
     }
   };
+
+  // See handleSelectionEvent's comment above — Android/iOS finalize the
+  // touch selection UI slightly after touchend fires, so this delays the
+  // actual check rather than reading a stale/still-collapsed selection
+  // synchronously inside the touch handler itself. Captures e.target
+  // synchronously (safe — React 19 has no synthetic event pooling to worry
+  // about) since the original event won't still be around 250ms later.
+  const touchSelectionTimeoutRef = useRef(null);
+  const handleTouchSelectionEnd = (e) => {
+    const target = e.target;
+    if (touchSelectionTimeoutRef.current) clearTimeout(touchSelectionTimeoutRef.current);
+    touchSelectionTimeoutRef.current = setTimeout(
+      () => handleSelectionEvent({ type: "touchend", target }),
+      250
+    );
+  };
+
+  useEffect(() => {
+    return () => {
+      if (touchSelectionTimeoutRef.current) clearTimeout(touchSelectionTimeoutRef.current);
+    };
+  }, []);
 
   // A toolbar button uses onMouseDown+preventDefault (not onClick alone)
   // so clicking it never blurs the textarea in the first place — simpler
@@ -298,6 +354,8 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
           textareaProps={{
             onMouseUp: handleSelectionEvent,
             onKeyUp: handleSelectionEvent,
+            onSelect: handleSelectionEvent,
+            onTouchEnd: handleTouchSelectionEnd,
             onBlur: handleBlur,
           }}
           commands={[

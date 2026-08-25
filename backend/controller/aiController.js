@@ -509,6 +509,8 @@ const EDIT_ACTION_INSTRUCTIONS = {
     "Rewrite the passage to be noticeably shorter and more concise, cutting at least 30-40% of its length. Preserve the key meaning and information. Do not introduce new ideas.",
   improve:
     "Rewrite the passage to improve its clarity, flow, and overall quality. Elevate word choice and sentence rhythm. Preserve the original meaning and keep it roughly the same length. Do not introduce new ideas.",
+  rewrite:
+    "Substantially rewrite the passage: restructure the sentences, change the word choice and phrasing throughout, and present the same ideas in a genuinely different way, not just a lighter polish. This should go well beyond a normal 'improve' pass, the reader should recognize it as a different way of saying the same thing, not the same sentences smoothed over. Preserve the core meaning and key information exactly, and do not introduce new ideas.",
   "fix-grammar":
     "Correct any grammar, spelling, and punctuation errors in the passage. Make the minimum changes necessary to fix actual errors, do not rewrite phrasing, restructure sentences, or otherwise change the style, voice, or length beyond what's needed to fix the errors.",
   continue:
