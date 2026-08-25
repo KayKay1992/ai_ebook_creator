@@ -7,7 +7,15 @@ import {
   GripVertical,
   BookOpen,
 } from "lucide-react";
-import { DndContext, closestCenter } from "@dnd-kit/core";
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import {
   useSortable,
   SortableContext,
@@ -54,7 +62,14 @@ const SortableItem = ({
       <button
         {...listeners}
         {...attributes}
-        className="flex-shrink-0 p-1.5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing rounded-lg hover:bg-gray-100 transition-colors"
+        // touch-none: without it, the browser's own touch-action handling
+        // on this element can race dnd-kit's TouchSensor for the same
+        // gesture. Scoped to just this small handle, not the row/list, so
+        // normal scrolling elsewhere is completely unaffected. Padding
+        // bumped from p-1.5 (a ~28px hit area) to p-3 (~40px) — this is the
+        // only way to reorder chapters on mobile, so it needs to be
+        // reliably tappable, not just technically draggable.
+        className="flex-shrink-0 p-3 -m-1.5 touch-none text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing rounded-lg hover:bg-gray-100 transition-colors"
       >
         <GripVertical className="w-4 h-4" />
       </button>
@@ -125,6 +140,30 @@ const ChapterSidebar = ({
 }) => {
   const navigate = useNavigate();
 
+  // No `sensors` prop previously meant dnd-kit's default (PointerSensor with
+  // no activation constraint) — it starts a drag on the very first pointer
+  // movement, which on a touchscreen races the browser's own native scroll
+  // gesture with nothing to tell them apart, so the drag either never wins
+  // or eats all scrolling. MouseSensor + TouchSensor (rather than
+  // PointerSensor alongside either) is dnd-kit's own documented combination
+  // here — PointerSensor also receives touch pointer events in browsers
+  // that support the Pointer Events API, which would double-activate
+  // against a separate TouchSensor. TouchSensor's delay/tolerance is the
+  // standard fix for the scroll-vs-drag ambiguity: a touch has to hold
+  // still on the handle for 250ms (moving no more than 5px) before a drag
+  // starts, so a normal scroll swipe that starts on/near the handle is left
+  // alone and reaches the browser instead.
+  const sensors = useSensors(
+    useSensor(MouseSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
+
   const chapterIds = book.chapters.map(
     (chapter, index) => chapter._id || `new-${index}`
   );
@@ -170,7 +209,11 @@ const ChapterSidebar = ({
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
           <SortableContext
             items={chapterIds}
             strategy={verticalListSortingStrategy}
