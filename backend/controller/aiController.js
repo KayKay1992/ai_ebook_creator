@@ -522,7 +522,7 @@ const EDIT_ACTION_INSTRUCTIONS = {
 //@access Private
 const editSelection = async (req, res) => {
   try {
-    const { selectedText, action, surroundingContext, bookId } = req.body;
+    const { selectedText, action, surroundingContext, bookId, hint } = req.body;
 
     if (!selectedText || !selectedText.trim()) {
       return res.status(400).json({ message: "Selected text is required" });
@@ -545,7 +545,14 @@ const editSelection = async (req, res) => {
       }
     }
 
-    const actionInstruction = EDIT_ACTION_INSTRUCTIONS[action];
+    // A hint only ever applies to "rewrite" — the other four actions have
+    // one fixed behavior by design (per this session's scoping), so it's
+    // silently ignored for them rather than erroring, same tolerance as
+    // any other field the client happens to send that isn't relevant here.
+    const rewriteHint = action === "rewrite" && hint && hint.trim() ? hint.trim() : "";
+    const actionInstruction = rewriteHint
+      ? `${EDIT_ACTION_INSTRUCTIONS.rewrite} Specific instruction from the user for how this should be rewritten: "${rewriteHint}". This specific instruction should be the dominant guide for how the rewrite actually comes out, not just a minor influence alongside the general rewrite behavior above.`
+      : EDIT_ACTION_INSTRUCTIONS[action];
 
     const prompt = `
 You are an expert editorial assistant revising a small section of an existing ebook chapter.

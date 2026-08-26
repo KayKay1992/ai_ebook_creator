@@ -8,6 +8,8 @@ import {
   PenLine,
   Repeat,
   Loader2,
+  Send,
+  X,
 } from "lucide-react";
 import MDEditor, { commands } from "@uiw/react-md-editor";
 import toast from "react-hot-toast";
@@ -49,6 +51,11 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
   const [selection, setSelection] = useState(null);
   const [toolbarPos, setToolbarPos] = useState(null);
   const [activeAction, setActiveAction] = useState(null);
+  // Rewrite is the one action that asks for an optional hint before firing
+  // — these two are scoped to that single action only, the other four
+  // fire immediately on click exactly as before.
+  const [isAwaitingRewriteHint, setIsAwaitingRewriteHint] = useState(false);
+  const [rewriteHint, setRewriteHint] = useState("");
 
   const uploadImageCommand = {
     name: "upload-image",
@@ -143,6 +150,12 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
     }
 
     setSelection({ start: selectionStart, end: selectionEnd, text });
+    // A genuinely new selection means whatever the Rewrite hint prompt was
+    // open for (if it was) no longer applies — back to the plain action list.
+    if (isAwaitingRewriteHint) {
+      setIsAwaitingRewriteHint(false);
+      setRewriteHint("");
+    }
 
     // Mouse selections: anchor near the cursor. Keyboard/touch/select-event
     // selections (no usable clientX/Y) fall back to just below the top of
@@ -188,16 +201,40 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
   // A toolbar button uses onMouseDown+preventDefault (not onClick alone)
   // so clicking it never blurs the textarea in the first place — simpler
   // and more robust than trying to detect "blur, but it was our button"
-  // after the fact.
+  // after the fact. The Rewrite hint input, though, DOES legitimately steal
+  // focus from the textarea when it autofocuses (it's a real text input,
+  // not a button) — isAwaitingRewriteHint guards against that blur clearing
+  // the whole toolbar (hint input included) out from under the user right
+  // as it appears.
   const handleBlur = () => {
-    if (activeAction) return;
+    if (activeAction || isAwaitingRewriteHint) return;
     setTimeout(() => {
       setSelection(null);
       setToolbarPos(null);
     }, 150);
   };
 
-  const handleAiEdit = async (action) => {
+  // Rewrite alone asks for an optional hint first instead of firing
+  // immediately — the other four actions call handleAiEdit directly from
+  // the button's onClick, unchanged.
+  const handleOpenRewriteHint = () => {
+    setRewriteHint("");
+    setIsAwaitingRewriteHint(true);
+  };
+
+  const handleCancelRewriteHint = () => {
+    setIsAwaitingRewriteHint(false);
+    setRewriteHint("");
+  };
+
+  const handleSubmitRewriteHint = (e) => {
+    e.preventDefault();
+    const hint = rewriteHint.trim();
+    setIsAwaitingRewriteHint(false);
+    handleAiEdit("rewrite", hint);
+  };
+
+  const handleAiEdit = async (action, hint = "") => {
     if (!selection || activeAction) return;
     if (!navigator.onLine) {
       toast.error("You're offline — AI editing needs a connection.");
@@ -221,7 +258,7 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ selectedText, action, surroundingContext, bookId }),
+        body: JSON.stringify({ selectedText, action, surroundingContext, bookId, hint }),
       });
 
       if (!response.ok || !response.body) {
@@ -326,13 +363,47 @@ const SimpleMDEditor = ({ value, onChange, bookId }) => {
               <Loader2 className="w-4 h-4 animate-spin text-accent" />
               {ACTION_LABELS[activeAction]}…
             </div>
+          ) : isAwaitingRewriteHint ? (
+            <form
+              onSubmit={handleSubmitRewriteHint}
+              className="flex items-center gap-1.5 w-full min-w-[260px]"
+            >
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleCancelRewriteHint}
+                className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                title="Back"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <input
+                type="text"
+                autoFocus
+                value={rewriteHint}
+                onChange={(e) => setRewriteHint(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") handleCancelRewriteHint();
+                }}
+                placeholder="How should this be rewritten? (optional)"
+                className="flex-1 min-w-0 px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+              />
+              <button
+                type="submit"
+                onMouseDown={(e) => e.preventDefault()}
+                className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-white bg-accent hover:bg-accent-hover transition-colors"
+                title={rewriteHint.trim() ? "Rewrite with this instruction" : "Rewrite (general)"}
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
           ) : (
             EDIT_ACTIONS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => handleAiEdit(key)}
+                onClick={() => (key === "rewrite" ? handleOpenRewriteHint() : handleAiEdit(key))}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-600 hover:bg-accent-50 hover:text-accent-hover transition-colors"
                 title={label}
               >
