@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Edit, Trash2, Palette } from "lucide-react";
+import { Edit, Trash2, Palette, Briefcase } from "lucide-react";
 import CoverPreview from "./CoverPreview";
 
 const BookCard = ({ book, onDelete }) => {
@@ -53,6 +53,18 @@ const BookCard = ({ book, onDelete }) => {
             />
           )}
         </div>
+
+        {/* Client-published badge — admin's own at-a-glance distinction
+            between books written for themselves vs. published on behalf of
+            a paying client (see KENLIBS-ARCHITECTURE.md's publishing
+            service tracking). Admin-only surface, same as the rest of this
+            card. */}
+        {book.isClientPublished && (
+          <span className="absolute top-3 left-3 z-10 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-900/80 backdrop-blur-sm text-white">
+            <Briefcase className="w-3 h-3" />
+            Client
+          </span>
+        )}
 
         {/* Action Buttons — flat UI chrome, deliberately outside the 3D
             rotating layer so they stay easy to click and undistorted. */}

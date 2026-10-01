@@ -93,6 +93,20 @@ const userSchema = new mongoose.Schema({
     deletedAt: {
         type: Date,
     },
+    // The admin's own receiving-account details — used both to show real
+    // payment instructions to readers at checkout (see
+    // kenlibsController.js's getCheckoutPaymentDetails, which deliberately
+    // omits `notes`) and as the admin's own reference when sending refunds.
+    // There's only ever one admin account in this app (see
+    // KENLIBS-ARCHITECTURE.md), so this lives directly on the User document
+    // rather than a separate singleton collection. `notes` is admin-only —
+    // never returned by the reader-facing endpoint.
+    paymentDetails: {
+        bankName: { type: String, default: '' },
+        accountNumber: { type: String, default: '' },
+        accountHolderName: { type: String, default: '' },
+        notes: { type: String, default: '' },
+    },
 },
     {
         timestamps: true

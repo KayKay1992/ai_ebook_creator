@@ -32,6 +32,8 @@ import KenlibsSupportPage from "./pages/KenlibsSupportPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import AdminAnalyticsPage from "./pages/AdminAnalyticsPage";
 import AdminReviewsPage from "./pages/AdminReviewsPage";
+import AdminPaymentSettingsPage from "./pages/AdminPaymentSettingsPage";
+import AdminClientBooksPage from "./pages/AdminClientBooksPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
 
@@ -107,6 +109,8 @@ const App = () => {
           <Route path='/admin/users' element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
           <Route path='/admin/analytics' element={<AdminRoute><AdminAnalyticsPage /></AdminRoute>} />
           <Route path='/admin/reviews' element={<AdminRoute><AdminReviewsPage /></AdminRoute>} />
+          <Route path='/admin/payment-settings' element={<AdminRoute><AdminPaymentSettingsPage /></AdminRoute>} />
+          <Route path='/admin/client-books' element={<AdminRoute><AdminClientBooksPage /></AdminRoute>} />
       </Routes>
     </div>
   );

@@ -2,7 +2,17 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import InputField from "../ui/inputField";
 import Button from "../ui/Button";
-import { UploadCloud, Globe, Lock, Copy, Check, Mic, Palette, Tag } from "lucide-react";
+import {
+  UploadCloud,
+  Globe,
+  Lock,
+  Copy,
+  Check,
+  Mic,
+  Palette,
+  Tag,
+  Briefcase,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import ExportTemplatePicker from "./ExportTemplatePicker";
 import CoverPreview from "../cards/CoverPreview";
@@ -25,6 +35,31 @@ const BookDetailsTab = ({
   const shareUrl = book.shareId
     ? `${window.location.origin}/read/${book.shareId}`
     : "";
+
+  const publishingFee = book.publishingFee || {};
+
+  // Mirrors the TonePicker/voiceProfile pattern elsewhere in this file —
+  // always writes the whole nested object back through onBookChange so
+  // EditorPage's handleBookChange (which does `{ ...book, [name]: value }`)
+  // never has to know about publishingFee's internal shape.
+  const handlePublishingFeeChange = (patch) => {
+    onBookChange({
+      target: { name: "publishingFee", value: { ...publishingFee, ...patch } },
+    });
+  };
+
+  const handleTogglePaid = () => {
+    const nowPaid = !publishingFee.paid;
+    handlePublishingFeeChange({
+      paid: nowPaid,
+      // Only auto-fill paidDate the first time it's marked paid — never
+      // overwrite a date the admin already set or corrected by hand.
+      paidDate:
+        nowPaid && !publishingFee.paidDate
+          ? new Date().toISOString().slice(0, 10)
+          : publishingFee.paidDate,
+    });
+  };
 
   const handleCopyLink = async () => {
     try {
@@ -275,6 +310,140 @@ const BookDetailsTab = ({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ===== Client Publishing ===== */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
+          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Briefcase className="w-5 h-5 text-gray-400" />
+            Client Publishing
+          </h3>
+          <button
+            type="button"
+            onClick={() =>
+              onBookChange({
+                target: { name: "isClientPublished", value: !book.isClientPublished },
+              })
+            }
+            className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
+              book.isClientPublished ? "bg-accent" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                book.isClientPublished ? "translate-x-5" : ""
+              }`}
+            />
+          </button>
+        </div>
+        <p className="text-gray-600 mb-6 leading-relaxed">
+          Mark this book as published on behalf of another author for a flat one-time
+          fee. This is purely for your own tracking — the{" "}
+          <span className="font-medium">Author</span> field above is what readers
+          actually see everywhere (storefront, cover, exports, certificates); nothing
+          below is ever shown to a reader.
+        </p>
+
+        {book.isClientPublished && (
+          <div className="space-y-6">
+            <InputField
+              label="Client Name"
+              name="clientName"
+              value={book.clientName || ""}
+              onChange={onBookChange}
+              placeholder="The person this book was published for"
+            />
+            <InputField
+              label="Client Contact"
+              name="clientContact"
+              value={book.clientContact || ""}
+              onChange={onBookChange}
+              placeholder="Email or phone number"
+            />
+
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-sm font-medium text-gray-700 mb-4">Publishing Fee</p>
+
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Amount (NGN)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                      ₦
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={publishingFee.amount ?? ""}
+                      onChange={(e) =>
+                        handlePublishingFeeChange({
+                          amount: e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      placeholder="Not set"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-2xl pl-8 pr-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Paid Date
+                  </label>
+                  <input
+                    type="date"
+                    value={publishingFee.paidDate ? publishingFee.paidDate.slice(0, 10) : ""}
+                    onChange={(e) =>
+                      handlePublishingFeeChange({ paidDate: e.target.value || null })
+                    }
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-gray-900 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 mt-6">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Fee Paid</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {publishingFee.paid
+                      ? "Marked as paid — flip this off if that was a mistake."
+                      : "Not yet paid — flip this on once the client's fee is settled."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTogglePaid}
+                  className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${
+                    publishingFee.paid ? "bg-emerald-500" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      publishingFee.paid ? "translate-x-5" : ""
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-1.5 mt-6">
+                <label className="block text-sm font-medium text-gray-700">
+                  Notes
+                </label>
+                <textarea
+                  value={publishingFee.notes || ""}
+                  onChange={(e) => handlePublishingFeeChange({ notes: e.target.value })}
+                  placeholder="Payment method, installments, anything worth remembering"
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200 resize-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ===== Cover Image ===== */}

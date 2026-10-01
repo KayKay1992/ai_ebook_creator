@@ -66,6 +66,7 @@ export const API_PATHS = {
     MY_RATING: (bookId) => `/api/kenlibs/ratings/${bookId}/mine`,
     ACCESS: (bookId) => `/api/kenlibs/access/${bookId}`,
     MY_ACCESS_MAP: "/api/kenlibs/my-access-map",
+    PAYMENT_DETAILS: "/api/kenlibs/payment-details",
   },
   ADMIN: {
     USERS: "/api/admin/users",
@@ -74,6 +75,7 @@ export const API_PATHS = {
     ANALYTICS: "/api/admin/analytics",
     REVIEWS: "/api/admin/ratings",
     DELETE_REVIEW: (id) => `/api/admin/ratings/${id}`,
+    PAYMENT_DETAILS: "/api/admin/payment-details",
   },
   REFERRALS: {
     MINE: "/api/referrals/me",

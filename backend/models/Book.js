@@ -177,6 +177,33 @@ const bookSchema = new mongoose.Schema({
             isActive: { type: Boolean, default: false },
         },
     },
+    // Client/author publishing-service tracking — for books the admin
+    // publishes on behalf of another author for a flat one-time fee. There's
+    // no separate author role in this app (the admin handles everything),
+    // so `author` above is what displays publicly everywhere (storefront,
+    // cover, exports, certificates) while these fields are purely the
+    // admin's own bookkeeping. Deliberately never selected by any
+    // reader-facing endpoint (storefront, book detail, certificate, the
+    // reader's own readBook) — see kenlibsController.js/
+    // publicBookController.js's explicit field allowlists.
+    isClientPublished: {
+        type: Boolean,
+        default: false,
+    },
+    clientName: {
+        type: String,
+        default: '',
+    },
+    clientContact: {
+        type: String,
+        default: '',
+    },
+    publishingFee: {
+        amount: { type: Number, default: null },
+        paid: { type: Boolean, default: false },
+        paidDate: { type: Date, default: null },
+        notes: { type: String, default: '' },
+    },
 },
     {
         timestamps: true

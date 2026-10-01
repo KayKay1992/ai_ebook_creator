@@ -12,6 +12,7 @@ const {
     getMyRating,
     getBookAccess,
     getMyAccessMap,
+    getCheckoutPaymentDetails,
 } = require('../controller/kenlibsController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -41,6 +42,7 @@ const explainRateLimiter = rateLimit({
     },
 });
 
+router.get('/payment-details', getCheckoutPaymentDetails);
 router.get('/my-access-map', getMyAccessMap);
 router.get('/access/:bookId', getBookAccess);
 router.get('/read/:bookId', readBook);

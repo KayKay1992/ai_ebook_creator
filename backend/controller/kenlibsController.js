@@ -5,6 +5,7 @@ const Bundle = require('../models/Bundle');
 const PurchaseRequest = require('../models/PurchaseRequest');
 const ReaderProgress = require('../models/ReaderProgress');
 const Rating = require('../models/Rating');
+const User = require('../models/User');
 const { fetchImageBuffer } = require('./exportController');
 const { renderCertificate } = require('../utils/certificateRenderer');
 
@@ -146,12 +147,20 @@ const getMyAccessMap = async (req, res) => {
     }
 };
 
+// What a reader is actually allowed to see of a book they have access to —
+// same set publicBookController.js's getPublicBookByShareId uses for the
+// same reason. Explicit allowlist rather than the bare document: a Book
+// also carries admin-only bookkeeping (price/isForSale, voiceProfile,
+// shareId, userId, templateId, and the client-publishing/fee-tracking
+// fields) that must never reach a reader's network tab.
+const READER_BOOK_FIELDS = 'title subtitle author coverImage coverDesign chapters';
+
 //@desc    Read a book's full content, if the requesting user is allowed to.
 //@route   GET /api/kenlibs/read/:bookId
 //@access  Private (any authenticated user — reader or admin)
 const readBook = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.bookId);
+        const book = await Book.findById(req.params.bookId).select(READER_BOOK_FIELDS);
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
@@ -561,6 +570,24 @@ const getMyRating = async (req, res) => {
     }
 };
 
+//@desc    Real payment instructions for Kenlibs checkout — the admin's bank
+//         details, minus the `notes` field (that's for the admin's own
+//         reference only, see adminController.js's getPaymentDetails).
+//         There's only ever one admin account, so this just takes the
+//         first one found rather than needing a reader to know which admin.
+//@route   GET /api/kenlibs/payment-details
+//@access  Private (any authenticated user — reader or admin)
+const getCheckoutPaymentDetails = async (req, res) => {
+    try {
+        const admin = await User.findOne({ role: 'admin' }).select('paymentDetails');
+        const { bankName = '', accountNumber = '', accountHolderName = '' } =
+            admin?.paymentDetails || {};
+        res.status(200).json({ bankName, accountNumber, accountHolderName });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
     readBook,
     getProgress,
@@ -572,4 +599,5 @@ module.exports = {
     getMyRating,
     getBookAccess,
     getMyAccessMap,
+    getCheckoutPaymentDetails,
 };

@@ -44,6 +44,7 @@ const KenlibsCheckoutPage = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [applyCredit, setApplyCredit] = useState(false);
   const [creditToApply, setCreditToApply] = useState(0);
+  const [paymentDetails, setPaymentDetails] = useState(null);
 
   useEffect(() => {
     if (!isValidType) return;
@@ -62,6 +63,19 @@ const KenlibsCheckoutPage = () => {
     };
     fetchItem();
   }, [itemType, id, isValidType]);
+
+  // Real payment instructions (the admin's own bank details, minus the
+  // private `notes` field — see kenlibsController.js's
+  // getCheckoutPaymentDetails). Independent of the item fetch above, so a
+  // slow/failed admin-details lookup never blocks the item summary from
+  // rendering — the Payment Instructions card just falls back to a "contact
+  // us" message if this comes back empty or fails.
+  useEffect(() => {
+    axiosInstance
+      .get(API_PATHS.KENLIBS.PAYMENT_DETAILS)
+      .then((res) => setPaymentDetails(res.data))
+      .catch(() => setPaymentDetails(null));
+  }, []);
 
   // Bundles are always purchasable once the (isForSale-gated) fetch above
   // succeeds — a book additionally needs the price/isForSale badge check,
@@ -260,18 +274,43 @@ const KenlibsCheckoutPage = () => {
             </motion.div>
           )}
 
-          {/* Payment instructions — placeholder static content; the admin
-              fills in real bank details later. */}
+          {/* Payment instructions — the admin's real bank details (see
+              AdminPaymentSettingsPage.jsx), fetched above. Falls back to a
+              "contact us" message rather than a placeholder if the admin
+              hasn't filled these in yet, or the lookup fails. */}
           <motion.div
             variants={fadeUp}
             className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6"
           >
             <h3 className="font-semibold text-gray-900 mb-3">Payment Instructions</h3>
-            <div className="text-sm text-gray-600 leading-relaxed space-y-1 bg-gray-50 border border-gray-100 rounded-2xl p-4">
-              <p>Bank Name: <span className="font-medium text-gray-800">[Your Bank Name]</span></p>
-              <p>Account Name: <span className="font-medium text-gray-800">[Your Account Name]</span></p>
-              <p>Account Number: <span className="font-medium text-gray-800">[Your Account Number]</span></p>
-            </div>
+            {paymentDetails?.bankName || paymentDetails?.accountNumber ? (
+              <div className="text-sm text-gray-600 leading-relaxed space-y-1 bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                <p>
+                  Bank Name:{" "}
+                  <span className="font-medium text-gray-800">{paymentDetails.bankName || "—"}</span>
+                </p>
+                <p>
+                  Account Name:{" "}
+                  <span className="font-medium text-gray-800">
+                    {paymentDetails.accountHolderName || "—"}
+                  </span>
+                </p>
+                <p>
+                  Account Number:{" "}
+                  <span className="font-medium text-gray-800">
+                    {paymentDetails.accountNumber || "—"}
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-600 leading-relaxed bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                Payment details aren't set up yet — please reach out via{" "}
+                <Link to="/kenlibs/support" className="text-accent hover:text-accent-hover font-medium">
+                  Support
+                </Link>{" "}
+                before submitting a request.
+              </div>
+            )}
             <p className="text-sm text-gray-500 mt-3">
               {finalPrice > 0 ? (
                 <>

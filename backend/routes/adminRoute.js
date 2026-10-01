@@ -6,6 +6,8 @@ const {
     deleteUser,
     getReviewsForModeration,
     deleteRating,
+    getPaymentDetails,
+    updatePaymentDetails,
 } = require('../controller/adminController');
 const { getAnalytics } = require('../controller/analyticsController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
@@ -18,5 +20,7 @@ router.delete('/users/:id', deleteUser);
 router.get('/analytics', getAnalytics);
 router.get('/ratings', getReviewsForModeration);
 router.delete('/ratings/:id', deleteRating);
+router.get('/payment-details', getPaymentDetails);
+router.put('/payment-details', updatePaymentDetails);
 
 module.exports = router;

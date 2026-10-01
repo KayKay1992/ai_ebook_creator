@@ -11,6 +11,8 @@ import {
   User,
   Menu,
   X,
+  Wallet,
+  Briefcase,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -28,8 +30,10 @@ const NAV_ITEMS = [
   { to: "/admin/bundles", label: "Bundles", icon: Package },
   { to: "/admin/purchases", label: "Purchases", icon: ShieldCheck, badgeKey: "pending" },
   { to: "/admin/users", label: "Users", icon: Users },
+  { to: "/admin/client-books", label: "Client Books", icon: Briefcase },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/admin/reviews", label: "Reviews", icon: MessageSquareText },
+  { to: "/admin/payment-settings", label: "Payment Settings", icon: Wallet },
   { to: "/profile", label: "Profile", icon: User },
 ];
 
@@ -141,6 +145,15 @@ const DashboardLayout = ({ children }) => {
               )}
               {user?.role === "admin" && (
                 <Link
+                  to="/admin/client-books"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <Briefcase className="w-4 h-4" />
+                  Client Books
+                </Link>
+              )}
+              {user?.role === "admin" && (
+                <Link
                   to="/admin/analytics"
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
                 >
@@ -155,6 +168,15 @@ const DashboardLayout = ({ children }) => {
                 >
                   <MessageSquareText className="w-4 h-4" />
                   Reviews
+                </Link>
+              )}
+              {user?.role === "admin" && (
+                <Link
+                  to="/admin/payment-settings"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <Wallet className="w-4 h-4" />
+                  Payment Settings
                 </Link>
               )}
             </div>

@@ -237,10 +237,50 @@ const deleteRating = async (req, res) => {
     }
 };
 
+//@desc    Get the admin's own payment/payout details — the full record,
+//         including the private `notes` field (this is the admin-only
+//         view; the reader-facing subset lives in kenlibsController.js's
+//         getCheckoutPaymentDetails, which omits notes).
+//@route   GET /api/admin/payment-details
+//@access  Private/Admin
+const getPaymentDetails = async (req, res) => {
+    try {
+        const admin = await User.findById(req.user._id).select('paymentDetails');
+        res.status(200).json(admin?.paymentDetails || {});
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+//@desc    Update the admin's own payment/payout details.
+//@route   PUT /api/admin/payment-details
+//@access  Private/Admin
+const updatePaymentDetails = async (req, res) => {
+    try {
+        const { bankName, accountNumber, accountHolderName, notes } = req.body;
+        const admin = await User.findById(req.user._id);
+        if (!admin) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        admin.paymentDetails = {
+            bankName: bankName || '',
+            accountNumber: accountNumber || '',
+            accountHolderName: accountHolderName || '',
+            notes: notes || '',
+        };
+        await admin.save();
+        res.status(200).json(admin.paymentDetails);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
     getReaders,
     resetUserPassword,
     deleteUser,
     getReviewsForModeration,
     deleteRating,
+    getPaymentDetails,
+    updatePaymentDetails,
 };
