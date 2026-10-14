@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+// Shared with bookController.js's updateBook, which enforces it explicitly:
+// findByIdAndUpdate skips schema validators, so maxlength alone would never
+// actually reject an over-length update.
+const PREVIEW_CONTENT_MAX_LENGTH = 2000;
+
 const chapterSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -39,6 +44,21 @@ const bookSchema = new mongoose.Schema({
     description: {
         type: String,
         default: ''
+    },
+    // Storefront teaser: short, admin-authored sales copy shown on the public
+    // Kenlibs book detail page (KenlibsBookDetailPage.jsx's "About this
+    // book" section). Deliberately NOT an excerpt of the book, and separate
+    // from coverDesign.back.blurb: the blurb is back-cover copy sized for
+    // the cover layout (shown clamped on flip-card backs), while this is
+    // longer-form page copy with a hook, the book's promise, and a closing
+    // invitation. Drafted via /api/ai/generate-teaser (title, description,
+    // and chapter titles/descriptions only) and always reviewed and saved
+    // by the admin. Only ever returned by the single-book public detail
+    // endpoint, never the storefront listing.
+    previewContent: {
+        type: String,
+        default: '',
+        maxlength: PREVIEW_CONTENT_MAX_LENGTH,
     },
     // Whether outline generation (generateOutline) and "Generate More
     // Chapters" (extendOutline) should enforce the Introduction-first /
@@ -217,3 +237,4 @@ const bookSchema = new mongoose.Schema({
 bookSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Book', bookSchema);
+module.exports.PREVIEW_CONTENT_MAX_LENGTH = PREVIEW_CONTENT_MAX_LENGTH;

@@ -55,6 +55,16 @@ const EditorPage = () => {
   const [isGeneratingIntroConclusion, setIsGeneratingIntroConclusion] = useState(false);
   const [saveStatus, setSaveStatus] = useState("saved"); // 'saved' | 'saving' | 'unsaved' | 'error'
 
+  // An AI-drafted storefront teaser (BookDetailsTab.jsx) is an unreviewed
+  // draft: on a published book, any save would put it on the live store page.
+  // While one is pending, every automatic save of the book (debounced field
+  // autosave and the save after AI chapter generation) is paused, for the
+  // whole book, not just the teaser, since any PUT sends the whole book.
+  // Only the manual Save button clears it. Mirrored in a ref because the
+  // autosave timer and async handlers read it from older closures.
+  const [isTeaserDraftPending, setIsTeaserDraftPending] = useState(false);
+  const teaserDraftPendingRef = useRef(false);
+
   const fileInputRef = useRef(null);
   const autosaveTimerRef = useRef(null);
 
@@ -86,24 +96,53 @@ const EditorPage = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [saveStatus]);
 
+  const pauseAutosaveForTeaserDraft = () => {
+    teaserDraftPendingRef.current = true;
+    setIsTeaserDraftPending(true);
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    setSaveStatus("unsaved");
+  };
+
   const scheduleAutosave = (updatedBook) => {
     setSaveStatus("unsaved");
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
     }
+    // Paused: the change stays local (and marked unsaved) until manual Save.
+    if (teaserDraftPendingRef.current) return;
     autosaveTimerRef.current = setTimeout(async () => {
+      autosaveTimerRef.current = null;
+      if (teaserDraftPendingRef.current) return;
       setSaveStatus("saving");
       try {
         await handleSaveChanges(updatedBook, false);
-        setSaveStatus("saved");
+        // A teaser draft may have arrived while this (pre-draft) save was in
+        // flight: the draft itself is still unsaved, so don't claim "Saved".
+        setSaveStatus(teaserDraftPendingRef.current ? "unsaved" : "saved");
       } catch (error) {
         setSaveStatus("error");
       }
     }, 2500);
   };
 
-  const handleBookChange = (e) => {
+  // `unreviewedDraft: true` marks the change as AI-drafted text that must be
+  // reviewed before it's persisted (the storefront teaser): it pauses all
+  // automatic saving for the book until the admin clicks Save. See
+  // isTeaserDraftPending above.
+  const handleBookChange = (e, { unreviewedDraft = false } = {}) => {
     const { name, value } = e.target;
+    if (unreviewedDraft) {
+      // Arrives after an AI request, from a closure captured at click time:
+      // merge into the latest state so edits made while it was generating
+      // aren't overwritten.
+      setBook((prev) => ({ ...prev, [name]: value }));
+      pauseAutosaveForTeaserDraft();
+      return;
+    }
     const updatedBook = { ...book, [name]: value };
     setBook(updatedBook);
     scheduleAutosave(updatedBook);
@@ -305,10 +344,26 @@ const EditorPage = () => {
     setSaveStatus("saving");
     try {
       await handleSaveChanges();
+      // The admin has now reviewed and published the draft: back to normal
+      // autosave. Stays paused if the save failed.
+      teaserDraftPendingRef.current = false;
+      setIsTeaserDraftPending(false);
       setSaveStatus("saved");
     } catch (error) {
       setSaveStatus("error");
     }
+  };
+
+  // Cover upload and publish toggle replace local state with the server's
+  // copy of the book. With a teaser draft pending, keep the local draft
+  // rather than silently reverting it to the saved teaser while autosave
+  // stays paused.
+  const applyServerBook = (serverBook) => {
+    setBook((prev) =>
+      teaserDraftPendingRef.current && prev
+        ? { ...serverBook, previewContent: prev.previewContent }
+        : serverBook
+    );
   };
 
   const handleCoverImageUpload = async (e) => {
@@ -325,7 +380,7 @@ const EditorPage = () => {
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
-      setBook(response.data);
+      applyServerBook(response.data);
       toast.success("Cover image updated!");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to upload cover"));
@@ -340,7 +395,7 @@ const EditorPage = () => {
       const response = await axiosInstance.put(
         `${API_PATHS.BOOKS.TOGGLE_PUBLISH}/${bookId}/publish`
       );
-      setBook(response.data);
+      applyServerBook(response.data);
       toast.success(
         response.data.status === "published"
           ? "Book published! Anyone with the link can now read it."
@@ -442,7 +497,13 @@ const EditorPage = () => {
 
       const finalBook = applyContent(accumulated);
       toast.success(`Content generated for "${chapter.title}"`);
-      await handleSaveChanges(finalBook, false);
+      if (teaserDraftPendingRef.current) {
+        // Paused for an unreviewed teaser draft: keep the new chapter local
+        // until the admin reviews and clicks Save.
+        setSaveStatus("unsaved");
+      } else {
+        await handleSaveChanges(finalBook, false);
+      }
     } catch (error) {
       if (accumulated) {
         const partialBook = applyContent(accumulated);
@@ -689,9 +750,18 @@ const EditorPage = () => {
                 </span>
               )}
               {saveStatus === "unsaved" && (
-                <span className="hidden sm:flex items-center gap-1.5 text-sm text-gray-500">
+                <span
+                  className={`hidden sm:flex items-center gap-1.5 text-sm ${
+                    isTeaserDraftPending ? "text-amber-700 font-medium" : "text-gray-500"
+                  }`}
+                  title={
+                    isTeaserDraftPending
+                      ? "Autosave is paused until you review the AI-drafted teaser and click Save."
+                      : undefined
+                  }
+                >
                   <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  Unsaved changes
+                  {isTeaserDraftPending ? "Review and save" : "Unsaved changes"}
                 </span>
               )}
               {saveStatus === "error" && (
@@ -728,6 +798,7 @@ const EditorPage = () => {
                 book={book}
                 onCoverUpload={handleCoverImageUpload}
                 onBookChange={handleBookChange}
+                isTeaserDraftPending={isTeaserDraftPending}
                 onToggleIntroConclusionStructure={handleToggleIntroConclusionStructure}
                 isGeneratingIntroConclusion={isGeneratingIntroConclusion}
                 isUploading={isUploading}

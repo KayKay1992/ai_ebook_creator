@@ -12,15 +12,25 @@ import {
   Palette,
   Tag,
   Briefcase,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import axiosInstance from "../../utils/axiosInstance";
+import { API_PATHS } from "../../utils/apiPaths";
+import getErrorMessage from "../../utils/getErrorMessage";
 import ExportTemplatePicker from "./ExportTemplatePicker";
 import CoverPreview from "../cards/CoverPreview";
 import TonePicker from "../shared/TonePicker";
 
+// Mirrors backend/models/Book.js's PREVIEW_CONTENT_MAX_LENGTH (no shared
+// code between the apps — keep the two in sync by hand).
+const PREVIEW_CONTENT_MAX_LENGTH = 2000;
+
 const BookDetailsTab = ({
   book,
   onBookChange,
+  isTeaserDraftPending = false,
   onToggleIntroConclusionStructure,
   isGeneratingIntroConclusion,
   onCoverUpload,
@@ -31,6 +41,8 @@ const BookDetailsTab = ({
 }) => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [isGeneratingTeaser, setIsGeneratingTeaser] = useState(false);
+  const [hasGeneratedTeaser, setHasGeneratedTeaser] = useState(false);
   const isPublished = book.status === "published";
   const shareUrl = book.shareId
     ? `${window.location.origin}/read/${book.shareId}`
@@ -59,6 +71,32 @@ const BookDetailsTab = ({
           ? new Date().toISOString().slice(0, 10)
           : publishingFee.paidDate,
     });
+  };
+
+  const previewContent = book.previewContent || "";
+  const isTeaserTooLong = previewContent.length > PREVIEW_CONTENT_MAX_LENGTH;
+
+  // Drafts only: fills the textarea as an unreviewed draft, which pauses
+  // all autosave for the book until the admin clicks Save (see
+  // EditorPage.jsx's isTeaserDraftPending), so the AI copy never goes live
+  // on its own. The backend endpoint doesn't write anything either.
+  const handleGenerateTeaser = async () => {
+    setIsGeneratingTeaser(true);
+    try {
+      const response = await axiosInstance.post(API_PATHS.AI.GENERATE_TEASER, {
+        bookId: book._id,
+      });
+      onBookChange(
+        { target: { name: "previewContent", value: response.data.teaser } },
+        { unreviewedDraft: true }
+      );
+      setHasGeneratedTeaser(true);
+      toast.success("Teaser drafted. Autosave is paused until you click Save.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to generate teaser"));
+    } finally {
+      setIsGeneratingTeaser(false);
+    }
   };
 
   const handleCopyLink = async () => {
@@ -308,6 +346,69 @@ const BookDetailsTab = ({
                 }`}
               />
             </button>
+          </div>
+
+          <div className="space-y-1.5 border-t border-gray-100 pt-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <label
+                htmlFor="previewContent"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Storefront teaser
+              </label>
+              <Button
+                type="button"
+                onClick={handleGenerateTeaser}
+                disabled={isGeneratingTeaser}
+                variant="secondary"
+                className="!px-3 !py-1.5 !text-xs flex items-center gap-1.5"
+              >
+                {isGeneratingTeaser ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                {isGeneratingTeaser
+                  ? "Generating…"
+                  : hasGeneratedTeaser
+                    ? "Regenerate"
+                    : "Generate with AI"}
+              </Button>
+            </div>
+            <textarea
+              id="previewContent"
+              name="previewContent"
+              value={previewContent}
+              onChange={onBookChange}
+              maxLength={PREVIEW_CONTENT_MAX_LENGTH}
+              placeholder="A hook, what readers will gain, and a line that invites them in."
+              rows={7}
+              className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 transition-all duration-200 resize-y"
+            />
+            {isTeaserDraftPending && (
+              <p
+                role="status"
+                className="flex items-start gap-2 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2"
+              >
+                <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                AI draft: review it, then click Save to publish. Autosave is
+                paused for the whole book until you do.
+              </p>
+            )}
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Shown publicly on this book's Kenlibs store page. Write it to
+                make readers want the book, not to summarise every chapter.
+                Separate paragraphs with a blank line.
+              </p>
+              <p
+                className={`text-xs tabular-nums flex-shrink-0 ${
+                  isTeaserTooLong ? "text-red-500 font-medium" : "text-gray-400"
+                }`}
+              >
+                {previewContent.length}/{PREVIEW_CONTENT_MAX_LENGTH}
+              </p>
+            </div>
           </div>
         </div>
       </div>

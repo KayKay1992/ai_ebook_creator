@@ -27,6 +27,64 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } },
 };
 
+// Splits the admin-written storefront teaser (Book.previewContent) into
+// paragraphs on blank lines. Deliberately plain text, not markdown: no
+// renderer (and no extra bundle weight), and React escapes it like any other
+// string, so nothing the admin types is ever interpreted as HTML.
+const toParagraphs = (text = "") =>
+  text
+    .split(/\r?\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+// The page's single purchase/read action, shared by the top-of-page slot and
+// the one under the teaser so their logic can never drift apart: read it if
+// the reader already has access, request to buy if it's for sale, otherwise
+// "Coming Soon" (disabled).
+const BookCallToAction = ({
+  bookId,
+  hasAccess,
+  canBuy,
+  isAuthenticated,
+  isNavigatingToCheckout,
+  onStartCheckout,
+  readLabel = "Read Now",
+}) => {
+  const navigate = useNavigate();
+
+  if (hasAccess) {
+    return (
+      <Link to={`/kenlibs/read/${bookId}`}>
+        <Button size="xl" className="flex items-center gap-2">
+          <BookOpenCheck className="w-4 h-4" />
+          {readLabel}
+        </Button>
+      </Link>
+    );
+  }
+
+  return (
+    <Button
+      size="xl"
+      disabled={!canBuy}
+      loading={isNavigatingToCheckout}
+      title={canBuy ? undefined : "This book isn't purchasable yet."}
+      onClick={() => {
+        const checkoutPath = `/kenlibs/checkout/book/${bookId}`;
+        if (!isAuthenticated) {
+          navigate("/kenlibs/login", { state: { from: checkoutPath } });
+          return;
+        }
+        onStartCheckout(checkoutPath);
+      }}
+      className="flex items-center gap-2"
+    >
+      <ShoppingBag className="w-4 h-4" />
+      {canBuy ? "Request to Buy" : "Coming Soon"}
+    </Button>
+  );
+};
+
 const KenlibsBookDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -179,6 +237,19 @@ const KenlibsBookDetailPage = () => {
   const authorBio = book.coverDesign?.back?.authorBio?.trim();
   const authorPhoto = book.coverDesign?.back?.authorPhoto;
   const canBuy = badge?.type === "price";
+  const teaserParagraphs = toParagraphs(book.previewContent);
+
+  const ctaProps = {
+    bookId: id,
+    hasAccess,
+    canBuy,
+    isAuthenticated,
+    isNavigatingToCheckout,
+    onStartCheckout: (checkoutPath) => {
+      setIsNavigatingToCheckout(true);
+      setTimeout(() => navigate(checkoutPath), NAVIGATE_DELAY_MS);
+    },
+  };
 
   return (
     <div className="min-h-screen bg-surface-warm">
@@ -290,37 +361,53 @@ const KenlibsBookDetailPage = () => {
             )}
 
             <motion.div className="mt-10" whileTap={{ scale: 0.97 }}>
-              {hasAccess ? (
-                <Link to={`/kenlibs/read/${id}`}>
-                  <Button size="xl" className="flex items-center gap-2">
-                    <BookOpenCheck className="w-4 h-4" />
-                    Read Now
-                  </Button>
-                </Link>
-              ) : (
-                <Button
-                  size="xl"
-                  disabled={!canBuy}
-                  loading={isNavigatingToCheckout}
-                  title={canBuy ? undefined : "This book isn't purchasable yet."}
-                  onClick={() => {
-                    const checkoutPath = `/kenlibs/checkout/book/${id}`;
-                    if (!isAuthenticated) {
-                      navigate("/kenlibs/login", { state: { from: checkoutPath } });
-                      return;
-                    }
-                    setIsNavigatingToCheckout(true);
-                    setTimeout(() => navigate(checkoutPath), NAVIGATE_DELAY_MS);
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <ShoppingBag className="w-4 h-4" />
-                  {canBuy ? "Request to Buy" : "Coming Soon"}
-                </Button>
-              )}
+              <BookCallToAction {...ctaProps} />
             </motion.div>
           </motion.div>
         </motion.div>
+
+        {/* Storefront teaser: admin-written sales copy (Book.previewContent),
+            not an excerpt. Full width under the cover/info grid so it gets a
+            comfortable reading measure, with its own call to action at the
+            end so a reader who was persuaded doesn't have to scroll back up.
+            Absent entirely when no teaser has been written. */}
+        {teaserParagraphs.length > 0 && (
+          <motion.section
+            className="mt-16 border-t border-gray-100 pt-12"
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            aria-labelledby="about-this-book"
+          >
+            <div className="max-w-2xl">
+              <h2
+                id="about-this-book"
+                className="text-xs font-semibold uppercase tracking-[0.18em] text-accent mb-5"
+              >
+                About this book
+              </h2>
+              <div className="space-y-5">
+                {teaserParagraphs.map((paragraph, i) => (
+                  <p
+                    key={i}
+                    className={`whitespace-pre-line ${
+                      i === 0
+                        ? "font-serif text-xl sm:text-2xl leading-snug text-gray-900"
+                        : "text-base sm:text-[1.0625rem] leading-relaxed text-gray-700"
+                    }`}
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+
+              <motion.div className="mt-9" whileTap={{ scale: 0.97 }}>
+                <BookCallToAction {...ctaProps} readLabel="Read the full book" />
+              </motion.div>
+            </div>
+          </motion.section>
+        )}
 
         <BookReviewsSection
           bookId={id}

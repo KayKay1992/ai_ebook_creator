@@ -46,6 +46,16 @@ const escapeHtml = (str = "") =>
 // isn't — drop it rather than emit a tag that resolves to nothing.
 const asAbsoluteImage = (url) => (url && /^https?:\/\//i.test(url) ? url : null);
 
+// The storefront teaser (Book.previewContent) opens with a hook paragraph by
+// design (see aiController.js's generateTeaser), which makes a better link
+// preview than the full teaser. Only used when that first paragraph is short
+// enough to read as a preview; otherwise callers fall back to the blurb.
+const OG_DESCRIPTION_MAX = 300;
+const firstShortParagraph = (text = "") => {
+  const first = String(text).trim().split(/\r?\n\s*\n/)[0]?.trim();
+  return first && first.length <= OG_DESCRIPTION_MAX ? first : null;
+};
+
 const renderCrawlerHtml = ({ title, description, image, redirectTo }) => {
   const tags = [
     `<meta property="og:type" content="website" />`,
@@ -104,7 +114,7 @@ router.get("/kenlibs/book/:id", async (req, res) => {
     const book = await Book.findOne({
       _id: req.params.id,
       status: "published",
-    }).select("title subtitle author coverImage coverDesign");
+    }).select("title subtitle author coverImage coverDesign previewContent");
 
     if (!book) {
       return res.status(404).send(renderRedirectOnlyHtml(spaUrl));
@@ -114,13 +124,14 @@ router.get("/kenlibs/book/:id", async (req, res) => {
       asAbsoluteImage(book.coverImage) ||
       asAbsoluteImage(book.coverDesign?.front?.backgroundImage);
     const blurb = book.coverDesign?.back?.blurb?.trim();
+    const teaserHook = firstShortParagraph(book.previewContent);
 
     res.set("Cache-Control", "public, max-age=600");
     res.send(
       renderCrawlerHtml({
         title: `${book.title} — Kenlibs`,
         description:
-          blurb || `by ${book.author || "Unknown Author"} — read it on Kenlibs.`,
+          teaserHook || blurb || `by ${book.author || "Unknown Author"} — read it on Kenlibs.`,
         image,
         redirectTo: spaUrl,
       })

@@ -48,7 +48,17 @@ price: { type: Number, default: null }   // null = not for sale
 isForSale: { type: Boolean, default: false }  // explicit toggle, separate from price
                                                // being set, so admin can price a book
                                                // ahead of time without listing it yet
+previewContent: { type: String, default: '', maxlength: 2000 }
 ```
+
+`previewContent` is the storefront teaser: the only long-form descriptive
+text written specifically for the public book page (its "About this book"
+section). It's sales copy, never an excerpt, and is drafted with AI
+(`POST /api/ai/generate-teaser`, built from title/description/chapter titles
+and descriptions only, never chapter content) or written by hand, then
+reviewed and saved by the admin. Only `GET /api/public/kenlibs/books/:id`
+returns it; the storefront listing doesn't. The other public text,
+`coverDesign.back.blurb`, is back-cover copy that comes with the cover design.
 
 ### `Bundle` (new model)
 ```
@@ -107,7 +117,8 @@ client-side, since that's the actual security boundary.
 ### New — public (no login required)
 ```
 /kenlibs                storefront: browse for-sale books + bundles
-/kenlibs/book/:id       book detail page (price, blurb, back cover, "Request to Buy")
+/kenlibs/book/:id       book detail page (price, blurb, back cover, "Request to Buy",
+                        "About this book" teaser from Book.previewContent)
 /kenlibs/bundle/:id     bundle detail page
 ```
 

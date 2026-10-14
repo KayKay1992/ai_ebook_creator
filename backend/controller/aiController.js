@@ -707,6 +707,93 @@ Return ONLY the blurb text. No heading, no wrapping quotation marks, no commenta
   }
 };
 
+//@desc Draft a storefront teaser (Book.previewContent) for the public
+//      Kenlibs book detail page. Sales copy, not an excerpt: built from the
+//      book's metadata and outline only. Chapter *content* is never loaded
+//      (see the select below), so it can't leak into public copy. Returns
+//      the draft without saving; the admin edits and saves it through the
+//      normal book update.
+//@route POST /api/ai/generate-teaser
+//@access Private
+const generateTeaser = async (req, res) => {
+  try {
+    const { bookId } = req.body;
+
+    if (!bookId) {
+      return res.status(400).json({ message: "bookId is required" });
+    }
+
+    const book = await Book.findById(bookId).select(
+      "userId title subtitle author description voiceProfile chapters.title chapters.description"
+    );
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const chapters = book.chapters || [];
+    if (chapters.length === 0 && !book.description?.trim()) {
+      return res.status(400).json({
+        message: "Add a description or a chapter outline first, so there's something to base the teaser on.",
+      });
+    }
+
+    const voiceInstruction = book.voiceProfile?.instruction || "";
+    const chapterOutline = chapters
+      .map((c, i) => `${i + 1}. ${c.title}${c.description ? `: ${c.description}` : ""}`)
+      .join("\n");
+
+    const prompt = `
+You are a book marketing copywriter writing the "About this book" section of a
+book's online store page.
+
+Book Title: "${book.title}"
+${book.subtitle ? `Subtitle: "${book.subtitle}"` : ""}
+Author: ${book.author}
+${book.description?.trim() ? `What the book is about: ${book.description.trim()}` : ""}
+${chapterOutline ? `\nChapter outline (titles and short descriptions only):\n${chapterOutline}` : ""}
+
+### Task
+Write a short, catchy teaser that makes a reader want to read this book. It is
+sales copy, NOT a summary of every chapter and NOT an excerpt.
+
+- 90-150 words total, in 2-4 short paragraphs separated by a blank line.
+- Open with a strong hook in the first sentence.
+- Say what the book promises, or what the reader will gain from it.
+- End with a single closing line that invites the reader in.
+- Do not walk through the chapters one by one.
+- No spoilers: never reveal key twists, endings, or the payoff of a mystery.
+- Do not invent facts. No awards, bestseller claims, testimonials, reviews,
+  quotes, statistics, or credentials that aren't stated above.
+${voiceInstruction ? `\n### Voice & tone\nMatch the book's established voice: ${voiceInstruction}` : ""}
+
+### Format
+Plain text only. No markdown, no headings, no bullet points, no bold or
+italics, no wrapping quotation marks. Never use the em dash symbol (—); use a
+comma, period, or colon instead.
+
+Return ONLY the teaser text, with no commentary.
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    const teaser = (response.text || "").trim();
+    if (!teaser) {
+      return res.status(500).json({ message: "Failed to generate teaser" });
+    }
+
+    res.status(200).json({ teaser });
+  } catch (error) {
+    console.error("Error generating teaser:", error);
+    sendAiErrorResponse(res, error, "Server Error");
+  }
+};
+
 module.exports = {
   generateOutline,
   extendOutline,
@@ -714,4 +801,5 @@ module.exports = {
   generateChapterContent,
   editSelection,
   generateBlurb,
+  generateTeaser,
 };

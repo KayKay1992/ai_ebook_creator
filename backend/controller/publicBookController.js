@@ -28,6 +28,10 @@ const getPublicBookByShareId = async (req, res) => {
 const KENLIBS_BOOK_FIELDS =
   "title subtitle author coverImage coverDesign price isForSale createdAt";
 const KENLIBS_BOOK_PREVIEW_FIELDS = "title coverImage coverDesign";
+// The single-book detail page additionally gets the admin-written teaser
+// (previewContent). Kept off the listing on purpose: up to 2,000 chars per
+// book would bloat the storefront payload for text no grid card shows.
+const KENLIBS_BOOK_DETAIL_FIELDS = `${KENLIBS_BOOK_FIELDS} previewContent`;
 
 //@desc    Browse the Kenlibs storefront — every published book (regardless
 //         of price/isForSale, see KENLIBS-ARCHITECTURE.md's visibility rule)
@@ -71,7 +75,7 @@ const getKenlibsBookById = async (req, res) => {
     const book = await Book.findOne({
       _id: req.params.id,
       status: "published",
-    }).select(KENLIBS_BOOK_FIELDS);
+    }).select(KENLIBS_BOOK_DETAIL_FIELDS);
 
     if (!book) {
       return res.status(404).json({ message: "Book not found" });

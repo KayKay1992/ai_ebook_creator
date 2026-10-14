@@ -1,4 +1,5 @@
 const Book = require('../models/Book');
+const { PREVIEW_CONTENT_MAX_LENGTH } = Book;
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const generateShareId = require('../utils/shareId');
 const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
@@ -84,6 +85,17 @@ const updateBook = async (req, res) => {
         }
 
         const updates = { ...req.body };
+
+        if (updates.previewContent !== undefined) {
+            if (typeof updates.previewContent !== 'string') {
+                return res.status(400).json({ message: 'Storefront teaser must be text.' });
+            }
+            if (updates.previewContent.length > PREVIEW_CONTENT_MAX_LENGTH) {
+                return res.status(400).json({
+                    message: `Storefront teaser must be ${PREVIEW_CONTENT_MAX_LENGTH} characters or fewer (currently ${updates.previewContent.length}).`,
+                });
+            }
+        }
         // instruction is always server-derived from tones — never trust a
         // client-supplied instruction string, so it can't drift from what
         // buildVoiceProfileInstruction would actually produce.
