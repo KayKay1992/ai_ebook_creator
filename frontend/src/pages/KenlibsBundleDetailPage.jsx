@@ -12,6 +12,7 @@ import { useAuth } from "../context/AuthContext";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 import useOpenGraphTags from "../hooks/useOpenGraphTags";
+import cloudinaryUrl, { IMAGE_WIDTHS } from "../utils/cloudinaryUrl";
 
 // Same brief pre-navigate pause as the book detail page — see that file's
 // comment on NAVIGATE_DELAY_MS.
@@ -129,8 +130,10 @@ const KenlibsBundleDetailPage = () => {
           <motion.div className="w-full max-w-[280px] mx-auto md:mx-0" variants={fadeUp}>
             {bundle.coverImage ? (
               <img
-                src={bundle.coverImage}
+                src={cloudinaryUrl(bundle.coverImage, IMAGE_WIDTHS.detail)}
                 alt=""
+                fetchPriority="high"
+                decoding="async"
                 className="w-full aspect-[2/3] object-cover rounded-2xl shadow-xl"
               />
             ) : (
@@ -141,8 +144,9 @@ const KenlibsBundleDetailPage = () => {
                     <div key={b._id} className="relative overflow-hidden bg-gray-800">
                       {cover && (
                         <img
-                          src={cover}
+                          src={cloudinaryUrl(cover, IMAGE_WIDTHS.card)}
                           alt=""
+                          decoding="async"
                           className="absolute inset-0 w-full h-full object-cover"
                         />
                       )}

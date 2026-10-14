@@ -3,8 +3,36 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Library chunks, split out of the app code so they cache independently
+// across deploys (app code changes far more often than React does) and so
+// the heavy editor-only libraries never ride along with the storefront.
+// @uiw/react-md-editor is also used by the readers (KenlibsReadPage,
+// ViewBook via MarkdownContent) to render chapter markdown, so that chunk
+// loads there too — just never on the storefront, detail, or checkout pages.
+//
+// Uses Rolldown's codeSplitting groups (Vite 8 bundles with Rolldown), not
+// rollupOptions.output.manualChunks: under Rolldown, the manualChunks
+// function form pulled shared modules into the md-editor/dnd-kit chunks,
+// which made the entry chunk statically import (and index.html modulepreload)
+// both of them on every page — exactly what this split is meant to avoid.
+// Check dist/index.html's modulepreload links after changing this.
+const VENDOR_CHUNKS = [
+  { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/ },
+  { name: 'md-editor', test: /[\\/]node_modules[\\/]@uiw[\\/]/ },
+  { name: 'dnd-kit', test: /[\\/]node_modules[\\/]@dnd-kit[\\/]/ },
+]
+
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: VENDOR_CHUNKS,
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -57,8 +85,31 @@ export default defineConfig({
       workbox: {
         // App shell: precache built JS/CSS/HTML (and static icons) so the
         // app itself loads offline.
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
+        // Admin/editor-only chunks (and the ~1MB markdown editor library)
+        // are left out of the precache so a storefront visitor's service
+        // worker install doesn't download them. They're still cached on
+        // first real use by the hashed-assets rule in runtimeCaching below
+        // — which is what keeps offline reading working, since the reader
+        // also renders chapters through the md-editor chunk.
+        globIgnores: ['**/md-editor-*.js', '**/dnd-kit-*.js', '**/EditorPage-*.js'],
         runtimeCaching: [
+          // Hashed build chunks not in the precache (see globIgnores above).
+          // Content-hashed filenames never change content, so CacheFirst is
+          // always safe; old ones age out via the expiration limits.
+          {
+            urlPattern: ({ url, request, sameOrigin }) =>
+              sameOrigin &&
+              request.method === 'GET' &&
+              /^\/assets\/.+\.(js|css)$/.test(url.pathname),
+            handler: 'CacheFirst',
+            method: 'GET',
+            options: {
+              cacheName: 'lazy-chunks',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
           // Book list + single-book reads: prefer fresh data when online,
           // but fall back to the last-seen response when offline so a
           // previously-opened book stays readable. Deliberately scoped to

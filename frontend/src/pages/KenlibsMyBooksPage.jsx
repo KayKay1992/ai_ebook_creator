@@ -22,6 +22,7 @@ import { buildWhatsAppHref } from "../utils/kenlibsSupport";
 import Button from "../components/ui/Button";
 import { formatNaira } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import cloudinaryUrl, { IMAGE_WIDTHS } from "../utils/cloudinaryUrl";
 
 const sectionFadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -283,7 +284,7 @@ const KenlibsMyBooksPage = () => {
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
                             {req.itemCoverImage && (
-                              <img src={req.itemCoverImage} alt="" className="w-full h-full object-cover" />
+                              <img src={cloudinaryUrl(req.itemCoverImage, IMAGE_WIDTHS.thumb)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
@@ -443,7 +444,7 @@ const KenlibsMyBooksPage = () => {
                     >
                       <div className="w-10 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
                         {req.itemCoverImage && (
-                          <img src={req.itemCoverImage} alt="" className="w-full h-full object-cover" />
+                          <img src={cloudinaryUrl(req.itemCoverImage, IMAGE_WIDTHS.thumb)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">

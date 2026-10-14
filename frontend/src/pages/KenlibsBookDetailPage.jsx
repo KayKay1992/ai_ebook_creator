@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 import useOpenGraphTags from "../hooks/useOpenGraphTags";
+import cloudinaryUrl, { IMAGE_WIDTHS } from "../utils/cloudinaryUrl";
 
 // A brief, purely cosmetic pause before navigating to checkout — turns an
 // instant jump into a deliberate press-and-go, via the Button's own
@@ -268,8 +269,12 @@ const KenlibsBookDetailPage = () => {
               <div className="mt-8 flex items-start gap-3 border-t border-gray-100 pt-6 max-w-xl">
                 {authorPhoto ? (
                   <img
-                    src={authorPhoto}
+                    src={cloudinaryUrl(authorPhoto, IMAGE_WIDTHS.thumb)}
                     alt=""
+                    width={44}
+                    height={44}
+                    loading="lazy"
+                    decoding="async"
                     className="w-11 h-11 rounded-full object-cover flex-shrink-0"
                   />
                 ) : (

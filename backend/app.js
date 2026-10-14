@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const authRoutes = require('./routes/authRoute');
 const bookRoutes = require('./routes/bookRoute');
 const aiRoutes = require('./routes/aiRoute');
@@ -78,6 +79,20 @@ const isOriginAllowed = (origin) => {
     if (ORIGIN_PATTERN && ORIGIN_PATTERN.test(origin)) return true;
     return false;
 };
+
+// Uptime-monitor ping target — mounted before CORS and compression, and never
+// touches Mongo, so it answers in ~1ms even when the DB is slow or down.
+// Pinging it every few minutes keeps Render's free tier from sleeping the
+// instance (a cold start is a 30-60s wait on the first storefront request).
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ ok: true });
+});
+
+// gzip/deflate for JSON + HTML responses above compression's default 1KB
+// threshold — the storefront payload (every published book's cover
+// design) shrinks several-fold. Skips already-compressed or streamed
+// binary downloads like PDF/DOCX/EPUB exports via its default filter.
+app.use(compression());
 
 //middleware to handle CORS
 app.use(cors({

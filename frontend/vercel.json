@@ -1,7 +1,27 @@
 {
   "rewrites": [
-    { "source": "/kenlibs/book/:id", "destination": "https://kenlibs-backend.onrender.com/kenlibs/book/:id" },
-    { "source": "/kenlibs/bundle/:id", "destination": "https://kenlibs-backend.onrender.com/kenlibs/bundle/:id" },
+    {
+      "source": "/kenlibs/book/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(WhatsApp|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|Pinterest).*"
+        }
+      ],
+      "destination": "https://kenlibs-backend.onrender.com/kenlibs/book/:id"
+    },
+    {
+      "source": "/kenlibs/bundle/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(WhatsApp|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|Pinterest).*"
+        }
+      ],
+      "destination": "https://kenlibs-backend.onrender.com/kenlibs/bundle/:id"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

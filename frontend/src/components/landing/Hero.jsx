@@ -1,7 +1,7 @@
 import { ArrowRight, Sparkles, BookOpen, Zap } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
-import HERO_IMAGE from "../../assets/hero_img.jpg";
+import HERO_IMAGE from "../../assets/hero_img.webp";
 
 const Hero = () => {
   const { isAuthenticated } = useAuth();
@@ -84,6 +84,11 @@ const Hero = () => {
                 <img
                   src={HERO_IMAGE}
                   alt="AI Ebook Creation Dashboard"
+                  width={784}
+                  height={1168}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
                   className="w-full h-auto rounded-3xl"
                 />
 

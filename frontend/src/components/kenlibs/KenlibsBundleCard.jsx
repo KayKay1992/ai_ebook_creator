@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Package } from "lucide-react";
 import { formatNaira } from "../../utils/kenlibsPricing";
+import cloudinaryUrl, { IMAGE_WIDTHS } from "../../utils/cloudinaryUrl";
 
 const miniCoverUrl = (book) =>
   book?.coverDesign?.front?.backgroundImage || book?.coverImage || null;
@@ -28,8 +29,10 @@ const KenlibsBundleCard = ({ bundle }) => {
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl bg-gray-100 shadow-sm group-hover:shadow-xl transition-shadow duration-300">
           {bundle.coverImage ? (
             <img
-              src={bundle.coverImage}
+              src={cloudinaryUrl(bundle.coverImage, IMAGE_WIDTHS.card)}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : previewBooks.length > 0 ? (
@@ -38,8 +41,10 @@ const KenlibsBundleCard = ({ bundle }) => {
                 <div key={b._id} className="relative overflow-hidden bg-gray-800">
                   {miniCoverUrl(b) && (
                     <img
-                      src={miniCoverUrl(b)}
+                      src={cloudinaryUrl(miniCoverUrl(b), IMAGE_WIDTHS.thumb * 2)}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="absolute inset-0 w-full h-full object-cover"
                     />
                   )}

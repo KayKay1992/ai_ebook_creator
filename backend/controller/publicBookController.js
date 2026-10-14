@@ -34,12 +34,15 @@ const KENLIBS_BOOK_PREVIEW_FIELDS = "title coverImage coverDesign";
 //         plus every for-sale bundle.
 //@route   GET /api/public/kenlibs
 //@access  Public — no auth.
+// Both queries are .lean(): this is a read-only JSON response, so there's
+// no need to hydrate every book/bundle into a full Mongoose document first.
 const getKenlibsStorefront = async (req, res) => {
   try {
     const [books, bundles] = await Promise.all([
       Book.find({ status: "published" })
         .select(KENLIBS_BOOK_FIELDS)
-        .sort({ createdAt: -1 }),
+        .sort({ createdAt: -1 })
+        .lean(),
       Bundle.find({ isForSale: true })
         .select("title description coverImage price books")
         .populate({
@@ -49,7 +52,8 @@ const getKenlibsStorefront = async (req, res) => {
           // don't surface it in the storefront preview, since there's
           // nowhere for a shopper to click through to it.
           match: { status: "published" },
-        }),
+        })
+        .lean(),
     ]);
 
     res.status(200).json({ books, bundles });

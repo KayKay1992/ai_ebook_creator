@@ -1,46 +1,62 @@
-import React from "react";
+import { Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AdminRoute from "./components/auth/AdminRoute";
 import ReaderRoute from "./components/auth/ReaderRoute";
-import LoginPage from "./pages/LoginPage";
-import SignupPage from "./pages/SignupPage";
-import DashboardPage from "./pages/DashboardPage";
-import ProfilePage from "./pages/ProfilePage";
-import EditorPage from "./pages/EditorPage";
-import CoverDesignerPage from "./pages/CoverDesignerPage";
-import ViewBookPage from "./pages/ViewBookPage";
-import ReadBookPage from "./pages/ReadBookPage";
-import AdminBundlesPage from "./pages/AdminBundlesPage";
-import AdminPurchasesPage from "./pages/AdminPurchasesPage";
 import KenlibsPage from "./pages/KenlibsPage";
-import KenlibsBookDetailPage from "./pages/KenlibsBookDetailPage";
-import KenlibsBundleDetailPage from "./pages/KenlibsBundleDetailPage";
-import KenlibsLoginPage from "./pages/KenlibsLoginPage";
-import KenlibsSignupPage from "./pages/KenlibsSignupPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import KenlibsForgotPasswordPage from "./pages/KenlibsForgotPasswordPage";
-import KenlibsResetPasswordPage from "./pages/KenlibsResetPasswordPage";
-import KenlibsCheckoutPage from "./pages/KenlibsCheckoutPage";
-import KenlibsMyBooksPage from "./pages/KenlibsMyBooksPage";
-import KenlibsReferralsPage from "./pages/KenlibsReferralsPage";
-import KenlibsReadPage from "./pages/KenlibsReadPage";
-import KenlibsTermsPage from "./pages/KenlibsTermsPage";
-import KenlibsPrivacyPage from "./pages/KenlibsPrivacyPage";
-import KenlibsRefundPolicyPage from "./pages/KenlibsRefundPolicyPage";
-import KenlibsSupportPage from "./pages/KenlibsSupportPage";
-import AdminUsersPage from "./pages/AdminUsersPage";
-import AdminAnalyticsPage from "./pages/AdminAnalyticsPage";
-import AdminReviewsPage from "./pages/AdminReviewsPage";
-import AdminPaymentSettingsPage from "./pages/AdminPaymentSettingsPage";
-import AdminClientBooksPage from "./pages/AdminClientBooksPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
+import lazyWithRetry from "./utils/lazyWithRetry";
+
+// Code-split per page: each route below loads its own chunk on first visit,
+// so a storefront visitor never downloads the admin editor (markdown editor,
+// drag-and-drop) or any other admin-only surface. KenlibsPage is the one
+// exception — "/" redirects straight to it, so it's the first page nearly
+// every visitor sees, and it stays in the main bundle alongside
+// KenlibsThemeLayout rather than costing an extra round trip before
+// anything renders.
+const LoginPage = lazyWithRetry(() => import("./pages/LoginPage"));
+const SignupPage = lazyWithRetry(() => import("./pages/SignupPage"));
+const DashboardPage = lazyWithRetry(() => import("./pages/DashboardPage"));
+const ProfilePage = lazyWithRetry(() => import("./pages/ProfilePage"));
+const EditorPage = lazyWithRetry(() => import("./pages/EditorPage"));
+const CoverDesignerPage = lazyWithRetry(() => import("./pages/CoverDesignerPage"));
+const ViewBookPage = lazyWithRetry(() => import("./pages/ViewBookPage"));
+const ReadBookPage = lazyWithRetry(() => import("./pages/ReadBookPage"));
+const AdminBundlesPage = lazyWithRetry(() => import("./pages/AdminBundlesPage"));
+const AdminPurchasesPage = lazyWithRetry(() => import("./pages/AdminPurchasesPage"));
+const KenlibsBookDetailPage = lazyWithRetry(() => import("./pages/KenlibsBookDetailPage"));
+const KenlibsBundleDetailPage = lazyWithRetry(() => import("./pages/KenlibsBundleDetailPage"));
+const KenlibsLoginPage = lazyWithRetry(() => import("./pages/KenlibsLoginPage"));
+const KenlibsSignupPage = lazyWithRetry(() => import("./pages/KenlibsSignupPage"));
+const ForgotPasswordPage = lazyWithRetry(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazyWithRetry(() => import("./pages/ResetPasswordPage"));
+const KenlibsForgotPasswordPage = lazyWithRetry(() => import("./pages/KenlibsForgotPasswordPage"));
+const KenlibsResetPasswordPage = lazyWithRetry(() => import("./pages/KenlibsResetPasswordPage"));
+const KenlibsCheckoutPage = lazyWithRetry(() => import("./pages/KenlibsCheckoutPage"));
+const KenlibsMyBooksPage = lazyWithRetry(() => import("./pages/KenlibsMyBooksPage"));
+const KenlibsReferralsPage = lazyWithRetry(() => import("./pages/KenlibsReferralsPage"));
+const KenlibsReadPage = lazyWithRetry(() => import("./pages/KenlibsReadPage"));
+const KenlibsTermsPage = lazyWithRetry(() => import("./pages/KenlibsTermsPage"));
+const KenlibsPrivacyPage = lazyWithRetry(() => import("./pages/KenlibsPrivacyPage"));
+const KenlibsRefundPolicyPage = lazyWithRetry(() => import("./pages/KenlibsRefundPolicyPage"));
+const KenlibsSupportPage = lazyWithRetry(() => import("./pages/KenlibsSupportPage"));
+const AdminUsersPage = lazyWithRetry(() => import("./pages/AdminUsersPage"));
+const AdminAnalyticsPage = lazyWithRetry(() => import("./pages/AdminAnalyticsPage"));
+const AdminReviewsPage = lazyWithRetry(() => import("./pages/AdminReviewsPage"));
+const AdminPaymentSettingsPage = lazyWithRetry(() => import("./pages/AdminPaymentSettingsPage"));
+const AdminClientBooksPage = lazyWithRetry(() => import("./pages/AdminClientBooksPage"));
+
+const PageFallback = () => (
+  <div className="min-h-screen flex items-center justify-center" role="status" aria-label="Loading">
+    <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-accent animate-spin" />
+  </div>
+);
 
 const App = () => {
   return (
     <div>
       <OfflineBanner />
+      <Suspense fallback={<PageFallback />}>
       <Routes>
         {/* "/" is the app's entry point for a logged-out visitor — redirects
             straight to the Kenlibs storefront so no one lands on AI-creator
@@ -112,6 +128,7 @@ const App = () => {
           <Route path='/admin/payment-settings' element={<AdminRoute><AdminPaymentSettingsPage /></AdminRoute>} />
           <Route path='/admin/client-books' element={<AdminRoute><AdminClientBooksPage /></AdminRoute>} />
       </Routes>
+      </Suspense>
     </div>
   );
 };

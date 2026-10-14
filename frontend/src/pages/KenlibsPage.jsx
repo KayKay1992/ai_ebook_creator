@@ -11,7 +11,7 @@ import KenlibsCardSkeleton from "../components/kenlibs/KenlibsCardSkeleton";
 import KenlibsSearchBar from "../components/kenlibs/KenlibsSearchBar";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 import { useAuth } from "../context/AuthContext";
-import kenlibsHero from "../assets/kenlibs-hero.png";
+import kenlibsHero from "../assets/kenlibs-hero.webp";
 
 const heroFadeUp = {
   hidden: { opacity: 0, y: 16 },

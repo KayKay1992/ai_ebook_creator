@@ -210,4 +210,10 @@ const bookSchema = new mongoose.Schema({
     }
 );
 
+// Backs the Kenlibs storefront query (publicBookController.js's
+// getKenlibsStorefront: find({ status: 'published' }).sort({ createdAt: -1 }))
+// so it's an index scan in already-sorted order instead of a full
+// collection scan plus in-memory sort over every book, drafts included.
+bookSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Book', bookSchema);

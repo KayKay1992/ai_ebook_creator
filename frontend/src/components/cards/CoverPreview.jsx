@@ -1,3 +1,5 @@
+import cloudinaryUrl, { IMAGE_WIDTHS } from "../../utils/cloudinaryUrl";
+
 // Text sizing per consumer — the dashboard grid card and the larger editor
 // preview need different scales even though both are the same 2:3 shape.
 const SIZE_STYLES = {
@@ -36,6 +38,16 @@ const SIZE_STYLES = {
   },
 };
 
+// Image delivery per size: grid/card sizes get a card-width Cloudinary
+// rendition and lazy-load (they're usually in a scrolling row or below the
+// fold); "lg" is the detail page's above-the-fold hero cover, so it loads
+// eagerly at a larger width.
+const IMAGE_DELIVERY = {
+  sm: { width: IMAGE_WIDTHS.card, loading: "lazy" },
+  md: { width: IMAGE_WIDTHS.card, loading: "lazy" },
+  lg: { width: IMAGE_WIDTHS.detail, loading: "eager" },
+};
+
 // Back cover always renders on a dark solid ground — matches the printing
 // convention (light body copy on a dark or muted panel) regardless of the
 // front cover's own background choice.
@@ -53,6 +65,8 @@ const CoverPreview = ({
   className = "",
 }) => {
   const s = SIZE_STYLES[size] || SIZE_STYLES.md;
+  const delivery = IMAGE_DELIVERY[size] || IMAGE_DELIVERY.md;
+  const imgProps = { loading: delivery.loading, decoding: "async" };
   // Crisp near-shadow to keep glyph edges sharp, plus a softer, more spread
   // ambient shadow beneath for depth — reads as set typography rather than
   // text with a single heavy blur sitting on top of the background.
@@ -105,7 +119,8 @@ const CoverPreview = ({
       return (
         <div className={`relative aspect-[2/3] w-full overflow-hidden ${rounded} bg-gray-200 ${className}`}>
           <img
-            src={render3D.backImage}
+            src={cloudinaryUrl(render3D.backImage, delivery.width)}
+            {...imgProps}
             alt=""
             className="absolute inset-0 w-full h-full object-cover"
             onError={(e) => {
@@ -149,7 +164,9 @@ const CoverPreview = ({
         <div className="mt-auto flex items-center gap-2 border-t border-white/10 pt-3">
           {back.authorPhoto ? (
             <img
-              src={back.authorPhoto}
+              src={cloudinaryUrl(back.authorPhoto, IMAGE_WIDTHS.thumb)}
+              loading="lazy"
+              decoding="async"
               alt=""
               className={`${s.avatar} rounded-full object-cover flex-shrink-0`}
             />
@@ -173,7 +190,8 @@ const CoverPreview = ({
     return (
       <div className={`relative aspect-[2/3] w-full overflow-hidden ${rounded} bg-gray-200 ${className}`}>
         <img
-          src={render3D.frontImage}
+          src={cloudinaryUrl(render3D.frontImage, delivery.width)}
+          {...imgProps}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
           onError={(e) => {
@@ -197,7 +215,8 @@ const CoverPreview = ({
     >
       {useImage && (
         <img
-          src={coverImageUrl}
+          src={cloudinaryUrl(coverImageUrl, delivery.width)}
+          {...imgProps}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
           onError={(e) => {
