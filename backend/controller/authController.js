@@ -193,24 +193,26 @@ const forgotPassword = async (req, res) => {
 
         const user = await User.findOne({ email });
         if (user) {
-            try {
-                const resetToken = await generateResetToken(user);
-                await sendPasswordResetEmail({ to: user.email, resetLink: buildResetLink(resetToken) });
-            } catch (emailError) {
-                // The token is already saved on the user regardless — if
-                // the email genuinely never arrives, it just goes unused
-                // and expires normally in an hour. Logged, not surfaced:
-                // a different response here (e.g. "email failed to send")
-                // would itself leak that this address has an account,
-                // defeating the enumeration protection above.
-                console.error('Failed to send password reset email:', emailError);
-            }
+            const resetToken = await generateResetToken(user);
+            // Deliberately NOT awaited: the response never waits on the
+            // email provider. Awaiting it is what made this endpoint hang
+            // when SMTP was blocked, and it also leaked account existence
+            // through response timing (unknown emails returned instantly,
+            // real ones waited on the send). The token is already saved —
+            // if the email never arrives, it just expires in an hour.
+            // Logged, not surfaced: a different response (e.g. "email failed
+            // to send") would itself leak that this address has an account.
+            sendPasswordResetEmail({ to: user.email, resetLink: buildResetLink(resetToken) })
+                .catch((emailError) => {
+                    console.error(`[forgotPassword] Failed to send password reset email to user ${user._id}:`, emailError.message);
+                });
         }
 
         res.status(200).json({
             message: 'If an account exists for that email, a password reset link has been sent.',
         });
     } catch (error) {
+        console.error('[forgotPassword] Unexpected error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

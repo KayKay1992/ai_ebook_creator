@@ -120,6 +120,28 @@ describe('self-service password reset — full round trip', () => {
         expect(await readTokenFor(email)).toEqual(expect.any(String));
     });
 
+    it('responds immediately even if the email provider hangs and never settles', async () => {
+        // A promise that never resolves — what a blocked SMTP port looked
+        // like before the timeouts. The response must not wait on it.
+        sendPasswordResetEmail.mockReturnValueOnce(new Promise(() => {}));
+        const email = uniqueEmail('email-hangs');
+        await createUser({ email, password: 'OldPass123' });
+
+        const started = Date.now();
+        const res = await request(app).post('/api/auth/forgot-password').send({ email });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toMatch(/if an account exists/i);
+        expect(Date.now() - started).toBeLessThan(5000);
+        expect(sendPasswordResetEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a request with no email', async () => {
+        const res = await request(app).post('/api/auth/forgot-password').send({});
+        expect(res.status).toBe(400);
+        expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+    });
+
     it('rejects a new password shorter than 6 characters', async () => {
         const email = uniqueEmail('short-pw');
         await createUser({ email, password: 'OldPass123' });

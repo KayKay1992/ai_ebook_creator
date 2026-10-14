@@ -28,7 +28,7 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 
 ## Environment
 
-Backend expects a `.env` file in `backend/` (gitignored, see `backend/.env.example`) with at least: `PORT` (8000 in dev; Render sets this itself in production), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below), `GMAIL_USER`, `GMAIL_APP_PASSWORD` (password reset emails — see below).
+Backend expects a `.env` file in `backend/` (gitignored, see `backend/.env.example`) with at least: `PORT` (8000 in dev; Render sets this itself in production), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below), `BREVO_API_KEY` + `EMAIL_FROM` (password reset emails via Brevo's HTTPS API — required on Render, whose free tier blocks outbound SMTP), or `GMAIL_USER` + `GMAIL_APP_PASSWORD` as an SMTP fallback for local dev (`utils/sendEmail.js` picks Brevo when `BREVO_API_KEY` is set).
 
 `FRONTEND_URL` (defaults to `http://localhost:5173` if unset) is the single canonical production frontend URL, used only for building password reset email links (`authController.js`'s `buildResetLink`) and the OG-preview crawler redirect (`routes/ogPreviewRoute.js`) — both contexts where "one real answer" is what's needed, not a set.
 

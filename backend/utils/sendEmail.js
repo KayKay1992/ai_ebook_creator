@@ -1,38 +1,114 @@
 const nodemailer = require('nodemailer');
 
-// INTERIM SOLUTION, NOT THE FINAL ONE — sends through a personal Gmail
-// account (an app password, not OAuth) rather than a dedicated
-// transactional email provider, because a verifiable custom domain isn't
-// available yet. This genuinely delivers mail, but has real limits worth
-// knowing about: Gmail's SMTP relay isn't meant for application traffic
-// and rate-limits accordingly, and mail from a personal @gmail.com address
-// can't carry this app's own SPF/DKIM/DMARC alignment, so it's more likely
-// to be flagged as spam than mail from a verified sending domain. Swap
-// this transport for a real provider (Resend, Postmark, SendGrid, etc.)
-// once a custom domain exists — everything that calls sendEmail()/
-// sendPasswordResetEmail() below is already decoupled from the transport
-// itself, so that swap should only ever touch this one file.
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-    },
-});
+// Two transports, picked at send time:
+//
+// 1. Brevo's HTTPS API (BREVO_API_KEY + EMAIL_FROM) — the production path.
+//    Render's free tier blocks outbound SMTP (ports 25/465/587), so the old
+//    Gmail SMTP transport could never connect there: the TCP connect was
+//    silently dropped and, with nodemailer's default 2-minute connect / 10-
+//    minute socket timeouts, every forgot-password request just hung. An
+//    HTTPS API goes out over 443 like any other request. Brevo rather than
+//    Resend because Brevo can send from a single verified sender address
+//    (e.g. a Gmail address) without a verified custom domain, which this
+//    app doesn't have yet.
+// 2. Gmail SMTP (GMAIL_USER + GMAIL_APP_PASSWORD) — fallback for local dev
+//    or any host that does allow outbound SMTP. Same deliverability caveats
+//    as before (personal Gmail, no SPF/DKIM alignment for this app).
+//
+// Both transports have hard timeouts, so a send always settles (resolves or
+// throws) within a bounded time instead of hanging the caller. Everything
+// that calls sendEmail()/sendPasswordResetEmail() is decoupled from the
+// transport, so swapping providers only ever touches this file.
 
-//@desc  Low-level send — callers provide subject/html/text directly.
-//       Throws on failure; callers decide how to handle that (see
-//       authController.js/adminController.js's password reset flows for
-//       two different, deliberate answers to "what happens if this
-//       throws").
-const sendEmail = async ({ to, subject, html, text }) => {
-    await transporter.sendMail({
+const SEND_TIMEOUT_MS = 10000;
+const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
+
+let smtpTransporter = null;
+const getSmtpTransporter = () => {
+    if (!smtpTransporter) {
+        smtpTransporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.GMAIL_USER,
+                pass: process.env.GMAIL_APP_PASSWORD,
+            },
+            connectionTimeout: SEND_TIMEOUT_MS,
+            greetingTimeout: SEND_TIMEOUT_MS,
+            socketTimeout: SEND_TIMEOUT_MS,
+        });
+    }
+    return smtpTransporter;
+};
+
+const getTransportName = () => {
+    if (process.env.BREVO_API_KEY) return 'brevo';
+    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) return 'smtp';
+    return null;
+};
+
+const sendViaBrevo = async ({ to, subject, html, text }) => {
+    const senderEmail = process.env.EMAIL_FROM || process.env.GMAIL_USER;
+    if (!senderEmail) {
+        throw new Error('[sendEmail] BREVO_API_KEY is set but EMAIL_FROM is missing — set it to a sender address verified in Brevo.');
+    }
+
+    let response;
+    try {
+        response = await fetch(BREVO_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'api-key': process.env.BREVO_API_KEY,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({
+                sender: { name: 'Kenlibs', email: senderEmail },
+                to: [{ email: to }],
+                subject,
+                htmlContent: html,
+                textContent: text,
+            }),
+            signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        });
+    } catch (error) {
+        if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+            throw new Error(`[sendEmail] Brevo request timed out after ${SEND_TIMEOUT_MS}ms`);
+        }
+        throw new Error(`[sendEmail] Brevo request failed: ${error.message}`);
+    }
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(`[sendEmail] Brevo responded ${response.status}: ${body}`);
+    }
+};
+
+const sendViaSmtp = async ({ to, subject, html, text }) => {
+    await getSmtpTransporter().sendMail({
         from: `"Kenlibs" <${process.env.GMAIL_USER}>`,
         to,
         subject,
         html,
         text,
     });
+};
+
+// Fail loudly at startup (outside tests) rather than only discovering a
+// missing config when a user tries to reset their password.
+if (process.env.NODE_ENV !== 'test' && !getTransportName()) {
+    console.error('[sendEmail] No email transport configured — set BREVO_API_KEY + EMAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD for local SMTP). Password reset emails will fail.');
+}
+
+//@desc  Low-level send — callers provide subject/html/text directly.
+//       Throws on failure (including timeouts and missing config); callers
+//       decide how to handle that (see authController.js/adminController.js's
+//       password reset flows for two different, deliberate answers to "what
+//       happens if this throws").
+const sendEmail = async (message) => {
+    const transport = getTransportName();
+    if (transport === 'brevo') return sendViaBrevo(message);
+    if (transport === 'smtp') return sendViaSmtp(message);
+    throw new Error('[sendEmail] No email transport configured — set BREVO_API_KEY + EMAIL_FROM (or GMAIL_USER + GMAIL_APP_PASSWORD).');
 };
 
 // Shared HTML wrapper — terracotta/navy branding (Step 47's palette), a

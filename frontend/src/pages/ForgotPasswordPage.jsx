@@ -29,8 +29,15 @@ const ForgotPasswordPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axiosInstance.post(API_PATHS.AUTH.FORGOT_PASSWORD, { email });
+      // Short per-request timeout (the shared instance allows 2 minutes for
+      // AI calls) so the spinner can never hang on a slow backend.
+      await axiosInstance.post(
+        API_PATHS.AUTH.FORGOT_PASSWORD,
+        { email },
+        { timeout: 20000 }
+      );
       setIsSubmitted(true);
+      toast.success("If that email exists, a reset link has been sent");
     } catch (error) {
       toast.error(getErrorMessage(error, "Couldn't request a password reset"));
     } finally {
