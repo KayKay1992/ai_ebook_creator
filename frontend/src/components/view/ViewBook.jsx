@@ -77,6 +77,8 @@ const ViewBook = forwardRef(function ViewBook(
 
   useImperativeHandle(ref, () => ({
     goToNextChapter: () => changeChapter((i) => Math.min(chapters.length - 1, i + 1)),
+    // Used by the audiobook player to keep the page on the chapter it's playing.
+    goToChapter: (index) => changeChapter(Math.min(Math.max(index, 0), chapters.length - 1)),
   }));
 
   const changeChapter = (updater) => {

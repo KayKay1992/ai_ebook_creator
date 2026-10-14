@@ -25,6 +25,10 @@ export const API_PATHS = {
     UPLOAD_COVER_DESIGN_AUTHOR_PHOTO: "/api/books/cover-design/author-photo",
     UPLOAD_RENDER3D_FRONT_IMAGE: "/api/books/cover-design/render3d-front",
     UPLOAD_RENDER3D_BACK_IMAGE: "/api/books/cover-design/render3d-back",
+    AUDIO_STATUS: (bookId) => `/api/books/${bookId}/audio`,
+    AUDIO_GENERATE: (bookId) => `/api/books/${bookId}/audio/generate`,
+    AUDIO_PREVIEW: (bookId) => `/api/books/${bookId}/audio/preview`,
+    AUDIO_DELETE: (bookId, chapterId) => `/api/books/${bookId}/audio/${chapterId}`,
   },
   PUBLIC: {
     GET_BOOK_BY_SHARE_ID: "/api/public/books",
@@ -66,6 +70,7 @@ export const API_PATHS = {
     RATINGS: (bookId) => `/api/kenlibs/ratings/${bookId}`,
     MY_RATING: (bookId) => `/api/kenlibs/ratings/${bookId}/mine`,
     ACCESS: (bookId) => `/api/kenlibs/access/${bookId}`,
+    AUDIO: (bookId) => `/api/kenlibs/audio/${bookId}`,
     MY_ACCESS_MAP: "/api/kenlibs/my-access-map",
     PAYMENT_DETAILS: "/api/kenlibs/payment-details",
   },

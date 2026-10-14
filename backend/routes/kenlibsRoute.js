@@ -13,6 +13,7 @@ const {
     getBookAccess,
     getMyAccessMap,
     getCheckoutPaymentDetails,
+    getBookAudio,
 } = require('../controller/kenlibsController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -46,6 +47,7 @@ router.get('/payment-details', getCheckoutPaymentDetails);
 router.get('/my-access-map', getMyAccessMap);
 router.get('/access/:bookId', getBookAccess);
 router.get('/read/:bookId', readBook);
+router.get('/audio/:bookId', getBookAudio);
 router.get('/progress/:bookId', getProgress);
 router.put('/progress/:bookId', updateProgress);
 router.get('/certificate/:bookId', getCertificate);

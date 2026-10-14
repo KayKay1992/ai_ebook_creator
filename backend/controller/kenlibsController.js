@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const PDFDocument = require('pdfkit');
 const { GoogleGenAI } = require('@google/genai');
 const Book = require('../models/Book');
@@ -8,6 +9,8 @@ const Rating = require('../models/Rating');
 const User = require('../models/User');
 const { fetchImageBuffer } = require('./exportController');
 const { renderCertificate } = require('../utils/certificateRenderer');
+const { playableAudioEntries } = require('../utils/audioSummary');
+const { signedAudioUrl } = require('../utils/audioStorage');
 
 // Separate client instance from aiController.js's — same SDK/API key, but
 // deliberately not imported from there: aiController's endpoints all check
@@ -172,6 +175,53 @@ const readBook = async (req, res) => {
         // The book exists — deliberately 403, not 404, but no book data in
         // the response body beyond a plain message.
         return res.status(403).json({ message: "You don't have access to this book" });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+//@desc    Audiobook narration for a book the reader can read: every chapter
+//         with playable audio, in book order, each with a short-lived
+//         signed URL (AUDIO_URL_TTL_SECONDS, default 1 hour). Same access
+//         rule as readBook (hasBookAccess; admins always have access). The
+//         player calls this again for fresh URLs when one expires. Never
+//         cached, and never exposes the storage publicId.
+//@route   GET /api/kenlibs/audio/:bookId
+//@access  Private — 403 without access, 404 if the book has no audio.
+const getBookAudio = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.bookId)) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+        const book = await Book.findById(req.params.bookId).select('chapters._id chapters.title audio.chapters');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+        if (!(await hasBookAccess(req.user, book._id))) {
+            return res.status(403).json({ message: "You don't have access to this book" });
+        }
+
+        const entries = new Map(playableAudioEntries(book).map((entry) => [String(entry.chapterId), entry]));
+        const chapters = [];
+        book.chapters.forEach((chapter, chapterIndex) => {
+            const entry = entries.get(String(chapter._id));
+            if (!entry) return;
+            const { url, expiresAt } = signedAudioUrl(entry.publicId);
+            chapters.push({
+                chapterId: String(chapter._id),
+                chapterIndex,
+                title: chapter.title,
+                durationSec: entry.durationSec,
+                url,
+                expiresAt,
+            });
+        });
+
+        if (chapters.length === 0) {
+            return res.status(404).json({ message: 'This book has no audio yet.' });
+        }
+        res.set('Cache-Control', 'no-store');
+        res.status(200).json({ chapters });
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
     }
@@ -600,4 +650,5 @@ module.exports = {
     getBookAccess,
     getMyAccessMap,
     getCheckoutPaymentDetails,
+    getBookAudio,
 };

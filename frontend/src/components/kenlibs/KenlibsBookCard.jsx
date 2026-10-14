@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Star, Check } from "lucide-react";
+import { Star, Check, Headphones } from "lucide-react";
 import FlipCover from "./FlipCover";
 import PriceBadge from "./PriceBadge";
 import { getBookBadge } from "../../utils/kenlibsPricing";
@@ -77,6 +77,14 @@ const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0, rating, owned = 
           <p className="text-xs text-gray-500 mt-0.5 truncate">
             {book.author || "Unknown Author"}
           </p>
+          {/* hasAudio comes from the storefront API: a flag only, never an
+              audio URL (see backend utils/audioSummary.js). */}
+          {book.hasAudio && (
+            <p className="flex items-center gap-1 mt-1 text-xs font-medium text-accent">
+              <Headphones className="w-3 h-3 flex-shrink-0" />
+              Includes audiobook
+            </p>
+          )}
           {/* Compact single-star + average + count (Step 44, point 5) —
               deliberately not the full 5-star StarRating used on the detail
               page, which would be too wide at this card's w-40/w-48. Only

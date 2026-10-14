@@ -5,6 +5,46 @@ const mongoose = require('mongoose');
 // actually reject an over-length update.
 const PREVIEW_CONTENT_MAX_LENGTH = 2000;
 
+// Mirrors utils/tts.js's DEFAULT_VOICE (not imported, to keep the model free
+// of the TTS client).
+const DEFAULT_AUDIO_VOICE = 'Sulafat';
+
+// One entry per chapter that has (or had) AI narration — see
+// utils/audioJobs.js for the lifecycle. Keyed by the chapter's _id, not its
+// index, so reordering chapters never mixes up their audio.
+//   queued → generating → ready | failed     (skipped: chapter has no text)
+// publicId is the authenticated Cloudinary asset. It's kept while a
+// regeneration is queued, running, or has failed, so the previous audio
+// stays playable until a replacement is uploaded. NEVER returned by any
+// public or reader endpoint: readers only get short-lived signed URLs from
+// GET /api/kenlibs/audio/:bookId, and the storefront only hasAudio + a count.
+const audioChapterSchema = new mongoose.Schema(
+    {
+        chapterId: { type: mongoose.Schema.Types.ObjectId, required: true },
+        status: {
+            type: String,
+            enum: ['queued', 'generating', 'ready', 'failed', 'skipped'],
+            required: true,
+        },
+        publicId: { type: String, default: '' },
+        durationSec: { type: Number, default: 0 },
+        bytes: { type: Number, default: 0 },
+        // sha256 of the exact narration text the audio was made from
+        // (utils/narrationText.js). Differs from the current text's hash →
+        // the chapter was edited afterwards → "Out of date" in the editor.
+        textHash: { type: String, default: '' },
+        voice: { type: String, default: '' },
+        charCount: { type: Number, default: 0 },
+        // 0..1 while generating (chunks done / total).
+        progress: { type: Number, default: 0 },
+        queuedAt: { type: Date },
+        startedAt: { type: Date },
+        generatedAt: { type: Date },
+        error: { type: String, default: '' },
+    },
+    { _id: false }
+);
+
 const chapterSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -81,6 +121,14 @@ const bookSchema = new mongoose.Schema({
         default: '',
     },
     chapters: [chapterSchema],
+    // AI audiobook narration (admin-generated, see audioController.js).
+    // Only ever changed through the audio endpoints and the background job
+    // — updateBook strips `audio` from the request body, since the editor
+    // PUTs the whole book back and would otherwise overwrite job state.
+    audio: {
+        voice: { type: String, default: DEFAULT_AUDIO_VOICE },
+        chapters: { type: [audioChapterSchema], default: [] },
+    },
     status: {
         type: String,
         enum: ['draft', 'published'],

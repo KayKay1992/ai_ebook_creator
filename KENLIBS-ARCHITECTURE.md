@@ -60,6 +60,32 @@ reviewed and saved by the admin. Only `GET /api/public/kenlibs/books/:id`
 returns it; the storefront listing doesn't. The other public text,
 `coverDesign.back.blurb`, is back-cover copy that comes with the cover design.
 
+```
+audio: {
+  voice: String,                       // default 'Sulafat'
+  chapters: [{ chapterId, status,      // queued | generating | ready | failed | skipped
+               publicId, durationSec, bytes, textHash, voice, charCount,
+               progress, queuedAt, startedAt, generatedAt, error }]
+}
+```
+
+`audio` is the AI audiobook narration (Gemini TTS → MP3 → Cloudinary). One
+entry per chapter, keyed by the chapter's `_id`. `textHash` is a sha256 of the
+exact narration text used, so the editor shows "Out of date" once the chapter
+is edited. `publicId` is an **authenticated** (non-public) Cloudinary asset in
+`ebook-creator/audio/<bookId>/`; it stays set while a regeneration is queued,
+running or failed, so the old audio keeps playing until a replacement is
+uploaded.
+
+**Rule: never expose `publicId` or any audio URL from a public endpoint.** The
+storefront listing and `GET /api/public/kenlibs/books/:id` only add
+`hasAudio` and `audioChapterCount` (`utils/audioSummary.js`). The only source
+of playable URLs is `GET /api/kenlibs/audio/:bookId`, gated by
+`hasBookAccess` exactly like `readBook`, which returns short-lived signed
+`private_download_url` links (default 1 hour, `AUDIO_URL_TTL_SECONDS`). The
+service worker never caches audio. There's no separate audio price: the admin
+prices a book with narration higher.
+
 ### `Bundle` (new model)
 ```
 title: String, required
@@ -132,11 +158,17 @@ client-side, since that's the actual security boundary.
 ```
 /kenlibs/checkout/:type/:id    upload payment evidence, submit PurchaseRequest
 /kenlibs/my-books               reader's approved purchases + pending requests
-/kenlibs/read/:bookId           gated reading view (server-verifies access)
+/kenlibs/read/:bookId           gated reading view (server-verifies access);
+                                also hosts the audiobook player when the book has
+                                narration (GET /api/kenlibs/audio/:bookId)
 ```
 
 ### New — admin only
 ```
+/editor/:bookId → Audiobook tab   narration: voice + preview, per-chapter
+                        generate/regenerate/delete, "Generate all missing"
+                        (API: /api/books/:id/audio, .../generate, .../preview,
+                        .../:chapterId)
 /admin/purchases        pending requests queue, approve/reject, view evidence
 /admin/users             all registered readers + what they've purchased
 ```

@@ -3,6 +3,7 @@ const { PREVIEW_CONTENT_MAX_LENGTH } = Book;
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const generateShareId = require('../utils/shareId');
 const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
+const { deleteAudioAsset } = require('../utils/audioStorage');
 
 //@desc    Create a new book
 //@route   POST /api/books
@@ -46,7 +47,8 @@ const createBook = async (req, res) => {
 //@access  Private
 const getBooks = async (req, res) => {
     try {
-        const books = await Book.find({ userId: req.user._id }).sort({ createdAt: -1 });
+        // `audio` has its own endpoints (audioController.js) and isn't needed here.
+        const books = await Book.find({ userId: req.user._id }).select('-audio').sort({ createdAt: -1 });
         res.status(200).json(books);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
@@ -58,7 +60,9 @@ const getBooks = async (req, res) => {
 //@access  Private
 const getBookById = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.id);
+        // Without `audio`: the editor loads it from GET /api/books/:id/audio,
+        // and leaving it out keeps it from being sent back on every save.
+        const book = await Book.findById(req.params.id).select('-audio');
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
@@ -85,6 +89,9 @@ const updateBook = async (req, res) => {
         }
 
         const updates = { ...req.body };
+        // Narration state belongs to the audio endpoints and the background
+        // job; a whole-book PUT from the editor must never overwrite it.
+        delete updates.audio;
 
         if (updates.previewContent !== undefined) {
             if (typeof updates.previewContent !== 'string') {
@@ -126,8 +133,17 @@ const deleteBook = async (req, res) => {
         if (book.userId.toString() !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
+        const audioPublicIds = (book.audio?.chapters || []).map((entry) => entry.publicId).filter(Boolean);
         await book.deleteOne();
         res.status(200).json({ message: 'Book removed' });
+
+        // Remove its narration files too. After responding, and each failure
+        // only logged: the book is already gone either way.
+        audioPublicIds.forEach((publicId) =>
+            deleteAudioAsset(publicId).catch((error) =>
+                console.error(`[deleteBook] Couldn't delete audio ${publicId} of book ${book._id}:`, error.message)
+            )
+        );
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
     }

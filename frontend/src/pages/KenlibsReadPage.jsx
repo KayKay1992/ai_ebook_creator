@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import MDEditor from "@uiw/react-md-editor";
@@ -16,6 +16,10 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 import useListenMode from "../hooks/useListenMode";
 import { buildSpeechBlocks } from "../utils/speechText";
 import getErrorMessage from "../utils/getErrorMessage";
+
+// Only downloaded when the book actually has AI narration (see audioData
+// below), so readers of books without audio never load it.
+const AudiobookPlayer = lazy(() => import("../components/kenlibs/AudiobookPlayer"));
 
 // Short debounces (adapted from Step 2's autosave pattern, not reused
 // verbatim — different data shape and no book-wide save-state banner here)
@@ -86,6 +90,15 @@ const KenlibsReadPage = () => {
   const [isNotepadOpen, setIsNotepadOpen] = useState(false);
   const [notesSaveStatus, setNotesSaveStatus] = useState("saved"); // saved | saving | unsaved
   const [isListenModeOn, setIsListenModeOn] = useState(false);
+  // AI narration for this book ({ chapters: [...] } with signed URLs), or
+  // null if it has none. Separate from the browser-voice Listen Mode,
+  // which stays the fallback for chapters without narration.
+  const [audioData, setAudioData] = useState(null);
+  const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
+  // The chapter on screen, as state (currentChapterIndexRef below is the
+  // same value for callbacks) so the audiobook player can follow it.
+  const [visibleChapterIndex, setVisibleChapterIndex] = useState(0);
+  const audiobookPlayerRef = useRef(null);
   const [isDownloadingCertificate, setIsDownloadingCertificate] = useState(false);
   // Step 36: the word/phrase explanation popup. null = closed. `key` forces
   // WordExplainPopup to remount (and re-run its dictionary lookup) on every
@@ -189,6 +202,8 @@ const KenlibsReadPage = () => {
       setIsListenModeOn(false);
       listenMode.stop();
     } else {
+      // Never two voices at once.
+      audiobookPlayerRef.current?.pause();
       setIsListenModeOn(true);
       // Only resume mid-chapter if the reader hasn't navigated away from
       // the chapter this position was saved for — otherwise a block index
@@ -200,6 +215,31 @@ const KenlibsReadPage = () => {
       resumeBlockIndexRef.current = 0;
       speakChapter(currentChapterIndexRef.current, startBlock);
     }
+  };
+
+  // Audiobook player hooks. The player and Listen Mode never play together:
+  // starting one stops the other.
+  const refreshAudio = useCallback(
+    () => axiosInstance.get(API_PATHS.KENLIBS.AUDIO(bookId)).then((res) => res.data),
+    [bookId]
+  );
+
+  const handleAudiobookPlaybackStart = () => {
+    if (isListenModeOn) {
+      setIsListenModeOn(false);
+      listenMode.stop();
+    }
+  };
+
+  // Offered by the player for a chapter that has no narration.
+  const handleUseListenModeForChapter = (index) => {
+    if (currentChapterIndexRef.current !== index) {
+      viewBookRef.current?.goToChapter(index);
+    }
+    currentChapterIndexRef.current = index;
+    resumeBlockIndexRef.current = 0;
+    setIsListenModeOn(true);
+    speakChapter(index);
   };
 
   // Step 36: fires on mouseup inside the chapter content container — the
@@ -416,6 +456,14 @@ const KenlibsReadPage = () => {
           Math.max(finalIndex, 0)
         );
         setInitialChapterIndex(resolvedInitialIndex);
+        setVisibleChapterIndex(resolvedInitialIndex);
+
+        // Narration is optional: 404 (no audio) or any failure just means
+        // no player, never a broken reading page.
+        axiosInstance
+          .get(API_PATHS.KENLIBS.AUDIO(bookId))
+          .then((res) => setAudioData(res.data?.chapters?.length ? res.data : null))
+          .catch(() => setAudioData(null));
 
         // Covers landing directly on the final chapter without ever firing
         // a chapter-change event to trigger the usual save — a book with
@@ -464,6 +512,7 @@ const KenlibsReadPage = () => {
 
   const handleChapterChange = (index) => {
     currentChapterIndexRef.current = index;
+    setVisibleChapterIndex(index);
 
     // Landing on the final chapter skips the usual debounce and saves right
     // away — the completion banner (see renderChapterContent below) offers
@@ -600,12 +649,30 @@ const KenlibsReadPage = () => {
           }
         />
 
+        {audioData && (
+          <Suspense fallback={null}>
+            <AudiobookPlayer
+              ref={audiobookPlayerRef}
+              bookId={bookId}
+              book={book}
+              initialAudio={audioData}
+              refreshAudio={refreshAudio}
+              visibleChapterIndex={visibleChapterIndex}
+              onNavigateToChapter={(index) => viewBookRef.current?.goToChapter(index)}
+              onUseListenMode={handleUseListenModeForChapter}
+              onPlaybackStart={handleAudiobookPlaybackStart}
+              onExpandedChange={setIsPlayerExpanded}
+            />
+          </Suspense>
+        )}
+
         {/* Floating notepad toggle — fixed, so it never obscures reading
-            content and doesn't require touching ViewBook's own layout. */}
+            content and doesn't require touching ViewBook's own layout.
+            Moves up on phones while the full-width audiobook player is open. */}
         <motion.button
           onClick={() => setIsNotepadOpen((open) => !open)}
           whileTap={{ scale: 0.92 }}
-          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-accent to-accent-secondary text-white shadow-xl shadow-accent-500/30 flex items-center justify-center"
+          className={`fixed ${isPlayerExpanded ? "bottom-[17rem] sm:bottom-6" : "bottom-6"} right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-accent to-accent-secondary text-white shadow-xl shadow-accent-500/30 flex items-center justify-center`}
           title="My notes"
         >
           <NotebookPen className="w-6 h-6" />

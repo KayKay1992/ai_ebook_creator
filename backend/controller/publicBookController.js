@@ -1,5 +1,6 @@
 const Book = require("../models/Book");
 const Bundle = require("../models/Bundle");
+const { AUDIO_SUMMARY_FIELDS, withAudioSummary } = require("../utils/audioSummary");
 
 //@desc    Get a published book's read-only content by its public shareId
 //@route   GET /api/public/books/:shareId
@@ -43,8 +44,10 @@ const KENLIBS_BOOK_DETAIL_FIELDS = `${KENLIBS_BOOK_FIELDS} previewContent`;
 const getKenlibsStorefront = async (req, res) => {
   try {
     const [books, bundles] = await Promise.all([
+      // Plus just enough to compute hasAudio/audioChapterCount, stripped
+      // again below: never a publicId or URL in a public response.
       Book.find({ status: "published" })
-        .select(KENLIBS_BOOK_FIELDS)
+        .select(`${KENLIBS_BOOK_FIELDS} ${AUDIO_SUMMARY_FIELDS}`)
         .sort({ createdAt: -1 })
         .lean(),
       Bundle.find({ isForSale: true })
@@ -60,7 +63,7 @@ const getKenlibsStorefront = async (req, res) => {
         .lean(),
     ]);
 
-    res.status(200).json({ books, bundles });
+    res.status(200).json({ books: books.map((book) => withAudioSummary(book)), bundles });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
@@ -75,13 +78,17 @@ const getKenlibsBookById = async (req, res) => {
     const book = await Book.findOne({
       _id: req.params.id,
       status: "published",
-    }).select(KENLIBS_BOOK_DETAIL_FIELDS);
+    })
+      .select(`${KENLIBS_BOOK_DETAIL_FIELDS} ${AUDIO_SUMMARY_FIELDS}`)
+      .lean();
 
     if (!book) {
       return res.status(404).json({ message: "Book not found" });
     }
 
-    res.status(200).json(book);
+    // hasAudio + audioChapterCount only — the raw audio entries (and the
+    // chapter ids used to count them) are stripped.
+    res.status(200).json(withAudioSummary(book));
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }

@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
+const { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice } = require('../controller/audioController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
+const rateLimit = require('express-rate-limit');
 const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware, uploadCoverDesignImage } = require('../middleware/uploadMiddleware');
 
 // Every book route is admin-only per KENLIBS-ARCHITECTURE.md's route map
@@ -21,6 +23,27 @@ router.route('/:id')
     .get(getBookById)
     .put(updateBook)
     .delete(deleteBook);
+
+// AI audiobook narration (admin-only like the rest of this router; the
+// controller checks ownership). Generation and previews call Gemini TTS, so
+// they get their own per-user hourly limits on top of the daily character
+// cap (AUDIO_DAILY_CHAR_LIMIT).
+const audioLimiter = (max) =>
+    rateLimit({
+        windowMs: 60 * 60 * 1000,
+        max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: (req) => req.user._id.toString(),
+        handler: (req, res) => res.status(429).json({ message: 'Rate limit exceeded, try again later.' }),
+    });
+const generateAudioLimiter = audioLimiter(60);
+const previewVoiceLimiter = audioLimiter(30);
+
+router.get('/:id/audio', getAudioStatus);
+router.post('/:id/audio/generate', generateAudioLimiter, generateAudio);
+router.post('/:id/audio/preview', previewVoiceLimiter, previewVoice);
+router.delete('/:id/audio/:chapterId', deleteChapterAudio);
 
 router.route('/cover/:id')
     .put(uploadCover, updateBookCover);

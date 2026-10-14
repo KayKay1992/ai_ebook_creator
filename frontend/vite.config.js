@@ -92,7 +92,15 @@ export default defineConfig({
         // first real use by the hashed-assets rule in runtimeCaching below
         // — which is what keeps offline reading working, since the reader
         // also renders chapters through the md-editor chunk.
-        globIgnores: ['**/md-editor-*.js', '**/dnd-kit-*.js', '**/EditorPage-*.js'],
+        // Audio files are never precached either (none are built today;
+        // this keeps it that way if one is ever added to public/).
+        globIgnores: [
+          '**/md-editor-*.js',
+          '**/dnd-kit-*.js',
+          '**/EditorPage-*.js',
+          '**/AudiobookTab-*.js',
+          '**/*.{mp3,m4a,aac,ogg,oga,opus,wav,flac}',
+        ],
         runtimeCaching: [
           // Hashed build chunks not in the precache (see globIgnores above).
           // Content-hashed filenames never change content, so CacheFirst is
@@ -142,6 +150,15 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // Audiobook narration is deliberately NOT cached and NOT
+          // intercepted: the player streams it from short-lived signed
+          // Cloudinary URLs (api.cloudinary.com, cross-origin) with HTTP
+          // Range requests, and GET /api/kenlibs/audio/:bookId hands out
+          // those URLs. Neither matches any rule here (the api-books rule is
+          // only /api/books[/<id>]), so Workbox never touches them: caching
+          // would keep paid-for audio around after access is revoked, and a
+          // cached 200 can't answer Range requests for seeking.
+          //
           // Everything else — auth, AI generation (including the SSE
           // streaming chapter-content endpoint), export, and all
           // POST/PUT/DELETE requests — is deliberately left unmatched here,

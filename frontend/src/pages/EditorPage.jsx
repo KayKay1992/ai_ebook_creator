@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS, BASE_URL } from "../utils/apiPaths";
@@ -17,6 +17,7 @@ import {
   Loader2,
   AlertCircle,
   Activity,
+  Headphones,
 } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
 
@@ -27,6 +28,9 @@ import ChapterSidebar from "../components/editor/ChapterSidebar";
 import ChapterEditorTab from "../components/editor/ChapterEditorTab";
 import BookDetailsTab from "../components/editor/BookDetailsTab";
 import VitalsTab from "../components/editor/VitalsTab";
+
+// Lazy: only admins who open the Audiobook tab download it.
+const AudiobookTab = lazy(() => import("../components/editor/AudiobookTab"));
 import EditorSkeleton from "../components/skeletons/EditorSkeleton";
 
 // Same word-in-title detection used server-side (aiController.js's
@@ -320,13 +324,39 @@ const EditorPage = () => {
     }
   };
 
+  // Chapters added in this session have no _id until the server assigns one
+  // on save. Without adopting it, every later save would send the chapter
+  // id-less again and the server would mint a new _id each time, which
+  // detaches anything keyed by chapter id (audiobook narration). Matched by
+  // position and title, so a chapter added or moved while the save was in
+  // flight is simply left for the next save.
+  const adoptServerChapterIds = (serverChapters) => {
+    if (!Array.isArray(serverChapters)) return;
+    setBook((prev) => {
+      if (!prev?.chapters?.some((chapter) => !chapter._id)) return prev;
+      const usedIds = new Set(prev.chapters.map((chapter) => chapter._id).filter(Boolean));
+      let changed = false;
+      const chapters = prev.chapters.map((chapter, index) => {
+        const server = serverChapters[index];
+        if (chapter._id || !server?._id || usedIds.has(server._id) || server.title !== chapter.title) {
+          return chapter;
+        }
+        changed = true;
+        usedIds.add(server._id);
+        return { ...chapter, _id: server._id };
+      });
+      return changed ? { ...prev, chapters } : prev;
+    });
+  };
+
   const handleSaveChanges = async (bookToSave = book, showToast = true) => {
     setIsSaving(true);
     try {
-      await axiosInstance.put(
+      const response = await axiosInstance.put(
         `${API_PATHS.BOOKS.UPDATE_BOOK}/${bookId}`,
         bookToSave
       );
+      adoptServerChapterIds(response.data?.chapters);
       if (showToast) toast.success("Changes saved successfully!");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to save changes"));
@@ -710,6 +740,18 @@ const EditorPage = () => {
                 <Activity className="w-4 h-4" />
                 Vitals
               </button>
+              <button
+                onClick={() => setActiveTab("audiobook")}
+                className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === "audiobook"
+                    ? "bg-white text-accent-hover shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+                title="Audiobook"
+              >
+                <Headphones className="w-4 h-4" />
+                <span className="hidden md:inline">Audiobook</span>
+              </button>
             </div>
 
             {/* Actions */}
@@ -806,6 +848,19 @@ const EditorPage = () => {
                 onTogglePublish={handleTogglePublish}
                 isTogglingPublish={isTogglingPublish}
               />
+            ) : activeTab === "audiobook" ? (
+              <Suspense
+                fallback={
+                  <div className="flex justify-center py-16">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  </div>
+                }
+              >
+                <AudiobookTab
+                  bookId={bookId}
+                  hasUnsavedChanges={saveStatus === "unsaved" || saveStatus === "saving"}
+                />
+              </Suspense>
             ) : (
               <VitalsTab book={book} />
             )}

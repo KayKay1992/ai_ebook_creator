@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, BookX, ShoppingBag, BookOpenCheck } from "lucide-react";
+import { ArrowLeft, BookX, ShoppingBag, BookOpenCheck, Headphones } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
@@ -302,7 +302,7 @@ const KenlibsBookDetailPage = () => {
               by <span className="font-medium">{book.author || "Unknown Author"}</span>
             </p>
 
-            <div className="mt-5">
+            <div className="mt-5 flex flex-wrap items-center gap-2">
               {hasAccess ? (
                 <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold bg-emerald-50 text-emerald-700">
                   <BookOpenCheck className="w-4 h-4" />
@@ -315,6 +315,15 @@ const KenlibsBookDetailPage = () => {
               ) : (
                 <span className="inline-flex px-4 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-500">
                   Coming Soon
+                </span>
+              )}
+              {book.hasAudio && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold bg-accent-50 text-accent-hover"
+                  title={`${book.audioChapterCount} narrated chapter${book.audioChapterCount === 1 ? "" : "s"}`}
+                >
+                  <Headphones className="w-4 h-4" />
+                  Includes audiobook
                 </span>
               )}
             </div>
