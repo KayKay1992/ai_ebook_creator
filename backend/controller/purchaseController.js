@@ -4,6 +4,7 @@ const Bundle = require('../models/Bundle');
 const User = require('../models/User');
 const ReferralReward = require('../models/ReferralReward');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
+const { sendPurchaseRequestAdminEmail, sendPurchaseDecisionEmail } = require('../utils/sendEmail');
 
 // Named so the payout rate is easy to find and tune later — currently 5% of
 // the triggering purchase's snapshotted `amount`.
@@ -19,7 +20,7 @@ const resolvePurchasableItem = async (itemType, itemId) => {
         if (book.status !== 'published' || !book.isForSale || typeof book.price !== 'number') {
             return { error: 'This book is not currently available for purchase' };
         }
-        return { price: book.price };
+        return { price: book.price, title: book.title };
     }
 
     if (itemType === 'bundle') {
@@ -28,7 +29,7 @@ const resolvePurchasableItem = async (itemType, itemId) => {
         if (!bundle.isForSale || typeof bundle.price !== 'number') {
             return { error: 'This bundle is not currently available for purchase' };
         }
-        return { price: bundle.price };
+        return { price: bundle.price, title: bundle.title };
     }
 
     return { error: 'Invalid item type' };
@@ -78,6 +79,82 @@ const enrichWithItemDetails = async (requests) => {
     });
 };
 
+// ---------------------------------------------------------------------------
+// Email notifications. All fire-and-forget: started after the change has
+// saved, never awaited before responding, and every failure is caught and
+// logged with the purchase request id. A slow or broken email provider must
+// never fail or delay the API response (awaiting an email is exactly what
+// made forgot-password hang on Render).
+// ---------------------------------------------------------------------------
+
+// ADMIN_NOTIFY_EMAIL (comma-separated) wins; otherwise every admin account.
+const getAdminNotifyEmails = async () => {
+    const configured = (process.env.ADMIN_NOTIFY_EMAIL || '')
+        .split(',')
+        .map((email) => email.trim())
+        .filter(Boolean);
+    if (configured.length) return configured;
+
+    const admins = await User.find({ role: 'admin' }).select('email').lean();
+    return [...new Set(admins.map((admin) => admin.email).filter(Boolean))];
+};
+
+const notifyAdminsOfPurchaseRequest = ({ purchaseRequest, reader, itemTitle, isResubmission = false }) => {
+    const requestId = purchaseRequest._id.toString();
+    const logFailure = (error) =>
+        console.error(`[purchaseEmail] Admin notification failed for purchase request ${requestId}:`, error.message);
+
+    (async () => {
+        const recipients = await getAdminNotifyEmails();
+        if (!recipients.length) {
+            console.warn(`[purchaseEmail] No admin email to notify about purchase request ${requestId}; set ADMIN_NOTIFY_EMAIL.`);
+            return;
+        }
+        await Promise.all(
+            recipients.map((to) =>
+                sendPurchaseRequestAdminEmail({
+                    to,
+                    readerName: reader.name,
+                    readerEmail: reader.email,
+                    itemType: purchaseRequest.itemType,
+                    itemTitle,
+                    amount: purchaseRequest.amount,
+                    creditApplied: purchaseRequest.creditApplied,
+                    submittedAt: isResubmission ? new Date() : purchaseRequest.createdAt,
+                    isResubmission,
+                }).catch(logFailure)
+            )
+        );
+    })().catch(logFailure);
+};
+
+// `enriched` is the populated + enriched request the review endpoints
+// already build for their response (reader name/email, itemTitle).
+const notifyReaderOfDecision = (enriched) => {
+    const requestId = enriched._id.toString();
+    const logFailure = (error) =>
+        console.error(`[purchaseEmail] Decision email failed for purchase request ${requestId}:`, error.message);
+
+    if (!enriched.reader?.email) {
+        console.warn(`[purchaseEmail] Reader has no email; skipped decision email for purchase request ${requestId}.`);
+        return;
+    }
+
+    Promise.resolve()
+        .then(() =>
+            sendPurchaseDecisionEmail({
+                to: enriched.reader.email,
+                readerName: enriched.reader.name,
+                decision: enriched.status,
+                itemType: enriched.itemType,
+                itemId: enriched.item?.toString(),
+                itemTitle: enriched.itemTitle,
+                adminNote: enriched.adminNote,
+            })
+        )
+        .catch(logFailure);
+};
+
 //@desc    Submit a purchase request with payment evidence
 //@route   POST /api/purchases
 //@access  Private (any authenticated user)
@@ -93,9 +170,32 @@ const createPurchaseRequest = async (req, res) => {
             return res.status(400).json({ message: 'Payment evidence image is required' });
         }
 
-        const { price, error } = await resolvePurchasableItem(itemType, item);
+        const { price, title, error } = await resolvePurchasableItem(itemType, item);
         if (error) {
             return res.status(400).json({ message: error });
+        }
+
+        // One open request per item: a second submission while one is
+        // pending (or after it's approved) would make the reader pay twice
+        // and spend their store credit twice. Checked before any credit is
+        // debited. A rejected request is resubmitted via /:id/resubmit
+        // instead, and a revoked one can be bought again.
+        const existing = await PurchaseRequest.findOne({
+            reader: req.user._id,
+            itemType,
+            item,
+            status: { $in: ['pending', 'approved'] },
+        })
+            .select('status')
+            .lean();
+        if (existing) {
+            return res.status(409).json({
+                message:
+                    existing.status === 'pending'
+                        ? 'You already have a request for this that is pending review.'
+                        : 'You already own this.',
+                status: existing.status,
+            });
         }
 
         // Store credit is optional and reader-requested, but the amount
@@ -139,6 +239,8 @@ const createPurchaseRequest = async (req, res) => {
             creditApplied,
             evidenceImage: uploadResult.secure_url,
         });
+
+        notifyAdminsOfPurchaseRequest({ purchaseRequest, reader: req.user, itemTitle: title });
 
         res.status(201).json(purchaseRequest);
     } catch (error) {
@@ -259,6 +361,8 @@ const reviewPurchaseRequest = async (req, res, { toStatus, note, allowedFrom, ac
         ]);
 
         const [enriched] = await enrichWithItemDetails([request.toObject()]);
+        // Only reached once the new status has saved.
+        notifyReaderOfDecision(enriched);
         res.status(200).json(enriched);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
@@ -341,6 +445,12 @@ const resubmitPurchaseRequest = async (req, res) => {
         await request.save();
 
         const [enriched] = await enrichWithItemDetails([request.toObject()]);
+        notifyAdminsOfPurchaseRequest({
+            purchaseRequest: request,
+            reader: req.user,
+            itemTitle: enriched.itemTitle,
+            isResubmission: true,
+        });
         res.status(200).json(enriched);
     } catch (error) {
         console.error('Resubmit purchase request error:', error);

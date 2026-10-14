@@ -183,13 +183,23 @@ This is the payoff of the last 22 steps — very little here is new rendering wo
 1. Land on `/kenlibs`, browse featured/latest books and bundles, hover a cover to
    see the back (blurb, price)
 2. Click a book → detail page with full blurb, price, author bio
-3. Click "Request to Buy" → if not logged in, prompted to sign up/log in first
-   (lightweight — just the standard register/login form, `role: reader` by default)
+3. Click "Request to Buy" → a signed-in reader goes straight to checkout. A
+   logged-out visitor goes to `/kenlibs/signup` (`role: reader` by default). Signup
+   does not sign them in: it hands off to `/kenlibs/login` with the email prefilled
+   and "Account created. Sign in to continue.", and signing in continues to checkout.
+   Both pages carry `{ from: checkoutPath }` in router state; "Sign in" / "Create an
+   account" links between them keep it.
 4. On the checkout page: see the price, your own payment instructions (bank
    details — static content you control, not built by the app), upload a
-   screenshot/evidence of the transfer, submit
-5. Land on `/kenlibs/my-books` — see the request as "Pending"
-6. (You, the admin, review and approve/reject via `/admin/purchases`)
+   screenshot/evidence of the transfer, submit. If the reader already owns the item
+   they're sent to read it (a bundle → My Books); if a request for it is already
+   pending they see "Your request is pending review" instead of the form (the API
+   also refuses that duplicate with a 409).
+5. Land on `/kenlibs/my-books` — see the request as "Pending". The admin gets an
+   email (`ADMIN_NOTIFY_EMAIL`, else every `role: admin` account)
+6. (You, the admin, review and approve/reject via `/admin/purchases`). The reader
+   gets an email on approve, reject (with your note, and a link to fix and resubmit
+   from My Books) and revoke; a resubmission emails the admin again
 7. Reader's `/kenlibs/my-books` now shows the book as available; clicking it opens
    `/kenlibs/read/:bookId`
 

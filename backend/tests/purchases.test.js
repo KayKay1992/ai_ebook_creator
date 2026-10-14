@@ -1,3 +1,12 @@
+// Purchase notification emails are fire-and-forget (purchaseController.js);
+// stubbed here so this suite never tries to send one. They're covered by
+// tests/purchaseEmails.test.js.
+jest.mock('../utils/sendEmail', () => ({
+    ...jest.requireActual('../utils/sendEmail'),
+    sendPurchaseRequestAdminEmail: jest.fn().mockResolvedValue(undefined),
+    sendPurchaseDecisionEmail: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Cloudinary is never actually called in this suite — createPurchaseRequest
 // uploads the evidence image via utils/cloudinaryUpload's
 // uploadBufferToCloudinary, which this mock replaces with a fake resolved

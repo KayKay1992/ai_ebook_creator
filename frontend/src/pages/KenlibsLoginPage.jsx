@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
-import { Mail, Lock, CheckCircle2 } from "lucide-react";
+import { Mail, Lock, CheckCircle2, PartyPopper } from "lucide-react";
 import toast from "react-hot-toast";
 
 import InputField from "../components/ui/inputField";
@@ -28,15 +28,20 @@ const fadeUp = {
 // on a book sends them here, then back to checkout after they sign in.
 const KenlibsLoginPage = () => {
   useDocumentTitle("Log In — Kenlibs");
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const cardControls = useAnimation();
-
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from;
+  // Set by KenlibsSignupPage after a successful registration: the new
+  // account's email is prefilled and the password field focused, so the
+  // reader only has to type their password before going on to `from`.
+  const fromSignup = Boolean(location.state?.fromSignup);
+  const signupEmail = fromSignup ? location.state?.email || "" : "";
+
+  const [formData, setFormData] = useState({ email: signupEmail, password: "" });
+  const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const cardControls = useAnimation();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -83,7 +88,9 @@ const KenlibsLoginPage = () => {
           variants={{ show: { transition: { staggerChildren: 0.08 } } }}
         >
           <motion.div className="text-center mb-8" variants={fadeUp}>
-            <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {fromSignup ? "Welcome to Kenlibs" : "Welcome back"}
+            </h1>
             <p className="text-gray-500 mt-2">Sign in to continue to Kenlibs</p>
           </motion.div>
 
@@ -116,6 +123,15 @@ const KenlibsLoginPage = () => {
                 </motion.div>
               ) : (
                 <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  {fromSignup && (
+                    <p
+                      role="status"
+                      className="flex items-center gap-2 text-sm font-medium text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 mb-5"
+                    >
+                      <PartyPopper className="w-4 h-4 flex-shrink-0" />
+                      Account created. Sign in to continue.
+                    </p>
+                  )}
                   <form onSubmit={handleSubmit} className="space-y-5">
                     <InputField
                       type="email"
@@ -135,6 +151,7 @@ const KenlibsLoginPage = () => {
                       icon={Lock}
                       onChange={handleChange}
                       value={formData.password}
+                      autoFocus={Boolean(signupEmail)}
                       required
                     />
                     <div className="text-right -mt-2">

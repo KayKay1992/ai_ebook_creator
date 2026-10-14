@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, UploadCloud, ShieldAlert, CheckCircle2, Wallet } from "lucide-react";
+import { ArrowLeft, UploadCloud, ShieldAlert, CheckCircle2, Wallet, Clock } from "lucide-react";
 import toast from "react-hot-toast";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -20,6 +20,11 @@ const VALID_TYPES = ["book", "bundle"];
 // /kenlibs/my-books — long enough to register as confirmation, short
 // enough not to feel like a delay.
 const SUCCESS_DISPLAY_MS = 900;
+
+// Where a reader who already owns the item goes instead of paying again: a
+// book opens in the reader, a bundle (no single reading page) in My Books.
+const ownedItemPath = (itemType, id) =>
+  itemType === "book" ? `/kenlibs/read/${id}` : "/kenlibs/my-books";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -45,6 +50,13 @@ const KenlibsCheckoutPage = () => {
   const [applyCredit, setApplyCredit] = useState(false);
   const [creditToApply, setCreditToApply] = useState(0);
   const [paymentDetails, setPaymentDetails] = useState(null);
+  // Before showing the payment form: does the reader already own this, or
+  // already have a request for it waiting for review? Covers stale tabs,
+  // bookmarked checkout links, and the detail page's access check not having
+  // loaded yet when they clicked. The server refuses duplicates too (409);
+  // this just tells them why before they pay twice.
+  const [isCheckingExisting, setIsCheckingExisting] = useState(isValidType);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
 
   useEffect(() => {
     if (!isValidType) return;
@@ -63,6 +75,51 @@ const KenlibsCheckoutPage = () => {
     };
     fetchItem();
   }, [itemType, id, isValidType]);
+
+  useEffect(() => {
+    if (!isValidType) return;
+    let cancelled = false;
+
+    const checkExisting = async () => {
+      let redirecting = false;
+      try {
+        const [accessRes, mineRes] = await Promise.all([
+          // Book access also counts books owned through an approved bundle.
+          itemType === "book"
+            ? axiosInstance.get(API_PATHS.KENLIBS.ACCESS(id))
+            : Promise.resolve(null),
+          axiosInstance.get(API_PATHS.PURCHASES.MINE),
+        ]);
+        if (cancelled) return;
+
+        const requestsForItem = (mineRes.data || []).filter(
+          (r) => r.itemType === itemType && String(r.item) === id
+        );
+        const alreadyOwned =
+          itemType === "book"
+            ? Boolean(accessRes?.data?.hasAccess)
+            : requestsForItem.some((r) => r.status === "approved");
+
+        if (alreadyOwned) {
+          redirecting = true;
+          toast.success(`You already own this ${itemType}.`);
+          navigate(ownedItemPath(itemType, id), { replace: true });
+          return;
+        }
+        setHasPendingRequest(requestsForItem.some((r) => r.status === "pending"));
+      } catch {
+        // Couldn't check: show the normal form. The server still refuses a
+        // duplicate request, handled in handleSubmit.
+      } finally {
+        if (!cancelled && !redirecting) setIsCheckingExisting(false);
+      }
+    };
+    checkExisting();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itemType, id, isValidType, navigate]);
 
   // Real payment instructions (the admin's own bank details, minus the
   // private `notes` field — see kenlibsController.js's
@@ -130,18 +187,60 @@ const KenlibsCheckoutPage = () => {
       setIsSubmitted(true);
       setTimeout(() => navigate("/kenlibs/my-books"), SUCCESS_DISPLAY_MS);
     } catch (error) {
+      // 409: the server found a pending or approved request for this item
+      // (e.g. submitted from another tab after this page loaded).
+      if (error.response?.status === 409) {
+        if (error.response.data?.status === "approved") {
+          toast.success(`You already own this ${itemType}.`);
+          navigate(ownedItemPath(itemType, id), { replace: true });
+          return;
+        }
+        toast.error(getErrorMessage(error, "You already have a request pending review."));
+        setHasPendingRequest(true);
+        setIsSubmitting(false);
+        return;
+      }
       toast.error(getErrorMessage(error, "Failed to submit your request"));
       setIsSubmitting(false);
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isCheckingExisting) {
     return (
       <div className="min-h-screen bg-surface-warm">
         <KenlibsNav />
         <div className="max-w-2xl mx-auto px-6 py-16 animate-pulse space-y-4">
           <div className="h-8 bg-gray-100 rounded-lg w-1/2" />
           <div className="h-64 bg-gray-100 rounded-2xl w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (hasPendingRequest) {
+    return (
+      <div className="min-h-screen bg-surface-warm">
+        <KenlibsNav />
+        <div className="flex flex-col items-center justify-center py-32 text-center px-6">
+          <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mb-6">
+            <Clock className="w-10 h-10 text-amber-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3" role="status">
+            Your request is pending review
+          </h2>
+          <p className="text-gray-500 max-w-md mb-8">
+            We already have your payment evidence
+            {item?.title ? (
+              <>
+                {" "}for <span className="font-medium text-gray-700">{item.title}</span>
+              </>
+            ) : null}
+            . There's no need to pay or submit again. We'll email you as soon as it's
+            reviewed, and you can check its status in My Books.
+          </p>
+          <Link to="/kenlibs/my-books">
+            <Button className="flex items-center gap-2">Go to My Books</Button>
+          </Link>
         </div>
       </div>
     );

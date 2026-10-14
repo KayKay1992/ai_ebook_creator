@@ -28,9 +28,11 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 
 ## Environment
 
-Backend expects a `.env` file in `backend/` (gitignored, see `backend/.env.example`) with at least: `PORT` (8000 in dev; Render sets this itself in production), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below), `BREVO_API_KEY` + `EMAIL_FROM` (password reset emails via Brevo's HTTPS API — required on Render, whose free tier blocks outbound SMTP), or `GMAIL_USER` + `GMAIL_APP_PASSWORD` as an SMTP fallback for local dev (`utils/sendEmail.js` picks Brevo when `BREVO_API_KEY` is set).
+Backend expects a `.env` file in `backend/` (gitignored, see `backend/.env.example`) with at least: `PORT` (8000 in dev; Render sets this itself in production), `MONGO_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (image uploads — see below), `BREVO_API_KEY` + `EMAIL_FROM` (password reset and purchase emails via Brevo's HTTPS API — required on Render, whose free tier blocks outbound SMTP), or `GMAIL_USER` + `GMAIL_APP_PASSWORD` as an SMTP fallback for local dev (`utils/sendEmail.js` picks Brevo when `BREVO_API_KEY` is set).
 
-`FRONTEND_URL` (defaults to `http://localhost:5173` if unset) is the single canonical production frontend URL, used only for building password reset email links (`authController.js`'s `buildResetLink`) and the OG-preview crawler redirect (`routes/ogPreviewRoute.js`) — both contexts where "one real answer" is what's needed, not a set.
+`ADMIN_NOTIFY_EMAIL` (optional, comma-separated) is who receives the admin purchase-request emails; unset means every `role: 'admin'` user.
+
+`FRONTEND_URL` (defaults to `http://localhost:5173` if unset) is the single canonical production frontend URL, used only for building links in emails (password reset links via `authController.js`'s `buildResetLink`, and the purchase emails' links) and the OG-preview crawler redirect (`routes/ogPreviewRoute.js`) — both contexts where "one real answer" is what's needed, not a set.
 
 CORS is driven by a separate pair of vars (`app.js`), since it needs to allow more than one origin at once (production + Vercel preview deployments):
 - `ALLOWED_ORIGINS` — comma-separated list of exact allowed origins. Falls back to `FRONTEND_URL` alone if unset, so local dev needs nothing extra.
@@ -63,6 +65,10 @@ Standard Express MVC-ish layering: `routes/` → `controller/` → `models/`, wi
 - **Styling**: Tailwind v4 via `@tailwindcss/vite` plugin (no `tailwind.config.js` — v4 uses CSS-based config in `index.css`). Icons via `lucide-react`. Toasts via `react-hot-toast`, mounted once in `main.jsx`.
 
 ### Cross-cutting notes
+
+- **Emails** (`utils/sendEmail.js`): `sendPasswordResetEmail`, `sendPurchaseRequestAdminEmail` (to the admin when a reader creates a purchase request, or resubmits a rejected one with `isResubmission: true`), and `sendPurchaseDecisionEmail` (to the reader on approve / reject / revoke, including the admin's note). All share `emailShell` and send HTML plus a plain-text version. Escape every user-supplied value (names, titles, notes) with the module's `escapeHtml` before it goes into HTML, and never put the payment evidence URL in an email. `purchaseController.js` sends them fire-and-forget: started only after the change has saved, never awaited before responding, failures caught and logged with the purchase request id. Awaiting an email in a request handler is what made forgot-password hang on Render, so don't. Tests: `tests/purchaseEmails.test.js` (other purchase suites stub the two helpers).
+- **Purchase requests**: `createPurchaseRequest` returns 409 (with the existing `status`) if the reader already has a pending or approved request for the same item, checked before any store credit is spent. `KenlibsCheckoutPage.jsx` checks the same thing up front: an owned item redirects to read it, a pending one shows "Your request is pending review".
+- **Request to Buy / reader auth** (frontend): logged-out visitors go to `/kenlibs/signup` with `state: { from: checkoutPath }`; signup does **not** sign in (no token/user stored) and navigates to `/kenlibs/login` with `{ from, email, fromSignup: true }`; login redirects to `from`. Signed-in readers go straight to checkout. Referral codes (`?ref=` on the signup link) are kept in localStorage (`kenlibs_referral_code`) until registration, so they survive this detour.
 
 - CORS is configured in `app.js` (not `server.js`, which only connects to Mongo and starts listening) via `ALLOWED_ORIGINS`/`ALLOWED_ORIGIN_PATTERN` — see Environment above.
 - All AI generation routes (`/api/ai/generate-outline`, `/api/ai/generate-chapter-content`, `/api/ai/generate-blurb`, `/api/ai/generate-teaser`, etc.) share one rate limit of 20 requests/user/hour (`backend/routes/aiRoute.js`), keyed on `req.user._id`.

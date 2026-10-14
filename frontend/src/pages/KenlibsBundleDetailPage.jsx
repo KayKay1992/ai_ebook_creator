@@ -212,8 +212,10 @@ const KenlibsBundleDetailPage = () => {
                 loading={isNavigatingToCheckout}
                 onClick={() => {
                   const checkoutPath = `/kenlibs/checkout/bundle/${id}`;
+                  // Same rule as the book detail page: logged-out visitors
+                  // sign up first, signed-in readers go straight to checkout.
                   if (!isAuthenticated) {
-                    navigate("/kenlibs/login", { state: { from: checkoutPath } });
+                    navigate("/kenlibs/signup", { state: { from: checkoutPath } });
                     return;
                   }
                   setIsNavigatingToCheckout(true);

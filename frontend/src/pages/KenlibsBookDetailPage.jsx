@@ -71,8 +71,11 @@ const BookCallToAction = ({
       title={canBuy ? undefined : "This book isn't purchasable yet."}
       onClick={() => {
         const checkoutPath = `/kenlibs/checkout/book/${bookId}`;
+        // A logged-out visitor is most likely new: send them to create an
+        // account (then sign in, then on to checkout via `from`). A
+        // signed-in reader goes straight to checkout, nothing in between.
         if (!isAuthenticated) {
-          navigate("/kenlibs/login", { state: { from: checkoutPath } });
+          navigate("/kenlibs/signup", { state: { from: checkoutPath } });
           return;
         }
         onStartCheckout(checkoutPath);

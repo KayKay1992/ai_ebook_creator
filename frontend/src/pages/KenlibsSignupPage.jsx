@@ -8,14 +8,13 @@ import InputField from "../components/ui/inputField";
 import Button from "../components/ui/Button";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
-import { useAuth } from "../context/AuthContext";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 
 const SUCCESS_DISPLAY_MS = 700;
-// Survives navigating around the storefront (book detail → login prompt →
+// Survives navigating around the storefront (home → book detail → Request to Buy →
 // back to signup) before actually submitting the form — a plain in-memory
 // value wouldn't.
 const REFERRAL_CODE_STORAGE_KEY = "kenlibs_referral_code";
@@ -40,7 +39,6 @@ const KenlibsSignupPage = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const cardControls = useAnimation();
 
-  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from;
@@ -79,7 +77,11 @@ const KenlibsSignupPage = () => {
         ? `${API_PATHS.AUTH.REGISTER}?ref=${encodeURIComponent(refCode)}`
         : API_PATHS.AUTH.REGISTER;
 
-      const registerResponse = await axiosInstance.post(registerUrl, {
+      // The response also carries a token, deliberately ignored: signing up
+      // doesn't sign you in. Nothing is written to localStorage here; the
+      // reader signs in on the next page, which then sends them on to
+      // `from` (e.g. checkout).
+      await axiosInstance.post(registerUrl, {
         name: formData.name,
         email: formData.email,
         password: formData.password,
@@ -90,17 +92,16 @@ const KenlibsSignupPage = () => {
       // signup in the same browser.
       localStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
 
-      // Auto-login right after signup — a shopper shouldn't have to fill
-      // out the login form a second time to reach checkout.
-      const { token } = registerResponse.data;
-      const profileResponse = await axiosInstance.get(API_PATHS.AUTH.PROFILE, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      login(profileResponse.data, token);
       toast.success("Account created!");
       setIsSuccess(true);
-      setTimeout(() => navigate(from || "/kenlibs"), SUCCESS_DISPLAY_MS);
+      setTimeout(
+        () =>
+          navigate("/kenlibs/login", {
+            replace: true,
+            state: { from, email: formData.email, fromSignup: true },
+          }),
+        SUCCESS_DISPLAY_MS
+      );
     } catch (error) {
       toast.error(getErrorMessage(error, "Signup failed. Please try again."));
       setLoading(false);
@@ -148,6 +149,7 @@ const KenlibsSignupPage = () => {
                       <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                     </motion.div>
                     <p className="font-semibold text-gray-900">Account created!</p>
+                    <p className="text-sm text-gray-500 mt-1">Taking you to sign in…</p>
                   </motion.div>
                 ) : (
                   <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

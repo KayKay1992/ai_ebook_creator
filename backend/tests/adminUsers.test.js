@@ -1,3 +1,12 @@
+// Purchase notification emails are fire-and-forget (purchaseController.js);
+// stubbed here so this suite never tries to send one. They're covered by
+// tests/purchaseEmails.test.js.
+jest.mock('../utils/sendEmail', () => ({
+    ...jest.requireActual('../utils/sendEmail'),
+    sendPurchaseRequestAdminEmail: jest.fn().mockResolvedValue(undefined),
+    sendPurchaseDecisionEmail: jest.fn().mockResolvedValue(undefined),
+}));
+
 const request = require('supertest');
 const app = require('../app');
 const db = require('./dbHandler');
