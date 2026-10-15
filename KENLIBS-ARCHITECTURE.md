@@ -185,7 +185,9 @@ are 12-character random ids (72 bits), and unpublishing makes the link 404.
                                 "Chapter recap", and the language selector for
                                 published AI translations
                                 (GET /api/kenlibs/translations/:bookId,
-                                GET /api/kenlibs/read/:bookId/translation/:lang)
+                                GET /api/kenlibs/read/:bookId/translation/:lang),
+                                and the reader's private highlights, notes and
+                                bookmarks (/api/kenlibs/annotations/:bookId)
 ```
 
 ### New — admin only
@@ -519,6 +521,34 @@ Architecture, as built:
 - Resume position (ReaderProgress) stays per book, not per language:
   translations keep the same chapters and paragraph structure, so it lines
   up either way.
+
+**Highlights, notes and bookmarks (BUILT, uncommitted at time of writing)**
+Readers can highlight text in four colors, attach a note to a highlight,
+copy or "Explain" a selection (the word-explain popup now opens from the
+selection toolbar instead of on every selection), and bookmark a chapter or
+the paragraph they're on, with an optional label. A "My highlights & notes"
+panel in the reader lists everything by chapter with jump-to, editing,
+delete, copy all and Markdown download.
+- Stored on the server (new ReaderAnnotation collection), so they sync
+  across devices; loaded once per book, saved in small debounced requests.
+  Private: every endpoint (/api/kenlibs/annotations/:bookId) requires
+  hasBookAccess and only ever touches the requesting reader's own
+  annotations. Nothing appears on public or admin endpoints. Limits: notes
+  1,000 characters, 2,000 annotations per book per reader, rate-limited
+  writes. Deleted with the book or the reader's account.
+- Anchored to the paragraph (the same paragraph numbering Listen Mode uses)
+  plus offsets, the quoted text and a little surrounding context. If the
+  author edits the chapter, the highlight is found again by its quote; if
+  the text is gone, it stays in the panel marked "text changed" instead of
+  being deleted. One paragraph per highlight in v1.
+- Translations: a highlight belongs to the language it was made in, so
+  switching language shows that language's highlights; bookmarks show in
+  every language.
+- Separate from the saved reading position (ReaderProgress), which
+  bookmarks never change.
+- Also fixed: images in a chapter now show in the gated reader (they were
+  dropped along with other non-spoken blocks), without changing Listen
+  Mode's paragraph numbering.
 
 **Chapter recaps (AI chapter summaries, DONE)**
 Each chapter can have a short reader-facing summary (Book.chapters[].summary,

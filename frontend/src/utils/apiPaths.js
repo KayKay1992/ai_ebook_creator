@@ -82,6 +82,8 @@ export const API_PATHS = {
     AUDIO: (bookId) => `/api/kenlibs/audio/${bookId}`,
     TRANSLATIONS: (bookId) => `/api/kenlibs/translations/${bookId}`,
     READ_TRANSLATION: (bookId, lang) => `/api/kenlibs/read/${bookId}/translation/${lang}`,
+    ANNOTATIONS: (bookId) => `/api/kenlibs/annotations/${bookId}`,
+    ANNOTATION: (bookId, id) => `/api/kenlibs/annotations/${bookId}/${id}`,
     MY_ACCESS_MAP: "/api/kenlibs/my-access-map",
     PAYMENT_DETAILS: "/api/kenlibs/payment-details",
   },

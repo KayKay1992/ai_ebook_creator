@@ -17,6 +17,7 @@ const {
     getBookTranslations,
     readBookTranslation,
 } = require('../controller/kenlibsController');
+const { getAnnotations, createAnnotation, updateAnnotation, deleteAnnotation } = require('../controller/annotationController');
 const { protect } = require('../middleware/authMiddleware');
 
 // Genuinely public — same reasoning as the storefront itself (see
@@ -52,6 +53,25 @@ router.get('/read/:bookId', readBook);
 router.get('/audio/:bookId', getBookAudio);
 router.get('/translations/:bookId', getBookTranslations);
 router.get('/read/:bookId/translation/:lang', readBookTranslation);
+
+// Readers' private highlights, notes and bookmarks (annotationController.js:
+// hasBookAccess + own annotations only). Writes are small and frequent
+// (each highlight, each debounced note edit), so a generous limit that
+// still stops runaway scripts.
+const annotationWriteLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user._id.toString(),
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many changes in a short time. Wait a few minutes, then try again.' });
+    },
+});
+router.get('/annotations/:bookId', getAnnotations);
+router.post('/annotations/:bookId', annotationWriteLimiter, createAnnotation);
+router.put('/annotations/:bookId/:annotationId', annotationWriteLimiter, updateAnnotation);
+router.delete('/annotations/:bookId/:annotationId', annotationWriteLimiter, deleteAnnotation);
 router.get('/progress/:bookId', getProgress);
 router.put('/progress/:bookId', updateProgress);
 router.get('/certificate/:bookId', getCertificate);

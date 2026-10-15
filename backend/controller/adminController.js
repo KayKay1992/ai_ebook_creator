@@ -4,6 +4,7 @@ const PurchaseRequest = require('../models/PurchaseRequest');
 const ReferralReward = require('../models/ReferralReward');
 const Rating = require('../models/Rating');
 const ReaderProgress = require('../models/ReaderProgress');
+const ReaderAnnotation = require('../models/ReaderAnnotation');
 const { generateResetToken, buildResetLink } = require('./authController');
 const { sendPasswordResetEmail } = require('../utils/sendEmail');
 
@@ -153,6 +154,7 @@ const deleteUser = async (req, res) => {
             await Promise.all([
                 Rating.deleteMany({ reader: user._id }),
                 ReaderProgress.deleteMany({ reader: user._id }),
+                ReaderAnnotation.deleteMany({ reader: user._id }),
                 User.deleteOne({ _id: user._id }),
             ]);
             return res.status(200).json({ message: 'User permanently deleted.', action: 'hard-deleted' });
@@ -176,6 +178,10 @@ const deleteUser = async (req, res) => {
         user.isDeleted = true;
         user.deletedAt = new Date();
         await user.save();
+        // Purchase/referral history is kept for the books, but a reader's
+        // highlights and notes are their own private writing: gone with
+        // the account either way.
+        await ReaderAnnotation.deleteMany({ reader: user._id });
 
         res.status(200).json({ message: 'User anonymized — purchase/referral history preserved.', action: 'anonymized' });
     } catch (error) {

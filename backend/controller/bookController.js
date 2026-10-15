@@ -6,6 +6,7 @@ const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
 const { deleteAudioAsset } = require('../utils/audioStorage');
 const { partPublicIds } = require('../utils/narrationPipeline');
 const BookTranslation = require('../models/BookTranslation');
+const ReaderAnnotation = require('../models/ReaderAnnotation');
 
 //@desc    Create a new book
 //@route   POST /api/books
@@ -156,6 +157,8 @@ const deleteBook = async (req, res) => {
         await book.deleteOne();
         // Its translations go with it (they're nothing without the book).
         await BookTranslation.deleteMany({ bookId: book._id });
+        // ...and every reader's highlights and bookmarks in it.
+        await ReaderAnnotation.deleteMany({ book: book._id });
         res.status(200).json({ message: 'Book removed' });
 
         // Remove its narration files too. After responding, and each failure

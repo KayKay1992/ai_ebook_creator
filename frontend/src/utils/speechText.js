@@ -37,15 +37,26 @@ export const buildSpeechBlocks = (markdown) => {
     .filter(Boolean);
 
   const blocks = [];
+  // Every block in document order, for rendering: speakable ones carry
+  // their index in `blocks` (blockIndex), the rest (an image on its own, a
+  // horizontal rule) have blockIndex null. Rendering these instead of
+  // `blocks` keeps images on the page without changing the numbering Listen
+  // Mode, saved positions and highlights rely on.
+  const renderBlocks = [];
   let spokenText = "";
 
   rawBlocks.forEach((raw) => {
     const spoken = stripMarkdownForSpeech(raw);
-    if (!spoken) return; // e.g. a lone horizontal rule or empty code fence
+    if (!spoken) {
+      // e.g. an image on its own or a horizontal rule: shown, never spoken
+      renderBlocks.push({ markdown: raw, blockIndex: null });
+      return;
+    }
     const start = spokenText.length ? spokenText.length + 1 : 0;
     spokenText = spokenText.length ? `${spokenText} ${spoken}` : spoken;
+    renderBlocks.push({ markdown: raw, blockIndex: blocks.length });
     blocks.push({ markdown: raw, start, end: spokenText.length });
   });
 
-  return { blocks, spokenText };
+  return { blocks, renderBlocks, spokenText };
 };

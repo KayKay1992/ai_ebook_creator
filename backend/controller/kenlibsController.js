@@ -713,4 +713,6 @@ module.exports = {
     getBookAudio,
     getBookTranslations,
     readBookTranslation,
+    // Shared with annotationController.js (same access rule for annotations).
+    hasBookAccess,
 };

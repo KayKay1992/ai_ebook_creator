@@ -167,3 +167,11 @@ body {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Reader highlights (Kenlibs reader, utils/annotationDom.js): painted with
+   the CSS Custom Highlight API, so no elements are added to the text.
+   Soft enough to read through, distinct enough to tell apart. */
+::highlight(kenlibs-hl-yellow) { background-color: rgb(253 224 71 / 0.55); }
+::highlight(kenlibs-hl-green) { background-color: rgb(134 239 172 / 0.6); }
+::highlight(kenlibs-hl-blue) { background-color: rgb(147 197 253 / 0.6); }
+::highlight(kenlibs-hl-pink) { background-color: rgb(249 168 212 / 0.6); }

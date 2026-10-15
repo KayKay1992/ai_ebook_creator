@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import MDEditor from "@uiw/react-md-editor";
 import toast from "react-hot-toast";
-import { Lock, BookX, ArrowLeft, NotebookPen, X, Award, Download } from "lucide-react";
+import { Lock, BookX, ArrowLeft, NotebookPen, X, Award, Download, Highlighter } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import ViewBook from "../components/view/ViewBook";
@@ -19,6 +19,23 @@ import getErrorMessage from "../utils/getErrorMessage";
 import { getReadingLanguage, setReadingLanguage } from "../utils/readingLanguage";
 import ReadingLanguageSelect from "../components/kenlibs/ReadingLanguageSelect";
 import TranslationNotice from "../components/kenlibs/TranslationNotice";
+import SelectionToolbar from "../components/kenlibs/SelectionToolbar";
+import HighlightPopover from "../components/kenlibs/HighlightPopover";
+import { TOOLBAR_WIDTH, POPOVER_WIDTH } from "../utils/annotationUi";
+import AnnotationsPanel from "../components/kenlibs/AnnotationsPanel";
+import BookmarkButton from "../components/kenlibs/BookmarkButton";
+import useAnnotations from "../hooks/useAnnotations";
+import { createAnchor, resolveAnchor, quoteStillPresent, annotationsFor } from "../utils/annotationAnchor";
+import {
+  paragraphElementOf,
+  paragraphIndexOf,
+  offsetWithin,
+  rangeFromOffsets,
+  caretAtPoint,
+  paintHighlights,
+  clearHighlights,
+  supportsHighlightPainting,
+} from "../utils/annotationDom";
 
 // Only downloaded when the book actually has AI narration (see audioData
 // below), so readers of books without audio never load it.
@@ -110,6 +127,20 @@ const KenlibsReadPage = () => {
   const [translationLanguages, setTranslationLanguages] = useState([]);
   const [readingLanguage, setReadingLanguageState] = useState(getReadingLanguage);
   const [translation, setTranslation] = useState(null);
+  // Highlights, notes and bookmarks (private to this reader, synced with
+  // the server). The selection toolbar replaces the old auto-opening word
+  // explanation popup: "Explain" is one of its buttons.
+  const annotationsApi = useAnnotations(bookId);
+  const [selectionToolbar, setSelectionToolbar] = useState(null);
+  const [activeHighlight, setActiveHighlight] = useState(null); // { id, position, focusNote }
+  const [isAnnotationsOpen, setIsAnnotationsOpen] = useState(false);
+  // Where the current chapter's highlights were found in the rendered text:
+  // { chapterKey, byId: { [id]: resolveAnchor result } }.
+  const [resolvedHighlights, setResolvedHighlights] = useState({ chapterKey: "", byId: {} });
+  const [pendingJump, setPendingJump] = useState(null); // { chapterId, paragraphIndex, highlightId }
+  // The rendered chapter content element (state, so effects re-run when
+  // ViewBook swaps chapters).
+  const [contentContainerEl, setContentContainerEl] = useState(null);
   const audiobookPlayerRef = useRef(null);
   const [isDownloadingCertificate, setIsDownloadingCertificate] = useState(false);
   // Step 36: the word/phrase explanation popup. null = closed. `key` forces
@@ -121,6 +152,10 @@ const KenlibsReadPage = () => {
   // selecting text in the notepad or the completion banner never triggers
   // this.
   const contentContainerRef = useRef(null);
+  const setContentContainer = useCallback((element) => {
+    contentContainerRef.current = element;
+    setContentContainerEl(element);
+  }, []);
 
   // TEMPORARY — Android Listen Mode / word-popup debugging (remove once
   // diagnosed). Loads Eruda (an on-screen mobile debug console) ONLY when
@@ -206,6 +241,87 @@ const KenlibsReadPage = () => {
   const activeLanguage = translation?.language || null;
   // Listen Mode (device voice) only where the language config allows it.
   const isListenAvailable = !activeLanguage || activeLanguage.listenMode;
+
+  // The language a chapter is shown in right now: its translation's code
+  // if it's showing a published translation, else "original". Highlights
+  // belong to that language only.
+  const activeLanguageCode = activeLanguage?.code || "";
+  const displayedChapters = useMemo(
+    () =>
+      (readingBook?.chapters || []).map((chapter, index) => ({
+        _id: String(chapter._id),
+        title: chapter.title,
+        index,
+        language: chapter.isTranslated && activeLanguageCode ? activeLanguageCode : "original",
+        plainText: buildSpeechBlocks(chapter.content).spokenText,
+      })),
+    [readingBook, activeLanguageCode]
+  );
+  const currentDisplayed = displayedChapters[visibleChapterIndex] || null;
+  const chapterKey = currentDisplayed ? `${currentDisplayed._id}|${currentDisplayed.language}` : "";
+  const currentHighlights = useMemo(
+    () =>
+      currentDisplayed
+        ? annotationsFor(annotationsApi.annotations, currentDisplayed._id, currentDisplayed.language).filter(
+            (a) => a.type === "highlight"
+          )
+        : [],
+    [annotationsApi.annotations, currentDisplayed]
+  );
+  const paintingSupported = supportsHighlightPainting();
+
+  // Finds the current chapter's highlights in the rendered text and paints
+  // them (CSS Custom Highlight API: no elements added, so neither React nor
+  // Listen Mode is affected). Re-runs when the text is re-rendered.
+  useEffect(() => {
+    const container = contentContainerEl;
+    if (!container || !currentDisplayed) return undefined;
+    let frame = null;
+    let lastResult = "";
+    const paint = () => {
+      // ViewBook reports a chapter change before it swaps the content in;
+      // only paint once the DOM shows this chapter.
+      if (container.getAttribute("data-chapter-id") !== currentDisplayed._id) return;
+      const texts = [];
+      const elements = new Map();
+      container.querySelectorAll("[data-paragraph-index]").forEach((element) => {
+        const index = paragraphIndexOf(element);
+        texts[index] = element.textContent;
+        elements.set(index, element);
+      });
+      const byId = {};
+      const ranges = [];
+      for (const highlight of currentHighlights) {
+        const result = resolveAnchor(texts, highlight.anchor);
+        byId[highlight._id] = result;
+        if (result.status !== "ok") continue;
+        const range = rangeFromOffsets(elements.get(result.paragraphIndex), result.start, result.end);
+        if (range) ranges.push({ range, color: highlight.color });
+      }
+      paintHighlights(ranges);
+      const serialized = JSON.stringify(byId);
+      if (serialized !== lastResult) {
+        lastResult = serialized;
+        setResolvedHighlights({ chapterKey, byId });
+      }
+    };
+    // A zero-delay timer (not requestAnimationFrame, which browsers pause in
+    // background tabs) coalesces bursts of DOM changes into one repaint.
+    const schedule = () => {
+      clearTimeout(frame);
+      frame = setTimeout(paint, 0);
+    };
+    schedule();
+    const observer = new MutationObserver(schedule);
+    observer.observe(container, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["data-chapter-id"] });
+    return () => {
+      clearTimeout(frame);
+      observer.disconnect();
+    };
+  }, [contentContainerEl, currentDisplayed, currentHighlights, chapterKey]);
+
+  // Highlights are painted in a page-wide registry: clear them on leaving.
+  useEffect(() => clearHighlights, []);
 
   const listenMode = useListenMode({
     language: activeLanguage?.speechLang || "en",
@@ -327,7 +443,7 @@ const KenlibsReadPage = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
       lastHandledSelectionRef.current = null;
-      setExplainSelection(null);
+      setSelectionToolbar(null);
       return;
     }
 
@@ -341,9 +457,9 @@ const KenlibsReadPage = () => {
     }
 
     const text = selection.toString().trim();
-    if (!text || text.length > EXPLAIN_SELECTION_MAX_LENGTH) {
+    if (!text) {
       lastHandledSelectionRef.current = null;
-      setExplainSelection(null);
+      setSelectionToolbar(null);
       return;
     }
 
@@ -361,6 +477,26 @@ const KenlibsReadPage = () => {
     );
     const top = Math.min(rect.bottom + 10, window.innerHeight - EXPLAIN_POPUP_HEIGHT_ESTIMATE);
 
+    // Highlights stay within one paragraph: a selection that runs on into
+    // the next one is clipped to the end of the first.
+    let anchor = null;
+    let clipped = false;
+    const startParagraph = paragraphElementOf(range.startContainer);
+    if (startParagraph) {
+      const paragraphText = startParagraph.textContent;
+      const endParagraph = paragraphElementOf(range.endContainer);
+      clipped = endParagraph !== startParagraph;
+      let start = offsetWithin(startParagraph, range.startContainer, range.startOffset);
+      let end = clipped ? paragraphText.length : offsetWithin(startParagraph, range.endContainer, range.endOffset);
+      while (start < end && /\s/.test(paragraphText[start])) start++;
+      while (end > start && /\s/.test(paragraphText[end - 1])) end--;
+      if (end > start) anchor = { paragraphIndex: paragraphIndexOf(startParagraph), start, end };
+    }
+    const toolbarPosition = {
+      top: Math.min(rect.bottom + 10, window.innerHeight - 64),
+      left: Math.min(Math.max(rect.left, 12), window.innerWidth - TOOLBAR_WIDTH - 12),
+    };
+
     // A touchend-triggered call and the selectionchange debounce below can
     // both end up re-observing the exact same already-handled selection —
     // skip re-opening/remounting WordExplainPopup (and re-running its
@@ -369,14 +505,150 @@ const KenlibsReadPage = () => {
     if (lastHandledSelectionRef.current === dedupeKey) return;
     lastHandledSelectionRef.current = dedupeKey;
 
-    const sentence = extractSentenceContext(range, text);
+    if (clipped) {
+      toast("Highlights stay within one paragraph, so only the first paragraph of your selection will be highlighted.", {
+        id: "highlight-one-paragraph",
+      });
+    }
+    const canExplain = text.length <= EXPLAIN_SELECTION_MAX_LENGTH;
 
-    setExplainSelection({
+    setExplainSelection(null);
+    setActiveHighlight(null);
+    setSelectionToolbar({
       key: `${text}-${Date.now()}`,
-      word: text,
-      sentence,
-      position: { top, left },
+      text,
+      anchor,
+      canExplain,
+      sentence: canExplain ? extractSentenceContext(range, text) : "",
+      position: toolbarPosition,
+      explainPosition: { top, left },
     });
+  };
+
+  // --- Highlights, notes and bookmarks -----------------------------------
+
+  const chapterShownAt = (index) => readingBook?.chapters?.[index] || null;
+  const languageOfChapter = (chapter) =>
+    chapter?.isTranslated && activeLanguageCode ? activeLanguageCode : "original";
+
+  const popoverPositionAt = (x, y) => ({
+    top: Math.min(y + 16, window.innerHeight - 260),
+    left: Math.min(Math.max(x - POPOVER_WIDTH / 2, 12), window.innerWidth - POPOVER_WIDTH - 12),
+  });
+
+  const closeSelectionToolbar = () => {
+    setSelectionToolbar(null);
+    lastHandledSelectionRef.current = null;
+  };
+
+  const handleCreateHighlight = async (color, { withNote = false } = {}) => {
+    const toolbar = selectionToolbar;
+    const chapter = chapterShownAt(currentChapterIndexRef.current);
+    const paragraph = toolbar?.anchor
+      ? contentContainerRef.current?.querySelector(`[data-paragraph-index="${toolbar.anchor.paragraphIndex}"]`)
+      : null;
+    if (!toolbar?.anchor || !chapter || !paragraph) return;
+    const anchor = createAnchor(paragraph.textContent, toolbar.anchor.paragraphIndex, toolbar.anchor.start, toolbar.anchor.end);
+    closeSelectionToolbar();
+    window.getSelection()?.removeAllRanges();
+    const created = await annotationsApi.create({
+      type: "highlight",
+      chapterId: String(chapter._id),
+      language: languageOfChapter(chapter),
+      color,
+      anchor,
+    });
+    if (created && withNote) {
+      setActiveHighlight({
+        id: created._id,
+        position: popoverPositionAt(toolbar.position.left + TOOLBAR_WIDTH / 2, toolbar.position.top - 16),
+        focusNote: true,
+      });
+    }
+  };
+
+  const handleCopySelection = () => {
+    const text = selectionToolbar?.text || "";
+    closeSelectionToolbar();
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => toast.success("Copied."))
+      .catch(() => toast.error("Couldn't copy. Use your device's copy instead."));
+  };
+
+  const handleExplainSelection = () => {
+    const toolbar = selectionToolbar;
+    if (!toolbar?.canExplain) return;
+    closeSelectionToolbar();
+    setExplainSelection({
+      key: toolbar.key,
+      word: toolbar.text,
+      sentence: toolbar.sentence,
+      position: toolbar.explainPosition,
+    });
+  };
+
+  // Tapping (or clicking) highlighted text opens its popover.
+  const handleContentClick = (e) => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return;
+    if (!currentHighlights.length || resolvedHighlights.chapterKey !== chapterKey) return;
+    const caret = caretAtPoint(e.clientX, e.clientY);
+    if (!caret) return;
+    const paragraphIndex = paragraphIndexOf(caret.paragraph);
+    const hit = currentHighlights.find((highlight) => {
+      const result = resolvedHighlights.byId[highlight._id];
+      return result?.status === "ok" && result.paragraphIndex === paragraphIndex && caret.offset >= result.start && caret.offset < result.end;
+    });
+    if (hit) setActiveHighlight({ id: hit._id, position: popoverPositionAt(e.clientX, e.clientY), focusNote: false });
+  };
+
+  // The paragraph at the top of the screen, for "bookmark this spot".
+  const spotParagraphIndex = () => {
+    const paragraphs = contentContainerRef.current?.querySelectorAll("[data-paragraph-index]") || [];
+    for (const element of paragraphs) {
+      if (element.getBoundingClientRect().bottom > 96) return paragraphIndexOf(element);
+    }
+    return null;
+  };
+
+  const handleSaveBookmark = async (chapter, { paragraphIndex, label }) => {
+    const paragraph =
+      paragraphIndex === null
+        ? null
+        : contentContainerRef.current?.querySelector(`[data-paragraph-index="${paragraphIndex}"]`);
+    const created = await annotationsApi.create({
+      type: "bookmark",
+      chapterId: String(chapter._id),
+      language: languageOfChapter(chapter),
+      label,
+      anchor: { paragraphIndex, quote: paragraph ? paragraph.textContent.trim().slice(0, 200) : "" },
+    });
+    if (created) toast.success("Bookmarked.");
+    return Boolean(created);
+  };
+
+  // Highlights in the current chapter are checked exactly against the
+  // rendered text; other chapters with a quick text search.
+  const highlightStatus = (annotation) => {
+    if (resolvedHighlights.chapterKey === `${annotation.chapterId}|${annotation.language}`) {
+      const result = resolvedHighlights.byId[annotation._id];
+      if (result) return result.status;
+    }
+    const chapter = displayedChapters.find((c) => c._id === annotation.chapterId);
+    return chapter && quoteStillPresent(chapter.plainText, annotation.anchor.quote) ? "ok" : "changed";
+  };
+
+  const handleJump = (annotation) => {
+    const index = displayedChapters.findIndex((c) => c._id === annotation.chapterId);
+    if (index < 0) return;
+    setIsAnnotationsOpen(false);
+    setPendingJump({
+      chapterId: annotation.chapterId,
+      paragraphIndex: annotation.anchor.paragraphIndex,
+      highlightId: annotation.type === "highlight" ? annotation._id : null,
+    });
+    if (index !== currentChapterIndexRef.current) viewBookRef.current?.goToChapter(index);
   };
 
   // Android/iOS finalize touch text-selection (the long-press + drag-handle
@@ -421,8 +693,33 @@ const KenlibsReadPage = () => {
     };
   }, []);
 
+  // Scrolls to a jumped-to highlight or bookmark once its chapter is on
+  // screen (and, for a highlight, once it's been found in the text).
+  useEffect(() => {
+    if (!pendingJump || !contentContainerEl || currentDisplayed?._id !== pendingJump.chapterId) return undefined;
+    if (contentContainerEl.getAttribute("data-chapter-id") !== pendingJump.chapterId) return undefined;
+    let paragraphIndex = pendingJump.paragraphIndex;
+    if (pendingJump.highlightId) {
+      if (resolvedHighlights.chapterKey !== chapterKey) return undefined;
+      const result = resolvedHighlights.byId[pendingJump.highlightId];
+      if (result?.status === "ok") paragraphIndex = result.paragraphIndex;
+    }
+    const timer = setTimeout(() => {
+      const target =
+        paragraphIndex === null || paragraphIndex === undefined
+          ? contentContainerEl
+          : contentContainerEl.querySelector(`[data-paragraph-index="${paragraphIndex}"]`) || contentContainerEl;
+      target.scrollIntoView({ behavior: "smooth", block: target === contentContainerEl ? "start" : "center" });
+      setPendingJump(null);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [pendingJump, contentContainerEl, currentDisplayed, resolvedHighlights, chapterKey]);
+
   const renderChapterContent = (chapter, chapterIndex, fontSize) => {
-    const { blocks } = buildSpeechBlocks(chapter.content);
+    const { blocks, renderBlocks } = buildSpeechBlocks(chapter.content);
+    const chapterBookmarks = annotationsApi.annotations.filter(
+      (a) => a.type === "bookmark" && a.chapterId === String(chapter._id)
+    ).length;
     const isFinalChapter = chapterIndex === (book?.chapters?.length ?? 0) - 1;
 
     const body = (
@@ -435,8 +732,21 @@ const KenlibsReadPage = () => {
           isListenAvailable={isListenAvailable}
         />
       )}
+      <BookmarkButton
+        key={`bookmark-${chapter._id || chapterIndex}`}
+        count={chapterBookmarks}
+        disabled={annotationsApi.status !== "ready"}
+        getSpotParagraph={spotParagraphIndex}
+        onSave={(bookmark) => handleSaveBookmark(chapter, bookmark)}
+      />
       <ChapterRecap key={chapter._id || chapterIndex} summary={chapter.summary} />
-      <div ref={contentContainerRef} onMouseUp={handleSelectionEnd} onTouchEnd={handleTouchSelectionEnd}>
+      <div
+        ref={setContentContainer}
+        data-chapter-id={String(chapter._id)}
+        onMouseUp={handleSelectionEnd}
+        onTouchEnd={handleTouchSelectionEnd}
+        onClick={handleContentClick}
+      >
         {blocks.length === 0 ? (
           <MarkdownContent
             content={chapter.content}
@@ -450,16 +760,26 @@ const KenlibsReadPage = () => {
             className="markdown-content font-serif leading-loose text-gray-700"
             style={{ fontSize: `${fontSize}px` }}
           >
-            {blocks.map((block, i) => (
-              <div
-                key={i}
-                className={`listen-block rounded-lg -mx-2 px-2 transition-colors duration-300 ${
-                  listenMode.activeBlockIndex === i ? "bg-accent-50" : ""
-                }`}
-              >
-                <MDEditor.Markdown source={block.markdown} prefixCls="" style={{ background: "transparent" }} />
-              </div>
-            ))}
+            {/* Every block, in order. Spoken blocks keep their Listen Mode
+                index (blockIndex), which is also the highlight paragraph
+                index; images and rules render between them unnumbered. */}
+            {renderBlocks.map(({ markdown, blockIndex }, i) =>
+              blockIndex === null ? (
+                <div key={`static-${i}`} className="-mx-2 px-2">
+                  <MDEditor.Markdown source={markdown} prefixCls="" style={{ background: "transparent" }} />
+                </div>
+              ) : (
+                <div
+                  key={`block-${blockIndex}`}
+                  data-paragraph-index={blockIndex}
+                  className={`listen-block rounded-lg -mx-2 px-2 transition-colors duration-300 ${
+                    listenMode.activeBlockIndex === blockIndex ? "bg-accent-50" : ""
+                  }`}
+                >
+                  <MDEditor.Markdown source={markdown} prefixCls="" style={{ background: "transparent" }} />
+                </div>
+              )
+            )}
           </div>
         )}
       </div>
@@ -730,6 +1050,20 @@ const KenlibsReadPage = () => {
                 value={isPreferredLanguagePublished ? readingLanguage : ""}
                 onChange={handleLanguageChange}
               />
+              <button
+                type="button"
+                onClick={() => setIsAnnotationsOpen(true)}
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                title="My highlights & notes"
+                aria-label="My highlights and notes"
+              >
+                <Highlighter className="w-4 h-4" />
+                {annotationsApi.annotations.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full bg-accent text-white text-[10px] font-semibold leading-4 text-center">
+                    {annotationsApi.annotations.length > 99 ? "99+" : annotationsApi.annotations.length}
+                  </span>
+                )}
+              </button>
               {isListenAvailable && (
                 <ListenModeControls
                   listenMode={listenMode}
@@ -780,6 +1114,56 @@ const KenlibsReadPage = () => {
             52 audit), so by the time this actually unmounts it, the
             component is already invisible; there's nothing left for
             AnimatePresence to coordinate. */}
+        {selectionToolbar && (
+          <SelectionToolbar
+            key={selectionToolbar.key}
+            position={selectionToolbar.position}
+            canHighlight={Boolean(selectionToolbar.anchor) && annotationsApi.status === "ready"}
+            canExplain={selectionToolbar.canExplain}
+            onHighlight={(color) => handleCreateHighlight(color)}
+            onNote={() => handleCreateHighlight("yellow", { withNote: true })}
+            onCopy={handleCopySelection}
+            onExplain={handleExplainSelection}
+            onClose={closeSelectionToolbar}
+          />
+        )}
+
+        {activeHighlight &&
+          (() => {
+            const highlight = annotationsApi.annotations.find((a) => a._id === activeHighlight.id);
+            if (!highlight) return null;
+            return (
+              <HighlightPopover
+                key={highlight._id}
+                highlight={highlight}
+                position={activeHighlight.position}
+                focusNote={activeHighlight.focusNote}
+                onChangeColor={(color) => annotationsApi.update(highlight._id, { color }, { immediate: true })}
+                onChangeNote={(note) => annotationsApi.update(highlight._id, { note })}
+                onDelete={() => {
+                  setActiveHighlight(null);
+                  annotationsApi.remove(highlight._id);
+                }}
+                onClose={() => setActiveHighlight(null)}
+              />
+            );
+          })()}
+
+        <AnnotationsPanel
+          isOpen={isAnnotationsOpen}
+          onClose={() => setIsAnnotationsOpen(false)}
+          bookTitle={readingBook?.title || book?.title}
+          chapters={displayedChapters}
+          annotations={annotationsApi.annotations}
+          loadStatus={annotationsApi.status}
+          onRetry={annotationsApi.retry}
+          statusOf={highlightStatus}
+          paintingSupported={paintingSupported}
+          onJump={handleJump}
+          onUpdate={annotationsApi.update}
+          onDelete={annotationsApi.remove}
+        />
+
         {explainSelection && (
           <WordExplainPopup
             key={explainSelection.key}
