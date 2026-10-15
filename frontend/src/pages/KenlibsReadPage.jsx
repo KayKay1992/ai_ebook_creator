@@ -20,6 +20,7 @@ import getErrorMessage from "../utils/getErrorMessage";
 // Only downloaded when the book actually has AI narration (see audioData
 // below), so readers of books without audio never load it.
 const AudiobookPlayer = lazy(() => import("../components/kenlibs/AudiobookPlayer"));
+import ChapterRecap from "../components/kenlibs/ChapterRecap";
 
 // Short debounces (adapted from Step 2's autosave pattern, not reused
 // verbatim — different data shape and no book-wide save-state banner here)
@@ -361,6 +362,8 @@ const KenlibsReadPage = () => {
     const isFinalChapter = chapterIndex === (book?.chapters?.length ?? 0) - 1;
 
     const body = (
+      <>
+      <ChapterRecap key={chapter._id || chapterIndex} summary={chapter.summary} />
       <div ref={contentContainerRef} onMouseUp={handleSelectionEnd} onTouchEnd={handleTouchSelectionEnd}>
         {blocks.length === 0 ? (
           <MarkdownContent
@@ -388,6 +391,7 @@ const KenlibsReadPage = () => {
           </div>
         )}
       </div>
+      </>
     );
 
     // The finishing moment lives at the bottom of the final chapter's own

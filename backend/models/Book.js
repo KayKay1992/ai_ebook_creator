@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 // findByIdAndUpdate skips schema validators, so maxlength alone would never
 // actually reject an over-length update.
 const PREVIEW_CONTENT_MAX_LENGTH = 2000;
+// Same story for chapter summaries (3-5 sentences fit comfortably).
+const CHAPTER_SUMMARY_MAX_LENGTH = 1200;
 
 // Mirrors utils/tts.js's DEFAULT_VOICE (not imported, to keep the model free
 // of the TTS client).
@@ -91,7 +93,29 @@ const chapterSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-   
+    // Reader-facing "Chapter recap" (3-5 sentences), drafted by AI via
+    // POST /api/ai/chapter-summary or written by hand, and only ever saved
+    // by the admin's own editor save (an AI draft pauses autosave until
+    // reviewed). Shown only in the gated reader (readBook); stripped from
+    // the public share-link endpoint. Length is enforced in updateBook,
+    // since findByIdAndUpdate skips schema validators.
+    summary: {
+        type: String,
+        default: '',
+        maxlength: CHAPTER_SUMMARY_MAX_LENGTH
+    },
+    // True once the admin has typed in the summary, so regenerating it asks
+    // first. Admin bookkeeping: never sent to readers.
+    summaryEdited: {
+        type: Boolean,
+        default: false
+    },
+    // utils/chapterHash.js hash of the chapter the summary was drafted
+    // from; differs from the current one → "chapter changed since summary".
+    summarySourceHash: {
+        type: String,
+        default: ''
+    },
 });
 
 const bookSchema = new mongoose.Schema({
@@ -319,3 +343,4 @@ bookSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Book', bookSchema);
 module.exports.PREVIEW_CONTENT_MAX_LENGTH = PREVIEW_CONTENT_MAX_LENGTH;
+module.exports.CHAPTER_SUMMARY_MAX_LENGTH = CHAPTER_SUMMARY_MAX_LENGTH;

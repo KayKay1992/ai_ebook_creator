@@ -12,12 +12,19 @@ const getPublicBookByShareId = async (req, res) => {
     const book = await Book.findOne({
       shareId: req.params.shareId,
       status: "published",
-    }).select("title subtitle author coverImage chapters coverDesign");
+    })
+      .select("title subtitle author coverImage chapters coverDesign")
+      .lean();
 
     if (!book) {
       return res.status(404).json({ message: "Book not found" });
     }
 
+    // Chapter recaps are for readers with access (gated reader) only:
+    // never sent on the public share link.
+    book.chapters = (book.chapters || []).map(
+      ({ summary, summaryEdited, summarySourceHash, ...chapter }) => chapter
+    );
     res.status(200).json(book);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });

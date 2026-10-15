@@ -45,6 +45,7 @@ export const API_PATHS = {
     EDIT_SELECTION: "/api/ai/edit-selection",
     GENERATE_BLURB: "/api/ai/generate-blurb",
     GENERATE_TEASER: "/api/ai/generate-teaser",
+    CHAPTER_SUMMARY: "/api/ai/chapter-summary",
   },
   EXPORT: {
     PDF: "/api/export",

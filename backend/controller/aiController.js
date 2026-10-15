@@ -1,6 +1,10 @@
 const { GoogleGenAI } = require("@google/genai");
 const { buildVoiceProfileInstruction } = require("../utils/voiceProfile");
+const mongoose = require("mongoose");
 const Book = require("../models/Book");
+const { CHAPTER_SUMMARY_MAX_LENGTH } = require("../models/Book");
+const { withGeminiRetry, rateLimitKind, DAILY_LIMIT_MESSAGE } = require("../utils/geminiRetry");
+const { chapterSourceHash } = require("../utils/chapterHash");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -794,7 +798,107 @@ Return ONLY the teaser text, with no commentary.
   }
 };
 
+// Chapter text sent for a summary is capped (a recap doesn't need every
+// word of a very long chapter, and it bounds the request's token cost).
+const SUMMARY_SOURCE_MAX_CHARS = 40000;
+const getSummaryModel = () => process.env.SUMMARY_MODEL || "gemini-2.5-flash";
+
+//@desc Draft a short reader-facing recap of one chapter. Returns the draft
+//      only; nothing is saved here. The editor treats it as an unreviewed
+//      draft (autosave pauses until the admin reviews it and clicks Save),
+//      the same safety pattern as the storefront teaser. Called one chapter
+//      at a time ("Generate for all" loops in the browser), so concurrency
+//      stays at 1. Retries and Gemini quota handling come from
+//      utils/geminiRetry.js, kept short enough to fit in one HTTP request:
+//      a daily limit answers 429 with quota: "daily" so the loop stops.
+//@route POST /api/ai/chapter-summary   Body: { bookId, chapterId }
+//@access Private/Admin (owner)
+const generateChapterSummary = async (req, res) => {
+  try {
+    const { bookId, chapterId } = req.body || {};
+    if (!mongoose.isValidObjectId(bookId) || !mongoose.isValidObjectId(chapterId)) {
+      return res.status(400).json({ message: "bookId and chapterId are required" });
+    }
+
+    const book = await Book.findById(bookId).select("userId title chapters._id chapters.title chapters.content");
+    if (!book) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+    if (book.userId.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const chapter = book.chapters.id(chapterId);
+    if (!chapter) {
+      return res.status(404).json({ message: "Chapter not found in this book." });
+    }
+    const content = String(chapter.content || "").trim();
+    if (!content) {
+      return res.status(400).json({ message: "This chapter has no text to summarise yet." });
+    }
+
+    const prompt = `
+You are writing a short "Chapter recap" that appears at the top of a chapter
+in an ebook reader, to help a reader get their bearings: what this chapter
+covers and why it matters.
+
+Book: "${book.title}"
+Chapter: "${chapter.title}"
+
+### Chapter text
+${content.slice(0, SUMMARY_SOURCE_MAX_CHARS)}
+
+### Task
+Write a recap of this chapter.
+- 3 to 5 sentences, about 60-110 words, as one paragraph.
+- Plain and clear, written for a reader. Speak about the chapter ("This
+  chapter..."), not to the author.
+- No spoilers: never reveal twists, surprise endings, or the answer to a
+  mystery the chapter builds up to.
+- Only use what the chapter says. Do not invent facts, names, or numbers.
+- Write in the same language as the chapter text.
+
+### Format
+Plain text only: no markdown, headings, bullet points, bold, italics or
+quotation marks around the whole thing. Never use the em dash symbol (—);
+use a comma, period, or colon instead.
+
+Return ONLY the recap text.
+`;
+
+    const response = await withGeminiRetry(
+      () => ai.models.generateContent({ model: getSummaryModel(), contents: prompt }),
+      // Short enough for one HTTP request (axios waits up to 2 minutes).
+      { retries: 2, maxRateWaits: 2, maxRateWaitMs: 30000 }
+    );
+
+    const summary = (response.text || "").trim().replace(/\s*\n+\s*/g, " ");
+    if (!summary) {
+      return res.status(500).json({ message: "Failed to generate the summary" });
+    }
+
+    res.status(200).json({
+      chapterId: String(chapter._id),
+      summary: summary.slice(0, CHAPTER_SUMMARY_MAX_LENGTH),
+      sourceHash: chapterSourceHash(chapter),
+    });
+  } catch (error) {
+    console.error("Error generating chapter summary:", error.message);
+    const kind = rateLimitKind(error);
+    if (kind === "daily") {
+      return res.status(429).json({ quota: "daily", message: `${DAILY_LIMIT_MESSAGE} Summaries already drafted are kept.` });
+    }
+    if (kind) {
+      return res.status(429).json({
+        quota: "minute",
+        message: "Gemini's rate limit is busy right now. Wait a minute, then generate again; it continues where it stopped.",
+      });
+    }
+    sendAiErrorResponse(res, error, "Server Error");
+  }
+};
+
 module.exports = {
+  generateChapterSummary,
   generateOutline,
   extendOutline,
   generateIntroConclusion,

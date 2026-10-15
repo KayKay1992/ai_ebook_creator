@@ -1,5 +1,5 @@
 const Book = require('../models/Book');
-const { PREVIEW_CONTENT_MAX_LENGTH } = Book;
+const { PREVIEW_CONTENT_MAX_LENGTH, CHAPTER_SUMMARY_MAX_LENGTH } = Book;
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const generateShareId = require('../utils/shareId');
 const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
@@ -102,6 +102,21 @@ const updateBook = async (req, res) => {
                 return res.status(400).json({
                     message: `Storefront teaser must be ${PREVIEW_CONTENT_MAX_LENGTH} characters or fewer (currently ${updates.previewContent.length}).`,
                 });
+            }
+        }
+        // Chapter summaries: same explicit length check as the teaser (the
+        // update below skips schema validators).
+        if (Array.isArray(updates.chapters)) {
+            for (const [index, chapter] of updates.chapters.entries()) {
+                if (!chapter || chapter.summary === undefined || chapter.summary === null) continue;
+                if (typeof chapter.summary !== 'string') {
+                    return res.status(400).json({ message: `Chapter ${index + 1}'s summary must be text.` });
+                }
+                if (chapter.summary.length > CHAPTER_SUMMARY_MAX_LENGTH) {
+                    return res.status(400).json({
+                        message: `Chapter ${index + 1}'s summary must be ${CHAPTER_SUMMARY_MAX_LENGTH} characters or fewer (currently ${chapter.summary.length}).`,
+                    });
+                }
             }
         }
         // instruction is always server-derived from tones — never trust a

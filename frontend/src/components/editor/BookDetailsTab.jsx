@@ -22,6 +22,7 @@ import getErrorMessage from "../../utils/getErrorMessage";
 import ExportTemplatePicker from "./ExportTemplatePicker";
 import CoverPreview from "../cards/CoverPreview";
 import TonePicker from "../shared/TonePicker";
+import ChapterSummariesPanel from "./ChapterSummariesPanel";
 
 // Mirrors backend/models/Book.js's PREVIEW_CONTENT_MAX_LENGTH (no shared
 // code between the apps — keep the two in sync by hand).
@@ -31,6 +32,9 @@ const BookDetailsTab = ({
   book,
   onBookChange,
   isTeaserDraftPending = false,
+  pendingSummaryIds = [],
+  onSummaryDraft,
+  onSummaryEdit,
   onToggleIntroConclusionStructure,
   isGeneratingIntroConclusion,
   onCoverUpload,
@@ -78,7 +82,7 @@ const BookDetailsTab = ({
 
   // Drafts only: fills the textarea as an unreviewed draft, which pauses
   // all autosave for the book until the admin clicks Save (see
-  // EditorPage.jsx's isTeaserDraftPending), so the AI copy never goes live
+  // EditorPage.jsx's isDraftPending), so the AI copy never goes live
   // on its own. The backend endpoint doesn't write anything either.
   const handleGenerateTeaser = async () => {
     setIsGeneratingTeaser(true);
@@ -412,6 +416,13 @@ const BookDetailsTab = ({
           </div>
         </div>
       </div>
+
+      <ChapterSummariesPanel
+        book={book}
+        pendingSummaryIds={pendingSummaryIds}
+        onSummaryDraft={onSummaryDraft}
+        onSummaryEdit={onSummaryEdit}
+      />
 
       {/* ===== Client Publishing ===== */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">

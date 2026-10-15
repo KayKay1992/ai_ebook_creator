@@ -169,7 +169,11 @@ const readBook = async (req, res) => {
         }
 
         if (await hasBookAccess(req.user, book._id)) {
-            return res.status(200).json(book);
+            // The chapter recap (summary) is for readers; whether the admin
+            // edited it and what it was drafted from are not.
+            const readable = book.toObject();
+            readable.chapters = (readable.chapters || []).map(({ summaryEdited, summarySourceHash, ...chapter }) => chapter);
+            return res.status(200).json(readable);
         }
 
         // The book exists — deliberately 403, not 404, but no book data in
