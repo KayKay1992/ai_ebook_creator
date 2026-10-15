@@ -181,9 +181,12 @@ describe('generation', () => {
         expect(generateContent.mock.calls[0][0].config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe('Charon');
         expect(generateContent.mock.calls[0][0].model).toBe('gemini-3.8-flash-tts');
 
-        // Uploaded as an authenticated (not public) audio asset.
-        expect(cloudinary.uploader.upload_stream).toHaveBeenCalledTimes(1);
-        expect(cloudinary.uploader.upload_stream.mock.calls[0][0]).toMatchObject({
+        // Uploaded as an authenticated (not public) audio asset: one part
+        // per chunk (title + body), then the assembled chapter.
+        const uploads = cloudinary.uploader.upload_stream.mock.calls.map(([options]) => options);
+        expect(uploads).toHaveLength(3);
+        expect(uploads.filter((o) => o.folder.endsWith('/parts'))).toHaveLength(2);
+        expect(uploads[2]).toMatchObject({
             resource_type: 'video',
             type: 'authenticated',
             format: 'mp3',
@@ -385,7 +388,7 @@ describe('cleanup', () => {
         const entry = (await Book.findById(book._id)).audio.chapters[0];
         expect(entry.status).toBe('failed');
         expect(entry.publicId).toBe(first);
-        expect(cloudinary.uploader.destroy).not.toHaveBeenCalled();
+        expect(cloudinary.uploader.destroy).not.toHaveBeenCalledWith(first, expect.anything());
     });
 
     it('DELETE removes the file and the status; a generating chapter must finish first', async () => {

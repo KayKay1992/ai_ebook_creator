@@ -24,6 +24,11 @@ const getUrlTtlSeconds = () => {
 const uploadChapterAudio = (buffer, bookId) =>
     uploadBufferToCloudinary(buffer, `${AUDIO_FOLDER}/${bookId}`, { ...ASSET_OPTIONS, format: 'mp3' });
 
+// One finished chunk of a chapter still being narrated (utils/narrationPipeline.js).
+// Same protection as full chapters; deleted once the chapter is assembled.
+const uploadAudioPart = (buffer, bookId) =>
+    uploadBufferToCloudinary(buffer, `${AUDIO_FOLDER}/${bookId}/parts`, { ...ASSET_OPTIONS, format: 'mp3' });
+
 // Resolves for "ok" and "not found" (already gone counts as deleted);
 // throws on anything else so callers can keep the reference and retry.
 const deleteAudioAsset = async (publicId) => {
@@ -40,10 +45,21 @@ const signedAudioUrl = (publicId, ttlSeconds = getUrlTtlSeconds()) => {
     return { url, expiresAt: new Date(expiresAt * 1000).toISOString() };
 };
 
+// Fetches an authenticated audio asset's bytes through a short-lived signed
+// URL (used to reassemble a chapter from parts made in an earlier run).
+const downloadAudioAsset = async (publicId) => {
+    const { url } = signedAudioUrl(publicId, 300);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Couldn't download a saved narration part (HTTP ${res.status}).`);
+    return Buffer.from(await res.arrayBuffer());
+};
+
 module.exports = {
     AUDIO_FOLDER,
     getUrlTtlSeconds,
     uploadChapterAudio,
+    uploadAudioPart,
+    downloadAudioAsset,
     deleteAudioAsset,
     signedAudioUrl,
 };

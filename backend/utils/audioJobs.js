@@ -1,62 +1,26 @@
 const Book = require('../models/Book');
-const { chapterNarration, splitIntoChunks, hashText } = require('./narrationText');
-const { synthesizeSpeech, describeTtsError, DEFAULT_VOICE } = require('./tts');
-const { encodeMp3, silence } = require('./audioEncoding');
-const { uploadChapterAudio, deleteAudioAsset } = require('./audioStorage');
-const { chargeChars } = require('./audioUsage');
+const { getProvider } = require('./narrationProviders');
+const {
+    updateEntry,
+    narrateClaimedChapter,
+    staleCutoff,
+    INTERRUPTED_MESSAGE,
+    TITLE_PAUSE_MS,
+    CHUNK_GAP_MS,
+} = require('./narrationPipeline');
 
 // Background narration jobs. The queue is the database itself: a chapter's
 // audio entry with status 'queued' is a job. One in-process worker takes
 // them oldest-first, one chapter at a time across all books (keeps memory
-// and Gemini usage modest on a small instance), with a few TTS requests in
-// flight within a chapter. HTTP handlers only queue work and call kick();
+// and TTS usage modest on a small instance), and hands each to the shared
+// narration pipeline (utils/narrationPipeline.js) with the provider
+// AUDIO_PROVIDER selects. HTTP handlers only queue work and call kick();
 // they never wait for it.
 //
 // A restart kills whatever was running: recoverInterruptedJobs (server.js,
-// after Mongo connects) marks 'generating' chapters failed and resumes the
-// still-queued ones.
-
-const TITLE_PAUSE_MS = 1200; // after the chapter title
-const CHUNK_GAP_MS = 450; // between chunks (each ends at a sentence or paragraph)
-
-const getConcurrency = () => {
-    const n = parseInt(process.env.AUDIO_TTS_CONCURRENCY, 10);
-    return Number.isFinite(n) ? Math.min(Math.max(n, 1), 4) : 2;
-};
-
-// Runs `fn` over items with at most `limit` in flight; results keep order.
-// Stops starting new work after the first failure and rethrows it.
-const mapWithConcurrency = async (items, limit, fn) => {
-    const results = new Array(items.length);
-    let next = 0;
-    let failed = null;
-    const worker = async () => {
-        while (!failed && next < items.length) {
-            const index = next++;
-            try {
-                results[index] = await fn(items[index], index);
-            } catch (error) {
-                failed = failed || error;
-            }
-        }
-    };
-    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-    if (failed) throw failed;
-    return results;
-};
-
-// Updates one chapter's audio entry, but only while it's still in
-// `expectedStatus` (so a job never resurrects an entry the admin deleted
-// meanwhile). Returns true if it matched.
-const updateEntry = async (bookId, chapterId, expectedStatus, fields) => {
-    const set = {};
-    for (const [key, value] of Object.entries(fields)) set[`audio.chapters.$.${key}`] = value;
-    const result = await Book.updateOne(
-        { _id: bookId, 'audio.chapters': { $elemMatch: { chapterId, status: expectedStatus } } },
-        { $set: set }
-    );
-    return result.matchedCount > 0;
-};
+// after Mongo connects) marks 'generating' chapters failed (unless their
+// heartbeat shows scripts/narrate-book.js is still working on them; their
+// finished parts are kept either way) and resumes the still-queued ones.
 
 // Oldest queued chapter across all books, claimed atomically
 // (queued → generating). Returns { bookId, chapterId } or null.
@@ -71,9 +35,11 @@ const claimNextJob = async () => {
         .sort((a, b) => new Date(a.queuedAt) - new Date(b.queuedAt));
 
     for (const candidate of candidates) {
+        const now = new Date();
         const claimed = await updateEntry(candidate.bookId, candidate.chapterId, 'queued', {
             status: 'generating',
-            startedAt: new Date(),
+            startedAt: now,
+            heartbeatAt: now,
             progress: 0,
             error: '',
         });
@@ -82,103 +48,15 @@ const claimNextJob = async () => {
     return null;
 };
 
-const fail = (bookId, chapterId, error) =>
-    updateEntry(bookId, chapterId, 'generating', { status: 'failed', progress: 0, error });
-
 const processJob = async ({ bookId, chapterId }) => {
-    const book = await Book.findById(bookId).select('chapters audio');
-    if (!book) return;
-    const chapter = book.chapters.id(chapterId);
-    const entry = book.audio?.chapters?.find((e) => e.chapterId.toString() === chapterId.toString());
-    if (!entry) return;
-    if (!chapter) {
-        await fail(bookId, chapterId, 'This chapter no longer exists.');
-        return;
-    }
-
-    const { title, body, text } = chapterNarration(chapter);
-    if (!body) {
-        await updateEntry(bookId, chapterId, 'generating', {
-            status: 'skipped',
-            progress: 0,
-            error: 'This chapter has no text to narrate.',
-        });
-        return;
-    }
-
-    const charge = await chargeChars(text.length);
-    if (!charge.ok) {
-        await fail(
-            bookId,
-            chapterId,
-            `Daily narration limit reached (${charge.usedToday.toLocaleString('en-US')} of ${charge.dailyLimit.toLocaleString('en-US')} characters used today, UTC). Try again tomorrow or raise AUDIO_DAILY_CHAR_LIMIT.`
-        );
-        return;
-    }
-
-    const voice = entry.voice || book.audio?.voice || DEFAULT_VOICE;
-    const pieces = [title, ...splitIntoChunks(body)];
-    let done = 0;
-
-    let uploadedPublicId = null;
+    let provider;
     try {
-        const parts = await mapWithConcurrency(pieces, getConcurrency(), async (piece) => {
-            const audio = await synthesizeSpeech(piece, { voice });
-            done += 1;
-            // Progress is cosmetic; never let a failed write fail the job.
-            await updateEntry(bookId, chapterId, 'generating', { progress: done / pieces.length }).catch(() => {});
-            return audio;
-        });
-
-        const { sampleRate } = parts[0];
-        if (parts.some((part) => part.sampleRate !== sampleRate)) {
-            throw new Error('The speech model returned mixed sample rates.');
-        }
-        const segments = [];
-        parts.forEach((part, i) => {
-            segments.push(part.samples);
-            if (i === 0) segments.push(silence(sampleRate, TITLE_PAUSE_MS));
-            else if (i < parts.length - 1) segments.push(silence(sampleRate, CHUNK_GAP_MS));
-        });
-        const { buffer, durationSec } = await encodeMp3(segments, { sampleRate });
-
-        const uploaded = await uploadChapterAudio(buffer, bookId.toString());
-        uploadedPublicId = uploaded.public_id;
-
-        const saved = await updateEntry(bookId, chapterId, 'generating', {
-            status: 'ready',
-            publicId: uploaded.public_id,
-            durationSec: Math.round(durationSec * 10) / 10,
-            bytes: buffer.length,
-            textHash: hashText(text),
-            voice,
-            charCount: text.length,
-            progress: 1,
-            generatedAt: new Date(),
-            error: '',
-        });
-
-        if (!saved) {
-            // Deleted (or the book removed) while generating: don't leave
-            // an orphaned file behind.
-            await deleteAudioAsset(uploaded.public_id).catch((error) =>
-                console.error(`[audioJobs] Couldn't delete orphaned audio ${uploaded.public_id}:`, error.message)
-            );
-            return;
-        }
-
-        // Replaced: remove the previous file now the new one is live.
-        if (entry.publicId && entry.publicId !== uploaded.public_id) {
-            await deleteAudioAsset(entry.publicId).catch((error) =>
-                console.error(`[audioJobs] Couldn't delete replaced audio ${entry.publicId} (book ${bookId}):`, error.message)
-            );
-        }
+        provider = getProvider();
     } catch (error) {
-        console.error(`[audioJobs] Book ${bookId} chapter ${chapterId} failed:`, error.message);
-        if (uploadedPublicId) await deleteAudioAsset(uploadedPublicId).catch(() => {});
-        // The previous audio (if any) is untouched and stays playable.
-        await fail(bookId, chapterId, describeTtsError(error)).catch(() => {});
+        await updateEntry(bookId, chapterId, 'generating', { status: 'failed', progress: 0, error: error.message });
+        return;
     }
+    await narrateClaimedChapter({ bookId, chapterId, provider });
 };
 
 let running = null;
@@ -215,10 +93,10 @@ const waitForIdle = async () => {
     while (running) await running;
 };
 
-const INTERRUPTED_MESSAGE =
-    'Interrupted: the server restarted while this chapter was generating. Generate it again.';
-
-// Call once after Mongo connects (server.js).
+// Call once after Mongo connects (server.js). Nothing in this process can
+// be generating yet, so a 'generating' entry is either dead or owned by a
+// narrate-book.js run that is still sending heartbeats; only the dead ones
+// are failed.
 const recoverInterruptedJobs = async () => {
     const result = await Book.updateMany(
         { 'audio.chapters.status': 'generating' },
@@ -229,7 +107,7 @@ const recoverInterruptedJobs = async () => {
                 'audio.chapters.$[entry].error': INTERRUPTED_MESSAGE,
             },
         },
-        { arrayFilters: [{ 'entry.status': 'generating' }] }
+        { arrayFilters: [{ 'entry.status': 'generating', 'entry.heartbeatAt': { $not: { $gte: staleCutoff() } } }] }
     );
     kick(); // resume anything still queued
     return result.modifiedCount;

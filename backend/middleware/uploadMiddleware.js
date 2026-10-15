@@ -16,12 +16,12 @@ function checkFileType(file, cb) {
 
 //wrap a multer single-file handler so upload errors return clean JSON instead
 //of falling through to Express's default HTML/stack-trace error handler
-function wrapUpload(multerHandler, maxSizeLabel) {
+function wrapUpload(multerHandler, maxSizeLabel, kind = 'Image') {
     return (req, res, next) => {
         multerHandler(req, res, function (err) {
             if (err instanceof multer.MulterError) {
                 if (err.code === 'LIMIT_FILE_SIZE') {
-                    return res.status(400).json({ message: `Image must be smaller than ${maxSizeLabel}.` });
+                    return res.status(400).json({ message: `${kind} must be smaller than ${maxSizeLabel}.` });
                 }
                 return res.status(400).json({ message: err.message });
             }
@@ -79,7 +79,25 @@ const uploadPurchaseEvidence = multer({
     }
 }).single('evidenceImage');
 
+// Chapter narration made elsewhere (audioController.js's
+// uploadChapterAudioFile). 50MB is ~1h45m at 64 kbps or ~26 minutes at
+// 256 kbps, and well under Cloudinary's 100MB free-plan video limit. The
+// name and declared type are only a first filter; the controller parses
+// the MP3 frames, which is the real check.
+const AUDIO_UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
+const MP3_MIME_TYPES = new Set(['audio/mpeg', 'audio/mp3', 'audio/mpeg3', 'audio/x-mpeg-3', 'audio/x-mp3', 'application/octet-stream']);
+const uploadChapterAudio = multer({
+    storage: memoryStorage,
+    limits: { fileSize: AUDIO_UPLOAD_MAX_BYTES },
+    fileFilter: function (req, file, cb) {
+        const isMp3 = path.extname(file.originalname || '').toLowerCase() === '.mp3' && MP3_MIME_TYPES.has(file.mimetype);
+        cb(isMp3 ? null : 'Only MP3 files can be uploaded.', isMp3);
+    }
+}).single('audio');
+
 module.exports = {
+    AUDIO_UPLOAD_MAX_BYTES,
+    uploadChapterAudio: wrapUpload(uploadChapterAudio, '50MB', 'Audio file'),
     uploadCover: wrapUpload(uploadCoverImage, '5MB'),
     uploadChapterImage: wrapUpload(uploadChapterImage, '8MB'),
     uploadCoverDesignImage: wrapUpload(uploadCoverDesignImage, '5MB'),

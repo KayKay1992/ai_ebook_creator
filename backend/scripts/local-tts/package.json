@@ -1,0 +1,9 @@
+{
+  "name": "kenslib-local-tts",
+  "private": true,
+  "description": "Free offline narration (Kokoro-82M via kokoro-js) for scripts/local-tts-sample.js. Kept out of backend/package.json so the ~400MB ONNX runtime never ships to Render. Install with: npm install --prefix scripts/local-tts",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "kokoro-js": "1.2.1"
+  }
+}

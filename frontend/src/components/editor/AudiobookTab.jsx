@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  Upload,
+  Copy,
+  Laptop,
+  Server,
 } from "lucide-react";
 import axiosInstance from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
@@ -25,8 +29,18 @@ import Modal from "../ui/Modal";
 // the status while anything is queued or generating. Every run goes through
 // a dry run first, so the admin sees the character count and estimated
 // length (and the daily cap) before confirming.
+//
+// Audio can come from three places, all ending up identical for readers:
+// server generation (Gemini, or local Kokoro if the backend runs on the
+// admin's PC), backend/scripts/narrate-book.js run locally (free), or an
+// uploaded MP3.
 
 const POLL_MS = 3000;
+// Mirrors the backend's limit (middleware/uploadMiddleware.js), so an
+// oversized file is refused before it's sent.
+const UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
+
+const SOURCE_LABELS = { gemini: "Gemini", local: "Local (Kokoro)", uploaded: "Uploaded" };
 
 const formatDuration = (totalSec = 0) => {
   const sec = Math.max(0, Math.round(totalSec));
@@ -53,7 +67,16 @@ const StatusBadge = ({ chapter }) => {
     case "generating":
       return (
         <span className={`${base} bg-blue-50 text-blue-700`}>
-          <Loader2 className="w-3 h-3 animate-spin" /> Generating {Math.round((chapter.progress || 0) * 100)}%
+          <Loader2 className="w-3 h-3 animate-spin" /> Generating{" "}
+          {chapter.chunksTotal
+            ? `${chapter.chunksDone} of ${chapter.chunksTotal}`
+            : `${Math.round((chapter.progress || 0) * 100)}%`}
+        </span>
+      );
+    case "waiting":
+      return (
+        <span className={`${base} bg-amber-50 text-amber-700`} title="Stopped by Gemini's daily limit">
+          <Clock className="w-3 h-3" /> Waiting for quota
         </span>
       );
     case "ready":
@@ -83,6 +106,66 @@ const StatusBadge = ({ chapter }) => {
   }
 };
 
+const CopyableCommand = ({ command }) => (
+  <div className="flex items-center gap-2 mt-1.5">
+    <code className="flex-1 min-w-0 overflow-x-auto whitespace-nowrap bg-gray-900 text-gray-100 rounded-lg px-3 py-2 text-xs">
+      {command}
+    </code>
+    <button
+      type="button"
+      onClick={() =>
+        navigator.clipboard
+          ?.writeText(command)
+          .then(() => toast.success("Command copied."))
+          .catch(() => toast.error("Couldn't copy; select the text instead."))
+      }
+      className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+      title="Copy command"
+    >
+      <Copy className="w-3.5 h-3.5" />
+      <span className="sr-only">Copy command</span>
+    </button>
+  </div>
+);
+
+// How audio gets made: on the server (the configured provider), or free on
+// the admin's own PC with the narration script. Uploading an MP3 per
+// chapter (in the table below) covers anything else.
+const WaysToMakeAudio = ({ bookId, provider }) => (
+  <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 lg:p-8">
+    <h3 className="font-semibold text-gray-900">Two ways to make audio</h3>
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <div className="rounded-2xl bg-gray-50 p-4">
+        <p className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <Server className="w-4 h-4 text-accent" /> On the server ({provider?.label || "Gemini"})
+        </p>
+        <p className="text-sm text-gray-600 mt-1.5">
+          Use the Generate buttons here. Runs in the background; nothing to install.
+          {provider?.chargesQuota &&
+            " Gemini's free quota is small, so long books may stop at \"Waiting for quota\" and continue after the daily reset. Finished parts are kept."}
+        </p>
+      </div>
+      <div className="rounded-2xl bg-gray-50 p-4">
+        <p className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <Laptop className="w-4 h-4 text-accent" /> Free, on your own PC (Kokoro)
+        </p>
+        <p className="text-sm text-gray-600 mt-1.5">
+          No account or quota; takes about as long as the audio itself. In a terminal, from the project's{" "}
+          <code className="text-xs">backend</code> folder, install it once:
+        </p>
+        <CopyableCommand command="npm install --prefix scripts/local-tts" />
+        <p className="text-sm text-gray-600 mt-2">Then narrate this book (run it again to continue if it stops):</p>
+        <CopyableCommand command={`node scripts/narrate-book.js ${bookId}`} />
+        <p className="text-xs text-gray-500 mt-2">
+          Add <code>--dry-run</code> to preview, <code>--chapter 3</code> for one chapter, or{" "}
+          <code>--voice bm_george</code> for another voice (<code>--list-voices</code>). Results appear here
+          automatically.
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
 const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
   const [status, setStatus] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -95,6 +178,9 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [uploadingChapterId, setUploadingChapterId] = useState(null);
+  const uploadInputRef = useRef(null);
+  const uploadTargetRef = useRef(null);
   const previewAudioRef = useRef(null);
   const pollTimerRef = useRef(null);
   // Bumped after every status fetch (success or not), so polling keeps going
@@ -248,6 +334,43 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
     }
   };
 
+  const chooseUpload = (chapter) => {
+    uploadTargetRef.current = chapter;
+    uploadInputRef.current?.click();
+  };
+
+  const handleUploadFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // so choosing the same file again still fires
+    const chapter = uploadTargetRef.current;
+    if (!file || !chapter) return;
+    if (!/\.mp3$/i.test(file.name)) {
+      toast.error("Only MP3 files can be uploaded.");
+      return;
+    }
+    if (file.size > UPLOAD_MAX_BYTES) {
+      toast.error("Audio file must be smaller than 50MB.");
+      return;
+    }
+    setUploadingChapterId(chapter.chapterId);
+    try {
+      const form = new FormData();
+      form.append("audio", file);
+      const res = await axiosInstance.post(API_PATHS.BOOKS.AUDIO_UPLOAD(bookId, chapter.chapterId), form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        // Up to 50MB, so allow more than the default 2 minutes.
+        timeout: 10 * 60 * 1000,
+      });
+      applyStatus(res.data);
+      toast.success(chapter.hasAudio ? `Audio replaced for "${chapter.title}".` : `Audio added to "${chapter.title}".`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Couldn't upload the audio."));
+      fetchStatus();
+    } finally {
+      setUploadingChapterId(null);
+    }
+  };
+
   if (!status) {
     return loadError ? (
       <div className="bg-white rounded-3xl border border-red-100 p-8 text-center">
@@ -281,8 +404,9 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
               Audiobook
             </h2>
             <p className="text-sm text-gray-500 mt-1 max-w-xl">
-              AI narration, generated per chapter. Readers who own the book can play it on the reading
-              page; chapters without audio fall back to the device voice (Listen Mode).
+              Narration per chapter: generated here, made free on your PC, or uploaded as an MP3. Readers
+              who own the book can play it on the reading page; chapters without audio fall back to the
+              device voice (Listen Mode).
             </p>
             <p className="text-sm text-gray-600 mt-3">
               {readyChapters.length} of {status.chapters.length} chapters narrated
@@ -322,15 +446,21 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
               </Button>
             </div>
             <p className="text-xs text-gray-400">
-              Used for the chapters you generate next. Model: {status.model}
+              Used for the chapters you generate next. {status.provider?.label || "Gemini"} · {status.model}
             </p>
           </div>
         </div>
 
         <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 border-t border-gray-100">
           <p className="text-xs text-gray-500">
-            Today (UTC): {formatNumber(usage.usedToday)} of {formatNumber(usage.dailyLimit)} characters used
-            {usage.queuedChars > 0 && `, ${formatNumber(usage.queuedChars)} queued`}.
+            {status.provider?.chargesQuota === false ? (
+              "Local narration: free, with no daily limit."
+            ) : (
+              <>
+                Today (UTC): {formatNumber(usage.usedToday)} of {formatNumber(usage.dailyLimit)} characters used
+                {usage.queuedChars > 0 && `, ${formatNumber(usage.queuedChars)} queued`}.
+              </>
+            )}
           </p>
           <Button
             onClick={() => requestPlan("all-missing")}
@@ -351,6 +481,16 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
         )}
       </div>
 
+      <WaysToMakeAudio bookId={bookId} provider={status.provider} />
+
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept=".mp3,audio/mpeg"
+        className="hidden"
+        onChange={handleUploadFile}
+      />
+
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -366,6 +506,9 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
             <tbody className="divide-y divide-gray-100">
               {status.chapters.map((chapter) => {
                 const inProgress = chapter.status === "queued" || chapter.status === "generating";
+                // A failed or quota-stopped run with saved parts continues
+                // from them instead of starting over.
+                const canContinue = ["failed", "waiting"].includes(chapter.status) && chapter.chunksDone > 0;
                 return (
                   <tr key={chapter.chapterId} className="align-top">
                     <td className="px-5 py-4">
@@ -378,11 +521,24 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
                           : "No text yet"}
                       </p>
                       {chapter.error && (
-                        <p className={`text-xs mt-1 ${chapter.status === "failed" ? "text-red-600" : "text-gray-500"}`}>
+                        <p
+                          className={`text-xs mt-1 ${
+                            chapter.status === "failed"
+                              ? "text-red-600"
+                              : chapter.status === "waiting"
+                                ? "text-amber-700"
+                                : "text-gray-500"
+                          }`}
+                        >
                           {chapter.error}
                         </p>
                       )}
-                      {chapter.hasAudio && ["queued", "generating", "failed"].includes(chapter.status) && (
+                      {canContinue && !/parts are saved/.test(chapter.error) && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {chapter.chunksDone} of {chapter.chunksTotal} parts done; generating again continues from there.
+                        </p>
+                      )}
+                      {chapter.hasAudio && ["queued", "generating", "failed", "waiting"].includes(chapter.status) && (
                         <p className="text-xs text-gray-500 mt-1">The previous audio stays live until a new one is ready.</p>
                       )}
                     </td>
@@ -391,6 +547,12 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
                     </td>
                     <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
                       {chapter.hasAudio ? formatDuration(chapter.durationSec) : "—"}
+                      {chapter.hasAudio && chapter.source && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {SOURCE_LABELS[chapter.source] || chapter.source}
+                          {chapter.source !== "uploaded" && chapter.voice ? ` · ${chapter.voice}` : ""}
+                        </p>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-gray-600 whitespace-nowrap">
                       {chapter.hasAudio ? formatBytes(chapter.bytes) : "—"}
@@ -405,10 +567,26 @@ const AudiobookTab = ({ bookId, hasUnsavedChanges = false }) => {
                           disabled={!chapter.hasText || inProgress || busyTarget !== null}
                           className="flex items-center gap-1.5 whitespace-nowrap"
                         >
-                          {chapter.hasAudio ? <RefreshCw className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-                          {chapter.hasAudio ? "Regenerate" : "Generate"}
+                          {chapter.hasAudio || canContinue ? (
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          {canContinue ? "Continue" : chapter.hasAudio ? "Regenerate" : "Generate"}
                         </Button>
-                        {(chapter.hasAudio || chapter.status === "queued") && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => chooseUpload(chapter)}
+                          loading={uploadingChapterId === chapter.chapterId}
+                          disabled={chapter.status === "generating" || uploadingChapterId !== null}
+                          title={chapter.hasAudio ? "Replace with an MP3 (max 50MB)" : "Upload an MP3 (max 50MB)"}
+                          className="flex items-center gap-1.5 whitespace-nowrap"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span className="sr-only sm:not-sr-only">Upload audio</span>
+                        </Button>
+                        {(chapter.hasAudio || chapter.status === "queued" || canContinue) && (
                           <Button
                             variant="secondary"
                             size="sm"

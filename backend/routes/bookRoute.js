@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
-const { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice } = require('../controller/audioController');
+const { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice, uploadChapterAudioFile } = require('../controller/audioController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 const rateLimit = require('express-rate-limit');
-const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware, uploadCoverDesignImage } = require('../middleware/uploadMiddleware');
+const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware, uploadCoverDesignImage, uploadChapterAudio } = require('../middleware/uploadMiddleware');
 
 // Every book route is admin-only per KENLIBS-ARCHITECTURE.md's route map
 // ("Existing (admin-only from now on)"). This also closes a real gap: a
@@ -39,11 +39,14 @@ const audioLimiter = (max) =>
     });
 const generateAudioLimiter = audioLimiter(60);
 const previewVoiceLimiter = audioLimiter(30);
+const uploadAudioLimiter = audioLimiter(60);
 
 router.get('/:id/audio', getAudioStatus);
 router.post('/:id/audio/generate', generateAudioLimiter, generateAudio);
 router.post('/:id/audio/preview', previewVoiceLimiter, previewVoice);
 router.delete('/:id/audio/:chapterId', deleteChapterAudio);
+// MP3 made elsewhere (e.g. scripts/narrate-book.js output, a studio recording).
+router.post('/:id/audio/:chapterId/upload', uploadAudioLimiter, uploadChapterAudio, uploadChapterAudioFile);
 
 router.route('/cover/:id')
     .put(uploadCover, updateBookCover);

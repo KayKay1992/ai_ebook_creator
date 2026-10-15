@@ -29,6 +29,7 @@ export const API_PATHS = {
     AUDIO_GENERATE: (bookId) => `/api/books/${bookId}/audio/generate`,
     AUDIO_PREVIEW: (bookId) => `/api/books/${bookId}/audio/preview`,
     AUDIO_DELETE: (bookId, chapterId) => `/api/books/${bookId}/audio/${chapterId}`,
+    AUDIO_UPLOAD: (bookId, chapterId) => `/api/books/${bookId}/audio/${chapterId}/upload`,
   },
   PUBLIC: {
     GET_BOOK_BY_SHARE_ID: "/api/public/books",

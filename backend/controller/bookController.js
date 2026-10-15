@@ -4,6 +4,7 @@ const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const generateShareId = require('../utils/shareId');
 const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
 const { deleteAudioAsset } = require('../utils/audioStorage');
+const { partPublicIds } = require('../utils/narrationPipeline');
 
 //@desc    Create a new book
 //@route   POST /api/books
@@ -133,7 +134,9 @@ const deleteBook = async (req, res) => {
         if (book.userId.toString() !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
-        const audioPublicIds = (book.audio?.chapters || []).map((entry) => entry.publicId).filter(Boolean);
+        const audioEntries = book.audio?.chapters || [];
+        // Chapter files plus saved parts of unfinished narration runs.
+        const audioPublicIds = [...audioEntries.map((entry) => entry.publicId), ...partPublicIds(audioEntries)].filter(Boolean);
         await book.deleteOne();
         res.status(200).json({ message: 'Book removed' });
 

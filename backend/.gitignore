@@ -30,3 +30,7 @@ dist-ssr
 
 # Local narration samples from scripts/tts-sample.js
 tts-sample-*.mp3
+
+# Local Kokoro narration: its own node_modules (ignored above) and the
+# downloaded model cache
+scripts/local-tts/.model-cache/

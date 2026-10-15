@@ -1,20 +1,42 @@
 const mongoose = require('mongoose');
 const Book = require('../models/Book');
 const { chapterNarration, hashText, splitSentences, estimateDurationSec, ESTIMATED_CHARS_PER_SECOND } = require('../utils/narrationText');
-const { VOICES, DEFAULT_VOICE, isValidVoice, getTtsModel, synthesizeSpeech, describeTtsError } = require('../utils/tts');
+const { getProvider } = require('../utils/narrationProviders');
 const { encodeMp3 } = require('../utils/audioEncoding');
-const { deleteAudioAsset } = require('../utils/audioStorage');
+const { deleteAudioAsset, uploadChapterAudio } = require('../utils/audioStorage');
 const { getDailyCharLimit, getUsedToday, chargeChars } = require('../utils/audioUsage');
 const { kick } = require('../utils/audioJobs');
+const { isActivelyGenerating, staleCutoff, partPublicIds, INTERRUPTED_MESSAGE } = require('../utils/narrationPipeline');
+const { readMp3Info } = require('../utils/mp3Info');
 
 // Admin-only audiobook endpoints under /api/books/:id/audio (bookRoute.js
 // applies protect + adminOnly to the whole router). Ownership is checked
 // here the same way every other book endpoint does it. None of these
 // responses include a publicId or a URL; playback URLs only come from the
 // reader endpoint (kenlibsController.js's getBookAudio).
+//
+// Generation and previews use the provider AUDIO_PROVIDER selects
+// (utils/narrationProviders.js: gemini by default, or local Kokoro when the
+// backend runs on the admin's own PC). Audio can also be made off-server
+// with scripts/narrate-book.js, or uploaded as an MP3 (uploadChapterAudioFile).
 
-const IN_PROGRESS = new Set(['queued', 'generating']);
 const PREVIEW_MAX_CHARS = 200;
+// Uploaded audio is checked frame by frame (utils/mp3Info.js).
+const MAX_UPLOAD_DURATION_SEC = 4 * 60 * 60;
+
+// Queued, or generating with a live heartbeat. A 'generating' entry whose
+// process died counts as interrupted, not in progress.
+const isInProgress = (entry) => entry?.status === 'queued' || isActivelyGenerating(entry);
+
+// Matches an entry nobody is actively generating (for atomic updates).
+const notActivelyGenerating = () => ({
+    $or: [{ status: { $ne: 'generating' } }, { heartbeatAt: { $not: { $gte: staleCutoff() } } }],
+});
+
+// The voice to use for this provider: the requested one, else the book's
+// saved one if this provider has it, else the provider's default.
+const voiceFor = (provider, requested, book) =>
+    requested ?? [book.audio?.voice].find((v) => provider.isValidVoice(v)) ?? provider.defaultVoice;
 
 const loadOwnedBook = async (req, res, select) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -61,6 +83,9 @@ const buildStatus = async (book) => {
         const entry = entries.get(id);
         const { text } = chapterNarration(chapter);
         const hasAudio = Boolean(entry?.publicId);
+        const interrupted = entry?.status === 'generating' && !isActivelyGenerating(entry);
+        const status = interrupted ? 'failed' : entry?.status || 'none';
+        const unfinished = ['queued', 'generating', 'failed', 'waiting'].includes(status);
         return {
             chapterId: id,
             index,
@@ -68,16 +93,23 @@ const buildStatus = async (book) => {
             hasText: Boolean(text),
             charCount: text.length,
             estimatedDurationSec: estimateDurationSec(text.length),
-            status: entry?.status || 'none',
+            status,
             hasAudio,
+            // 'gemini' | 'local' | 'uploaded' ('' = made before sources were
+            // recorded, i.e. Gemini).
+            source: hasAudio ? entry.source || 'gemini' : '',
             // Edited since its audio was made.
             isStale: hasAudio && Boolean(entry.textHash) && entry.textHash !== hashText(text),
             durationSec: hasAudio ? entry.durationSec : 0,
             bytes: hasAudio ? entry.bytes : 0,
             voice: entry?.voice || '',
             generatedAt: hasAudio ? entry.generatedAt || null : null,
-            progress: entry?.status === 'generating' ? entry.progress || 0 : 0,
-            error: entry?.error || '',
+            progress: status === 'generating' ? entry.progress || 0 : 0,
+            // "5 of 7 parts done": for a run in progress, or one that
+            // stopped and will continue from there.
+            chunksDone: unfinished ? entry?.chunksDone || 0 : 0,
+            chunksTotal: unfinished ? entry?.chunksTotal || 0 : 0,
+            error: interrupted ? INTERRUPTED_MESSAGE : entry?.error || '',
         };
     });
 
@@ -94,13 +126,16 @@ const buildStatus = async (book) => {
             generatedAt: entry.generatedAt || null,
         }));
 
+    const provider = getProvider();
+    const savedVoice = book.audio?.voice;
     return {
-        voice: book.audio?.voice || DEFAULT_VOICE,
-        defaultVoice: DEFAULT_VOICE,
-        voices: VOICES,
-        model: getTtsModel(),
+        provider: { name: provider.name, label: provider.label, chargesQuota: provider.chargesQuota },
+        voice: provider.isValidVoice(savedVoice) ? savedVoice : provider.defaultVoice,
+        defaultVoice: provider.defaultVoice,
+        voices: provider.voices,
+        model: provider.model(),
         estimatedCharsPerSecond: ESTIMATED_CHARS_PER_SECOND,
-        isWorking: chapters.some((c) => IN_PROGRESS.has(c.status)) || orphaned.some((c) => IN_PROGRESS.has(c.status)),
+        isWorking: (book.audio?.chapters || []).some(isInProgress),
         usage: await usageSnapshot(),
         chapters,
         orphaned,
@@ -136,8 +171,9 @@ const generateAudio = async (req, res) => {
         if (!book) return;
 
         const { chapterId, dryRun = false } = req.body || {};
-        const voice = req.body?.voice ?? book.audio?.voice ?? DEFAULT_VOICE;
-        if (!isValidVoice(voice)) {
+        const provider = getProvider();
+        const voice = voiceFor(provider, req.body?.voice, book);
+        if (!provider.isValidVoice(voice)) {
             return res.status(400).json({ message: `Unknown voice "${voice}".` });
         }
         if (!chapterId) {
@@ -152,12 +188,12 @@ const generateAudio = async (req, res) => {
             // by one so nothing is replaced in bulk by accident.
             targets = book.chapters.filter((chapter) => {
                 const entry = entries.get(chapter._id.toString());
-                return !entry?.publicId && !IN_PROGRESS.has(entry?.status);
+                return !entry?.publicId && !isInProgress(entry);
             });
         } else {
             const chapter = mongoose.isValidObjectId(chapterId) ? book.chapters.id(chapterId) : null;
             if (!chapter) return res.status(404).json({ message: 'Chapter not found in this book.' });
-            if (IN_PROGRESS.has(entries.get(chapter._id.toString())?.status)) {
+            if (isInProgress(entries.get(chapter._id.toString()))) {
                 return res.status(409).json({ message: 'This chapter is already queued or generating.' });
             }
             targets = [chapter];
@@ -181,7 +217,8 @@ const generateAudio = async (req, res) => {
             totalChars,
             estimatedDurationSec: estimateDurationSec(totalChars),
             usage,
-            wouldExceedLimit: totalChars > usage.remaining,
+            // Only Gemini counts toward the daily cap; local narration is free.
+            wouldExceedLimit: provider.chargesQuota && totalChars > usage.remaining,
         };
 
         if (dryRun) return res.status(200).json({ dryRun: true, ...summary });
@@ -258,22 +295,23 @@ const deleteChapterAudio = async (req, res) => {
         if (!book) return;
         const entry = entryMap(book).get(String(req.params.chapterId));
         if (!entry) return res.status(404).json({ message: 'This chapter has no audio.' });
-        if (entry.status === 'generating') {
+        if (isActivelyGenerating(entry)) {
             return res.status(409).json({ message: 'This chapter is generating right now. Wait for it to finish, then delete.' });
         }
 
-        if (entry.publicId) {
+        // The chapter's file plus any saved parts of an unfinished run.
+        for (const publicId of [entry.publicId, ...partPublicIds([entry])].filter(Boolean)) {
             try {
-                await deleteAudioAsset(entry.publicId);
+                await deleteAudioAsset(publicId);
             } catch (error) {
-                console.error(`[audio] Couldn't delete ${entry.publicId} (book ${book._id}):`, error.message);
+                console.error(`[audio] Couldn't delete ${publicId} (book ${book._id}):`, error.message);
                 return res.status(502).json({ message: "Couldn't delete the audio file from storage. Please try again." });
             }
         }
 
         await Book.updateOne(
             { _id: book._id },
-            { $pull: { 'audio.chapters': { chapterId: entry.chapterId, status: { $ne: 'generating' } } } }
+            { $pull: { 'audio.chapters': { chapterId: entry.chapterId, ...notActivelyGenerating() } } }
         );
         const fresh = await Book.findById(book._id).select('userId chapters audio');
         res.status(200).json(await buildStatus(fresh));
@@ -307,21 +345,24 @@ const previewVoice = async (req, res) => {
     try {
         const book = await loadOwnedBook(req, res, 'title chapters');
         if (!book) return;
-        const voice = req.body?.voice || DEFAULT_VOICE;
-        if (!isValidVoice(voice)) return res.status(400).json({ message: `Unknown voice "${voice}".` });
+        const provider = getProvider();
+        const voice = req.body?.voice || provider.defaultVoice;
+        if (!provider.isValidVoice(voice)) return res.status(400).json({ message: `Unknown voice "${voice}".` });
 
         const text = previewTextFor(book);
-        const charge = await chargeChars(text.length);
-        if (!charge.ok) {
-            return res.status(429).json({ message: "Today's narration character limit has been reached (UTC day)." });
+        if (provider.chargesQuota) {
+            const charge = await chargeChars(text.length);
+            if (!charge.ok) {
+                return res.status(429).json({ message: "Today's narration character limit has been reached (UTC day)." });
+            }
         }
 
         let audio;
         try {
-            audio = await synthesizeSpeech(text, { voice, retries: 1 });
+            audio = await provider.synthesize(text, { voice, retries: 1 });
         } catch (error) {
             console.error('[audio] preview TTS error:', error.message);
-            return res.status(502).json({ message: `Couldn't generate the preview: ${describeTtsError(error)}` });
+            return res.status(502).json({ message: `Couldn't generate the preview: ${provider.describeError(error)}` });
         }
         const { buffer } = await encodeMp3([audio.samples], { sampleRate: audio.sampleRate });
         res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Preview-Text-Length': String(text.length) });
@@ -332,4 +373,100 @@ const previewVoice = async (req, res) => {
     }
 };
 
-module.exports = { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice };
+//@desc    Attach an MP3 made anywhere else as a chapter's audio (multipart
+//         field "audio"; uploadMiddleware.js limits type and size). Checked
+//         frame by frame, which also gives its exact duration; stored as an
+//         authenticated asset exactly like generated audio, status ready,
+//         source 'uploaded'. Replaces existing audio (the old file is
+//         deleted once the new one is saved) and cancels a queued, waiting
+//         or failed run; refused while the chapter is generating.
+//@route   POST /api/books/:id/audio/:chapterId/upload
+//@access  Private/Admin (owner)
+const uploadChapterAudioFile = async (req, res) => {
+    try {
+        const book = await loadOwnedBook(req, res, 'chapters audio');
+        if (!book) return;
+        const chapterId = String(req.params.chapterId);
+        const chapter = mongoose.isValidObjectId(chapterId) ? book.chapters.id(chapterId) : null;
+        if (!chapter) return res.status(404).json({ message: 'Chapter not found in this book.' });
+        if (!req.file?.buffer?.length) return res.status(400).json({ message: 'Choose an MP3 file to upload.' });
+
+        let info;
+        try {
+            info = readMp3Info(req.file.buffer);
+        } catch (error) {
+            return res.status(400).json({ message: error.message });
+        }
+        if (info.durationSec > MAX_UPLOAD_DURATION_SEC) {
+            return res.status(400).json({ message: 'That recording is longer than 4 hours. Upload one file per chapter.' });
+        }
+
+        const entry = entryMap(book).get(chapterId);
+        if (isActivelyGenerating(entry)) {
+            return res.status(409).json({ message: 'This chapter is generating right now. Wait for it to finish, then upload.' });
+        }
+
+        const uploaded = await uploadChapterAudio(req.file.buffer, book._id.toString());
+        const { text } = chapterNarration(chapter);
+        const fields = {
+            status: 'ready',
+            source: 'uploaded',
+            publicId: uploaded.public_id,
+            durationSec: Math.round(info.durationSec * 10) / 10,
+            bytes: req.file.buffer.length,
+            // So editing the chapter later marks it out of date, as with
+            // generated audio.
+            textHash: hashText(text),
+            voice: '',
+            charCount: text.length,
+            progress: 1,
+            chunksDone: 0,
+            chunksTotal: 0,
+            parts: [],
+            generatedAt: new Date(),
+            error: '',
+        };
+
+        const objectId = new mongoose.Types.ObjectId(chapterId);
+        const set = {};
+        for (const [key, value] of Object.entries(fields)) set[`audio.chapters.$.${key}`] = value;
+        // Atomic against the worker and the narration script: only while
+        // nobody is generating this chapter.
+        let saved = (
+            await Book.updateOne(
+                { _id: book._id, 'audio.chapters': { $elemMatch: { chapterId: objectId, ...notActivelyGenerating() } } },
+                { $set: set }
+            )
+        ).matchedCount;
+        if (!saved && !entry) {
+            saved = (
+                await Book.updateOne(
+                    { _id: book._id, 'audio.chapters.chapterId': { $ne: objectId } },
+                    { $push: { 'audio.chapters': { chapterId: objectId, ...fields } } }
+                )
+            ).matchedCount;
+        }
+        if (!saved) {
+            await deleteAudioAsset(uploaded.public_id).catch(() => {});
+            return res.status(409).json({ message: 'This chapter started generating meanwhile. Wait for it to finish, then upload.' });
+        }
+
+        // The replaced file and leftover parts of an unfinished run.
+        const old = [entry?.publicId, ...partPublicIds(entry ? [entry] : [])].filter((id) => id && id !== uploaded.public_id);
+        await Promise.all(
+            old.map((publicId) =>
+                deleteAudioAsset(publicId).catch((error) =>
+                    console.error(`[audio] Couldn't delete replaced audio ${publicId} (book ${book._id}):`, error.message)
+                )
+            )
+        );
+
+        const fresh = await Book.findById(book._id).select('userId chapters audio');
+        res.status(200).json(await buildStatus(fresh));
+    } catch (error) {
+        console.error('[audio] upload error:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+module.exports = { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice, uploadChapterAudioFile };

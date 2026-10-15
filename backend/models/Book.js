@@ -9,23 +9,47 @@ const PREVIEW_CONTENT_MAX_LENGTH = 2000;
 // of the TTS client).
 const DEFAULT_AUDIO_VOICE = 'Sulafat';
 
-// One entry per chapter that has (or had) AI narration — see
-// utils/audioJobs.js for the lifecycle. Keyed by the chapter's _id, not its
-// index, so reordering chapters never mixes up their audio.
-//   queued → generating → ready | failed     (skipped: chapter has no text)
+// A finished chunk of a chapter that is still being narrated (see
+// utils/narrationPipeline.js): its own authenticated MP3 asset, so a retry
+// after a failure or a quota stop only redoes the chunks that are missing.
+// `key` identifies the chunk's text, voice and engine; a part whose key no
+// longer matches is discarded. Cleared (and the assets deleted) once the
+// chapter's full file is uploaded.
+const audioPartSchema = new mongoose.Schema(
+    {
+        index: { type: Number, required: true },
+        key: { type: String, required: true },
+        publicId: { type: String, required: true },
+        durationSec: { type: Number, default: 0 },
+        bytes: { type: Number, default: 0 },
+    },
+    { _id: false }
+);
+
+// One entry per chapter that has (or had) narration — see
+// utils/narrationPipeline.js for the lifecycle. Keyed by the chapter's _id,
+// not its index, so reordering chapters never mixes up their audio.
+//   queued → generating → ready | failed | waiting   (skipped: no text)
+// 'waiting' = stopped by Gemini's daily quota; finished parts are kept and
+// generating again continues from there. An admin upload goes straight to
+// ready (source 'uploaded').
 // publicId is the authenticated Cloudinary asset. It's kept while a
-// regeneration is queued, running, or has failed, so the previous audio
-// stays playable until a replacement is uploaded. NEVER returned by any
-// public or reader endpoint: readers only get short-lived signed URLs from
-// GET /api/kenlibs/audio/:bookId, and the storefront only hasAudio + a count.
+// regeneration is queued, running, waiting or has failed, so the previous
+// audio stays playable until a replacement is uploaded. NEVER returned by
+// any public or reader endpoint: readers only get short-lived signed URLs
+// from GET /api/kenlibs/audio/:bookId, and the storefront only hasAudio + a
+// count.
 const audioChapterSchema = new mongoose.Schema(
     {
         chapterId: { type: mongoose.Schema.Types.ObjectId, required: true },
         status: {
             type: String,
-            enum: ['queued', 'generating', 'ready', 'failed', 'skipped'],
+            enum: ['queued', 'generating', 'ready', 'failed', 'waiting', 'skipped'],
             required: true,
         },
+        // How the current audio was made: 'gemini' | 'local' | 'uploaded'
+        // ('' for audio made before this field existed, which was Gemini).
+        source: { type: String, default: '' },
         publicId: { type: String, default: '' },
         durationSec: { type: Number, default: 0 },
         bytes: { type: Number, default: 0 },
@@ -37,8 +61,17 @@ const audioChapterSchema = new mongoose.Schema(
         charCount: { type: Number, default: 0 },
         // 0..1 while generating (chunks done / total).
         progress: { type: Number, default: 0 },
+        // Chunk-level progress of the current or last unfinished run
+        // ("5 of 7 done"); parts holds the finished chunks' audio.
+        chunksDone: { type: Number, default: 0 },
+        chunksTotal: { type: Number, default: 0 },
+        parts: { type: [audioPartSchema], default: [] },
         queuedAt: { type: Date },
         startedAt: { type: Date },
+        // Refreshed every few seconds by whoever is generating (server
+        // worker or scripts/narrate-book.js). A 'generating' entry whose
+        // heartbeat has gone quiet was interrupted and may be taken over.
+        heartbeatAt: { type: Date },
         generatedAt: { type: Date },
         error: { type: String, default: '' },
     },
