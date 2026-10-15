@@ -13,6 +13,7 @@ const {
     assembleChapter,
 } = require('./translationText');
 const { translateItems, getTranslationModel, describeTranslationError, DAILY_QUOTA_MESSAGE } = require('./translate');
+const { captureError } = require('./errorLogger');
 
 // Background translation jobs: the same design as audiobook narration
 // (utils/audioJobs.js + utils/narrationPipeline.js).
@@ -178,6 +179,7 @@ const processJob = async ({ translationId, chapterId }) => {
             return;
         }
         console.error(`[translationJobs] ${doc.language} book ${doc.bookId} chapter ${chapterId} failed:`, error.message);
+        captureError({ source: 'job', jobType: `translation-${doc.language}`, bookId: doc.bookId, chapterId, error });
         const kept = done > 0 ? ` ${done} of ${total} parts are saved; translating again continues from there.` : '';
         await fail(`${describeTranslationError(error)}${kept}`);
     } finally {
@@ -222,11 +224,15 @@ const kick = () => {
                     wakeRequested = false;
                     let job;
                     while ((job = await claimNextJob())) {
-                        await processJob(job).catch((error) => console.error('[translationJobs] Unexpected job error:', error));
+                        await processJob(job).catch((error) => {
+                            console.error('[translationJobs] Unexpected job error:', error);
+                            captureError({ source: 'job', jobType: 'translation-worker', chapterId: job.chapterId, error });
+                        });
                     }
                 }
             } catch (error) {
                 console.error('[translationJobs] Worker stopped:', error.message);
+                captureError({ source: 'job', jobType: 'translation-worker', error });
             } finally {
                 running = null;
             }

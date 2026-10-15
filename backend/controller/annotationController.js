@@ -140,6 +140,7 @@ const getAnnotations = async (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.status(200).json({ annotations: docs.map(toClient), maxPerBook: getMaxPerBook() });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -184,6 +185,7 @@ const createAnnotation = async (req, res) => {
         });
         res.status(201).json(toClient(doc));
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -208,6 +210,7 @@ const updateAnnotation = async (req, res) => {
         if (!doc) return res.status(404).json({ message: 'Not found' });
         res.status(200).json(toClient(doc));
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -224,6 +227,7 @@ const deleteAnnotation = async (req, res) => {
         if (!result.deletedCount) return res.status(404).json({ message: 'Not found' });
         res.status(200).json({ deleted: true });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };

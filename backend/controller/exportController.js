@@ -581,6 +581,7 @@ const exportAsDocument = async (req, res) => {
     res.setHeader("Content-Length", buffer.length);
     res.send(buffer);
   } catch (error) {
+    res.locals.error = error;
     console.error("Error exporting document:", error);
     if (!res.headersSent) {
       res.status(500).json({
@@ -904,6 +905,7 @@ const exportAsPDF = async (req, res) => {
 
     doc.end();
   } catch (error) {
+    res.locals.error = error;
     console.error("Error exporting PDF:", error);
     if (!res.headersSent) {
       res.status(500).json({
@@ -1175,6 +1177,7 @@ const exportAsEPUB = async (req, res) => {
 
     await archive.finalize();
   } catch (error) {
+    res.locals.error = error;
     console.error("Error exporting EPUB:", error);
     if (!res.headersSent) {
       res.status(500).json({

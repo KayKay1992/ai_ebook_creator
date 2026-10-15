@@ -22,6 +22,7 @@ const getBundles = async (req, res) => {
             .sort({ createdAt: -1 });
         res.status(200).json(bundles);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -40,6 +41,7 @@ const getBundleById = async (req, res) => {
         }
         res.status(200).json(bundle);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -61,6 +63,7 @@ const createBundle = async (req, res) => {
         const populated = await created.populate('books', 'title author coverImage price isForSale');
         res.status(201).json(populated);
     } catch (error) {
+        res.locals.error = error;
         console.error('Create bundle error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -82,6 +85,7 @@ const updateBundle = async (req, res) => {
         const populated = await updated.populate('books', 'title author coverImage price isForSale');
         res.status(200).json(populated);
     } catch (error) {
+        res.locals.error = error;
         console.error('Update bundle error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -99,6 +103,7 @@ const deleteBundle = async (req, res) => {
         await bundle.deleteOne();
         res.status(200).json({ message: 'Bundle removed' });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };

@@ -12,6 +12,8 @@ const kenlibsRoutes = require('./routes/kenlibsRoute');
 const adminRoutes = require('./routes/adminRoute');
 const referralRoutes = require('./routes/referralRoute');
 const ogPreviewRoutes = require('./routes/ogPreviewRoute');
+const errorRoutes = require('./routes/errorRoute');
+const { captureServerErrors, errorHandler } = require('./middleware/errorCapture');
 
 // Pure Express app construction — no DB connection, no app.listen(). Split
 // out of server.js (Step 45) so tests can `require('./app')` and drive it
@@ -20,6 +22,16 @@ const ogPreviewRoutes = require('./routes/ogPreviewRoute');
 // database. server.js is now the only thing that actually connects to Mongo
 // and starts listening; this file has zero side effects on require.
 const app = express();
+
+// Behind Render's proxy, req.ip must be the visitor's address (per-IP rate
+// limits, e.g. POST /api/errors/report). On automatically when Render's
+// RENDER variable is set; TRUST_PROXY overrides (a hop count, or "false").
+const trustProxy = process.env.TRUST_PROXY ?? (process.env.RENDER ? '1' : 'false');
+app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy === 'true');
+
+// First, so every 5xx response is recorded (middleware/errorCapture.js,
+// utils/errorLogger.js). Fire-and-forget: never delays a response.
+app.use(captureServerErrors);
 
 // FRONTEND_URL is kept as a single canonical URL for non-CORS uses (email
 // links — authController.js's buildResetLink, ogPreviewRoute.js's crawler
@@ -121,6 +133,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/kenlibs', kenlibsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/referrals', referralRoutes);
+app.use('/api/errors', errorRoutes);
 
 // Deliberately NOT under /api and matching the frontend's own SPA paths
 // (/kenlibs/book/:id, /kenlibs/bundle/:id) — this exists only to give
@@ -136,5 +149,9 @@ app.use('/api/referrals', referralRoutes);
 // these two path patterns to this backend, and let every other path
 // continue to the frontend's static SPA build unchanged.
 app.use(ogPreviewRoutes);
+
+// Last: errors thrown or passed to next(err). CORS rejections → 403,
+// client errors → their 4xx as JSON, everything else → 500 JSON (logged).
+app.use(errorHandler);
 
 module.exports = app;

@@ -5,6 +5,7 @@ const User = require('../models/User');
 const ReferralReward = require('../models/ReferralReward');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const { sendPurchaseRequestAdminEmail, sendPurchaseDecisionEmail } = require('../utils/sendEmail');
+const { getAdminNotifyEmails } = require('../utils/adminRecipients');
 
 // Named so the payout rate is easy to find and tune later — currently 5% of
 // the triggering purchase's snapshotted `amount`.
@@ -87,18 +88,7 @@ const enrichWithItemDetails = async (requests) => {
 // made forgot-password hang on Render).
 // ---------------------------------------------------------------------------
 
-// ADMIN_NOTIFY_EMAIL (comma-separated) wins; otherwise every admin account.
-const getAdminNotifyEmails = async () => {
-    const configured = (process.env.ADMIN_NOTIFY_EMAIL || '')
-        .split(',')
-        .map((email) => email.trim())
-        .filter(Boolean);
-    if (configured.length) return configured;
-
-    const admins = await User.find({ role: 'admin' }).select('email').lean();
-    return [...new Set(admins.map((admin) => admin.email).filter(Boolean))];
-};
-
+// Recipients: utils/adminRecipients.js (shared with error alerts).
 const notifyAdminsOfPurchaseRequest = ({ purchaseRequest, reader, itemTitle, isResubmission = false }) => {
     const requestId = purchaseRequest._id.toString();
     const logFailure = (error) =>
@@ -244,6 +234,7 @@ const createPurchaseRequest = async (req, res) => {
 
         res.status(201).json(purchaseRequest);
     } catch (error) {
+        res.locals.error = error;
         console.error('Create purchase request error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -263,6 +254,7 @@ const getMyPurchaseRequests = async (req, res) => {
 
         res.status(200).json(await enrichWithItemDetails(requests));
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -287,6 +279,7 @@ const getAllPurchaseRequests = async (req, res) => {
 
         res.status(200).json(await enrichWithItemDetails(requests));
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -365,6 +358,7 @@ const reviewPurchaseRequest = async (req, res, { toStatus, note, allowedFrom, ac
         notifyReaderOfDecision(enriched);
         res.status(200).json(enriched);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -453,6 +447,7 @@ const resubmitPurchaseRequest = async (req, res) => {
         });
         res.status(200).json(enriched);
     } catch (error) {
+        res.locals.error = error;
         console.error('Resubmit purchase request error:', error);
         res.status(500).json({ message: 'Server Error' });
     }

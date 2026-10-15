@@ -152,6 +152,7 @@ const getAudioStatus = async (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.status(200).json(await buildStatus(book));
     } catch (error) {
+        res.locals.error = error;
         console.error('[audio] status error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -279,6 +280,7 @@ const generateAudio = async (req, res) => {
         const fresh = await Book.findById(book._id).select('userId chapters audio');
         res.status(202).json({ ...summary, status: await buildStatus(fresh) });
     } catch (error) {
+        res.locals.error = error;
         console.error('[audio] generate error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -316,6 +318,7 @@ const deleteChapterAudio = async (req, res) => {
         const fresh = await Book.findById(book._id).select('userId chapters audio');
         res.status(200).json(await buildStatus(fresh));
     } catch (error) {
+        res.locals.error = error;
         console.error('[audio] delete error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -368,6 +371,7 @@ const previewVoice = async (req, res) => {
         res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Preview-Text-Length': String(text.length) });
         res.status(200).send(buffer);
     } catch (error) {
+        res.locals.error = error;
         console.error('[audio] preview error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -464,6 +468,7 @@ const uploadChapterAudioFile = async (req, res) => {
         const fresh = await Book.findById(book._id).select('userId chapters audio');
         res.status(200).json(await buildStatus(fresh));
     } catch (error) {
+        res.locals.error = error;
         console.error('[audio] upload error:', error);
         res.status(500).json({ message: 'Server Error' });
     }

@@ -86,6 +86,7 @@ const registerUser = async (req, res) => {
             res.status(400).json({ message: 'Invalid user data' });
         }
     } catch (error) {
+        res.locals.error = error;
         console.error("REGISTER ERROR →", error);
         res.status(500).json({ message: 'Registration failed. Please try again.' });
     }
@@ -112,6 +113,7 @@ const loginUser = async (req, res) => {
             res.status(400).json({ message: 'Invalid credentials' });
         }
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -137,6 +139,7 @@ const getProfile = async (req, res) => {
             res.status(404).json({ message: 'User not found' });
         }
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -167,6 +170,7 @@ const updateUserProfile = async (req, res) => {
             res.status(404).json({ message: 'User not found' });
         }
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -212,6 +216,7 @@ const forgotPassword = async (req, res) => {
             message: 'If an account exists for that email, a password reset link has been sent.',
         });
     } catch (error) {
+        res.locals.error = error;
         console.error('[forgotPassword] Unexpected error:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -245,6 +250,7 @@ const resetPassword = async (req, res) => {
 
         res.status(200).json({ message: 'Password has been reset. You can now log in with your new password.' });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };

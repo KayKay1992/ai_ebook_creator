@@ -209,6 +209,7 @@ const getAnalytics = async (req, res) => {
             },
         });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };

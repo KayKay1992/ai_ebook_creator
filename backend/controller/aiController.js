@@ -133,10 +133,12 @@ Generate the outline now:
       const outline = JSON.parse(jsonString);
       res.status(200).json({ outline });
     } catch (e) {
+      res.locals.error = e;
       console.error("Failed to parse AI response:", jsonString);
       res.status(500).json({ message: "Failed to generate outline" });
     }
   } catch (error) {
+    res.locals.error = error;
     console.error("Error generating outline:", error);
     sendAiErrorResponse(res, error, "Server Error");
   }
@@ -268,10 +270,12 @@ Generate the ${count} new chapters now:
         : existingChapters.length;
       res.status(200).json({ outline, insertBeforeIndex });
     } catch (e) {
+      res.locals.error = e;
       console.error("Failed to parse AI response:", jsonString);
       res.status(500).json({ message: "Failed to generate additional chapters" });
     }
   } catch (error) {
+    res.locals.error = error;
     console.error("Error extending outline:", error);
     sendAiErrorResponse(res, error, "Server Error");
   }
@@ -374,10 +378,12 @@ Generate them now:
       }
       res.status(200).json(result);
     } catch (e) {
+      res.locals.error = e;
       console.error("Failed to parse AI response:", jsonString);
       res.status(500).json({ message: "Failed to generate introduction/conclusion" });
     }
   } catch (error) {
+    res.locals.error = error;
     console.error("Error generating introduction/conclusion:", error);
     sendAiErrorResponse(res, error, "Server Error");
   }
@@ -496,6 +502,7 @@ Return only the clean Markdown content. No extra commentary.
       res.end();
     }
   } catch (error) {
+    res.locals.error = error;
     console.error("Error generating chapter content:", error);
     if (!res.headersSent) {
       sendAiErrorResponse(res, error, "Server Error");
@@ -626,6 +633,7 @@ ${voiceInstruction ? `\n### Voice & tone\nThis book has an established voice pro
       res.end();
     }
   } catch (error) {
+    res.locals.error = error;
     console.error("Error editing selection:", error);
     if (!res.headersSent) {
       sendAiErrorResponse(res, error, "Server Error");
@@ -706,6 +714,7 @@ Return ONLY the blurb text. No heading, no wrapping quotation marks, no commenta
 
     res.status(200).json({ blurb });
   } catch (error) {
+    res.locals.error = error;
     console.error("Error generating blurb:", error);
     sendAiErrorResponse(res, error, "Server Error");
   }
@@ -793,6 +802,7 @@ Return ONLY the teaser text, with no commentary.
 
     res.status(200).json({ teaser });
   } catch (error) {
+    res.locals.error = error;
     console.error("Error generating teaser:", error);
     sendAiErrorResponse(res, error, "Server Error");
   }
@@ -882,6 +892,7 @@ Return ONLY the recap text.
       sourceHash: chapterSourceHash(chapter),
     });
   } catch (error) {
+    res.locals.error = error;
     console.error("Error generating chapter summary:", error.message);
     const kind = rateLimitKind(error);
     if (kind === "daily") {

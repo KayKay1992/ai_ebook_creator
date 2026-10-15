@@ -13,6 +13,7 @@ import {
   X,
   Wallet,
   Briefcase,
+  Bug,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/admin/reviews", label: "Reviews", icon: MessageSquareText },
   { to: "/admin/payment-settings", label: "Payment Settings", icon: Wallet },
+  { to: "/admin/errors", label: "Errors", icon: Bug },
   { to: "/profile", label: "Profile", icon: User },
 ];
 
@@ -177,6 +179,15 @@ const DashboardLayout = ({ children }) => {
                 >
                   <Wallet className="w-4 h-4" />
                   Payment Settings
+                </Link>
+              )}
+              {user?.role === "admin" && (
+                <Link
+                  to="/admin/errors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  <Bug className="w-4 h-4" />
+                  Errors
                 </Link>
               )}
             </div>

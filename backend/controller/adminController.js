@@ -56,6 +56,7 @@ const getReaders = async (req, res) => {
 
         res.status(200).json(enriched);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -100,6 +101,7 @@ const resetUserPassword = async (req, res) => {
             });
         }
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -185,6 +187,7 @@ const deleteUser = async (req, res) => {
 
         res.status(200).json({ message: 'User anonymized — purchase/referral history preserved.', action: 'anonymized' });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -222,6 +225,7 @@ const getReviewsForModeration = async (req, res) => {
             }))
         );
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -239,6 +243,7 @@ const deleteRating = async (req, res) => {
         }
         res.status(200).json({ message: 'Review deleted.' });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -254,6 +259,7 @@ const getPaymentDetails = async (req, res) => {
         const admin = await User.findById(req.user._id).select('paymentDetails');
         res.status(200).json(admin?.paymentDetails || {});
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -277,6 +283,7 @@ const updatePaymentDetails = async (req, res) => {
         await admin.save();
         res.status(200).json(admin.paymentDetails);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };

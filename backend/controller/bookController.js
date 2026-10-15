@@ -41,6 +41,7 @@ const createBook = async (req, res) => {
 
         res.status(201).json(book);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -54,6 +55,7 @@ const getBooks = async (req, res) => {
         const books = await Book.find({ userId: req.user._id }).select('-audio').sort({ createdAt: -1 });
         res.status(200).json(books);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -74,6 +76,7 @@ const getBookById = async (req, res) => {
         }
         res.status(200).json(book);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -135,6 +138,7 @@ const updateBook = async (req, res) => {
         const updatedBook = await Book.findByIdAndUpdate(req.params.id, updates, { returnDocument: "after" });
         res.status(200).json(updatedBook);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -169,6 +173,7 @@ const deleteBook = async (req, res) => {
             )
         );
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -198,6 +203,7 @@ const updateBookCover = async (req, res) => {
     const updatedBook = await book.save();
     res.status(200).json(updatedBook);
   } catch (error) {
+    res.locals.error = error;
     console.error("Cover upload error:", error);
     res.status(500).json({ message: "Server Error" });
   }
@@ -225,6 +231,7 @@ const uploadChapterImage = async (req, res) => {
     const result = await uploadBufferToCloudinary(req.file.buffer, "ebook-creator/chapters");
     res.status(200).json({ path: result.secure_url });
   } catch (error) {
+    res.locals.error = error;
     console.error("Chapter image upload error:", error);
     res.status(500).json({ message: "Server Error" });
   }
@@ -255,6 +262,7 @@ const uploadCoverDesignImageHandler = (applyToBook) => async (req, res) => {
     const updatedBook = await book.save();
     res.status(200).json(updatedBook);
   } catch (error) {
+    res.locals.error = error;
     console.error("Cover design image upload error:", error);
     res.status(500).json({ message: "Server Error" });
   }
@@ -318,6 +326,7 @@ const togglePublishStatus = async (req, res) => {
     const updatedBook = await book.save();
     res.status(200).json(updatedBook);
   } catch (error) {
+    res.locals.error = error;
     console.error("Publish toggle error:", error);
     res.status(500).json({ message: "Server Error" });
   }

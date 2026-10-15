@@ -131,6 +131,7 @@ const respondWithStatus = async (res, book, language, status = 200) => {
 };
 
 const handleError = (res, label) => (error) => {
+    res.locals.error = error; // for error monitoring (middleware/errorCapture.js)
     console.error(`[translations] ${label} error:`, error);
     res.status(500).json({ message: 'Server Error' });
 };

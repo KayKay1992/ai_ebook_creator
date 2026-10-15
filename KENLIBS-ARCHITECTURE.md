@@ -575,7 +575,26 @@ regression from Step 31's original Framer Motion usage — a widespread
 AnimatePresence freeze bug — was found and fixed separately in d9bc0e8
 (which also added the mobile admin sidebar).
 
-**Backups and restore (BUILT, uncommitted at time of writing)**
+**Error monitoring (BUILT, uncommitted at time of writing)**
+Self-hosted, no third-party service. Server errors (5xx responses only),
+failed background jobs (audio narration, translation) and readers'
+browser errors are recorded in an ErrorLog collection, grouped so a
+repeating error is one entry with a count. Reviewed at /admin/errors
+(admin-only, in the admin navigation): sorted by last seen, filter for
+unresolved, expandable stack trace, "mark resolved" and delete. Entries
+delete themselves 30 days after they were last seen (ERROR_LOG_TTL_DAYS).
+- Privacy: no passwords, tokens, headers, cookies, request bodies, chapter
+  text, notes or highlights are stored; emails and token-like strings are
+  scrubbed from messages and stacks; only a user id, never a name or email.
+- Alerts: an email to ADMIN_NOTIFY_EMAIL (Brevo) when a new kind of error
+  appears, when a resolved one comes back, or when one spikes, at most
+  ERROR_ALERT_MAX_PER_HOUR per hour.
+- Readers see a friendly "Something went wrong, please refresh" page
+  instead of a blank screen, or "A new version is available" after a
+  deploy. Logging never slows or breaks a request, and can be turned off
+  with ERROR_LOG_ENABLED=false.
+
+**Backups and restore (DONE, commit 355fad6)**
 Free, local backups of the whole MongoDB database, run on the admin's own
 PC (never on Render), using backend/.env's MONGO_URI. From backend/:
 - `npm run backup`: every collection to backups/<date_time>/ as Extended

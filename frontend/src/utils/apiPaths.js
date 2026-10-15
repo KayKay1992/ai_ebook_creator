@@ -96,6 +96,10 @@ export const API_PATHS = {
     DELETE_REVIEW: (id) => `/api/admin/ratings/${id}`,
     PAYMENT_DETAILS: "/api/admin/payment-details",
   },
+  ERRORS: {
+    LIST: "/api/errors",
+    ONE: (id) => `/api/errors/${id}`,
+  },
   REFERRALS: {
     MINE: "/api/referrals/me",
   },

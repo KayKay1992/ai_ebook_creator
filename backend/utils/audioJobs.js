@@ -1,5 +1,6 @@
 const Book = require('../models/Book');
 const { getProvider } = require('./narrationProviders');
+const { captureError } = require('./errorLogger');
 const {
     updateEntry,
     narrateClaimedChapter,
@@ -73,13 +74,15 @@ const kick = () => {
                     wakeRequested = false;
                     let job;
                     while ((job = await claimNextJob())) {
-                        await processJob(job).catch((error) =>
-                            console.error('[audioJobs] Unexpected job error:', error)
-                        );
+                        await processJob(job).catch((error) => {
+                            console.error('[audioJobs] Unexpected job error:', error);
+                            captureError({ source: 'job', jobType: 'audio-worker', bookId: job.bookId, chapterId: job.chapterId, error });
+                        });
                     }
                 }
             } catch (error) {
                 console.error('[audioJobs] Worker stopped:', error.message);
+                captureError({ source: 'job', jobType: 'audio-worker', error });
             } finally {
                 running = null;
             }

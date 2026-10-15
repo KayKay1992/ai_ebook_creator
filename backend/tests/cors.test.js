@@ -40,7 +40,9 @@ describe('CORS allowlist', () => {
             .set('Origin', 'https://evil-phishing-site.com');
 
         expect(res.headers['access-control-allow-origin']).toBeUndefined();
-        expect(res.status).toBe(500);
+        // 403 from app.js's errorHandler (was Express's default 500), so a
+        // rejected origin isn't recorded as a server error.
+        expect(res.status).toBe(403);
     });
 
     it('rejects a Vercel-style preview origin when ALLOWED_ORIGIN_PATTERN is not set', async () => {

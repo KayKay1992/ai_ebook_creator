@@ -43,6 +43,7 @@ const KenlibsSupportPage = lazyWithRetry(() => import("./pages/KenlibsSupportPag
 const AdminUsersPage = lazyWithRetry(() => import("./pages/AdminUsersPage"));
 const AdminAnalyticsPage = lazyWithRetry(() => import("./pages/AdminAnalyticsPage"));
 const AdminReviewsPage = lazyWithRetry(() => import("./pages/AdminReviewsPage"));
+const AdminErrorsPage = lazyWithRetry(() => import("./pages/AdminErrorsPage"));
 const AdminPaymentSettingsPage = lazyWithRetry(() => import("./pages/AdminPaymentSettingsPage"));
 const AdminClientBooksPage = lazyWithRetry(() => import("./pages/AdminClientBooksPage"));
 
@@ -125,6 +126,7 @@ const App = () => {
           <Route path='/admin/users' element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
           <Route path='/admin/analytics' element={<AdminRoute><AdminAnalyticsPage /></AdminRoute>} />
           <Route path='/admin/reviews' element={<AdminRoute><AdminReviewsPage /></AdminRoute>} />
+          <Route path='/admin/errors' element={<AdminRoute><AdminErrorsPage /></AdminRoute>} />
           <Route path='/admin/payment-settings' element={<AdminRoute><AdminPaymentSettingsPage /></AdminRoute>} />
           <Route path='/admin/client-books' element={<AdminRoute><AdminClientBooksPage /></AdminRoute>} />
       </Routes>

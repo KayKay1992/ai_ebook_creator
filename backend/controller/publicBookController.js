@@ -31,6 +31,7 @@ const getPublicBookByShareId = async (req, res) => {
 
     res.status(200).json(buildSharePreview(book));
   } catch (error) {
+    res.locals.error = error;
     res.status(500).json({ message: "Server Error" });
   }
 };
@@ -76,6 +77,7 @@ const getKenlibsStorefront = async (req, res) => {
 
     res.status(200).json({ books: books.map((book) => withAudioSummary(book)), bundles });
   } catch (error) {
+    res.locals.error = error;
     res.status(500).json({ message: "Server Error" });
   }
 };
@@ -108,6 +110,7 @@ const getKenlibsBookById = async (req, res) => {
     // chapter ids used to count them) are stripped.
     res.status(200).json({ ...withAudioSummary(book), translationLanguages });
   } catch (error) {
+    res.locals.error = error;
     res.status(500).json({ message: "Server Error" });
   }
 };
@@ -133,6 +136,7 @@ const getKenlibsBundleById = async (req, res) => {
 
     res.status(200).json(bundle);
   } catch (error) {
+    res.locals.error = error;
     res.status(500).json({ message: "Server Error" });
   }
 };

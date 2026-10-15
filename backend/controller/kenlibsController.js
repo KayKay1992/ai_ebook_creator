@@ -105,6 +105,7 @@ const getBookAccess = async (req, res) => {
         const hasAccess = await hasBookAccess(req.user, book._id);
         res.status(200).json({ hasAccess });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -147,6 +148,7 @@ const getMyAccessMap = async (req, res) => {
 
         res.status(200).json({ bookIds: Array.from(new Set([...directBookIds, ...bundleBookIds])) });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -181,6 +183,7 @@ const readBook = async (req, res) => {
         // the response body beyond a plain message.
         return res.status(403).json({ message: "You don't have access to this book" });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -205,6 +208,7 @@ const getBookTranslations = async (req, res) => {
         const chapterIds = new Set(book.chapters.map((chapter) => String(chapter._id)));
         res.status(200).json({ languages: await publishedLanguages(book._id, chapterIds) });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -236,6 +240,7 @@ const readBookTranslation = async (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.status(200).json(translation);
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -283,6 +288,7 @@ const getBookAudio = async (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.status(200).json({ chapters });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -315,6 +321,7 @@ const getProgress = async (req, res) => {
             completedAt: progress?.completedAt ?? null,
         });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -386,6 +393,7 @@ const updateProgress = async (req, res) => {
             completedAt: progress.completedAt,
         });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -459,6 +467,7 @@ const getCertificate = async (req, res) => {
         });
         doc.end();
     } catch (error) {
+        res.locals.error = error;
         console.error('Certificate generation error:', error);
         if (!res.headersSent) {
             res.status(500).json({ message: 'Server Error' });
@@ -539,6 +548,7 @@ doesn't make that clear rather than guessing.
 
         res.status(200).json({ explanation });
     } catch (error) {
+        res.locals.error = error;
         console.error('Error explaining word in context:', error);
         res.status(500).json({ message: 'Server Error' });
     }
@@ -593,6 +603,7 @@ const createOrUpdateRating = async (req, res) => {
             updatedAt: rating.updatedAt,
         });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -647,6 +658,7 @@ const getRatings = async (req, res) => {
             hasMore: page * REVIEWS_PAGE_SIZE < totalReviews,
         });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -676,6 +688,7 @@ const getMyRating = async (req, res) => {
             rating: rating ? { stars: rating.stars, review: rating.review, updatedAt: rating.updatedAt } : null,
         });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -694,6 +707,7 @@ const getCheckoutPaymentDetails = async (req, res) => {
             admin?.paymentDetails || {};
         res.status(200).json({ bankName, accountNumber, accountHolderName });
     } catch (error) {
+        res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
     }
 };

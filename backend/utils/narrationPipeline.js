@@ -4,6 +4,7 @@ const { encodeMp3, silence } = require('./audioEncoding');
 const { uploadChapterAudio, uploadAudioPart, downloadAudioAsset, deleteAudioAsset } = require('./audioStorage');
 const { chargeChars } = require('./audioUsage');
 const { QuotaExhaustedError, DAILY_QUOTA_MESSAGE } = require('./tts');
+const { captureError } = require('./errorLogger');
 
 // Narrates one chapter into book.audio, whichever engine (provider) makes
 // the speech and whoever runs it: the server's job worker
@@ -282,6 +283,8 @@ const narrateClaimedChapter = async ({ bookId, chapterId, provider, onProgress, 
         const kept = done > 0 ? ` ${done} of ${total} parts are saved; generating again continues from there.` : '';
         if (error instanceof StoppedError) return finish('failed', `Stopped before it finished.${kept}`, progress);
         console.error(`[narration] Book ${bookId} chapter ${chapterId} failed:`, error.message);
+        // A real failure (not a quota stop or a deliberate stop): monitored.
+        captureError({ source: 'job', jobType: `audio-${provider.name}`, bookId, chapterId, error });
         return finish('failed', `${provider.describeError(error)}${kept}`, progress);
     } finally {
         clearInterval(heartbeat);

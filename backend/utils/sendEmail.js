@@ -431,8 +431,52 @@ const sendPurchaseDecisionEmail = async ({
     await sendEmail({ to, subject, html, text });
 };
 
+const ERROR_ALERT_HEADINGS = {
+    new: 'New error on Kenlibs',
+    reopened: 'A resolved error is back',
+    spike: 'An error is happening a lot',
+};
+
+//@desc  Error monitoring alert for the admin (utils/errorAlerts.js): a new
+//       kind of error, a resolved one coming back, or a spike. Everything
+//       in it was already scrubbed by utils/errorScrubber.js, and it's
+//       escaped here too. No stack trace: that's on the admin page.
+const sendErrorAlertEmail = async ({ to, kind, source, message, where, count, lastHourCount, environment }) => {
+    const heading = ERROR_ALERT_HEADINGS[kind] || ERROR_ALERT_HEADINGS.new;
+    const link = frontendUrl('/admin/errors');
+    const rows = [
+        ['Error', escapeHtml(message || '(no message)')],
+        ['Source', escapeHtml(source)],
+        ...(where ? [['Where', escapeHtml(where)]] : []),
+        ['Times seen', escapeHtml(String(count))],
+        ...(kind === 'spike' ? [['In the last hour', escapeHtml(String(lastHourCount))]] : []),
+        ...(environment ? [['Environment', escapeHtml(environment)]] : []),
+    ];
+    const html = emailShell(
+        `${emailHeading(heading)}
+      ${emailParagraph('Kenlibs recorded this error. Details, including the stack trace, are on the Errors page.')}
+      ${emailDetails(rows)}
+      ${emailButton(link, 'Open the Errors page')}`,
+        { footer: 'Kenlibs &middot; error monitoring. At most a few of these are sent per hour.' }
+    );
+    const text = [
+        heading,
+        '',
+        `Error: ${message || '(no message)'}`,
+        `Source: ${source}`,
+        ...(where ? [`Where: ${where}`] : []),
+        `Times seen: ${count}`,
+        ...(kind === 'spike' ? [`In the last hour: ${lastHourCount}`] : []),
+        ...(environment ? [`Environment: ${environment}`] : []),
+        '',
+        `Errors page: ${link}`,
+    ].join('\n');
+    return sendEmail({ to, subject: `[Kenlibs] ${heading}: ${String(message || '').slice(0, 80)}`, html, text });
+};
+
 module.exports = {
     sendEmail,
+    sendErrorAlertEmail,
     sendPasswordResetEmail,
     sendPurchaseRequestAdminEmail,
     sendPurchaseDecisionEmail,
