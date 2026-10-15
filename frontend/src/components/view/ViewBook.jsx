@@ -51,6 +51,11 @@ const ViewBook = forwardRef(function ViewBook(
     onChapterChange,
     renderChapterContent,
     headerControls,
+    // Extra space (a CSS length) at the end of the scrolling content, so
+    // fixed controls a page floats over the bottom of the screen (audio
+    // player, note buttons) can never cover the last lines or the
+    // Previous/Next buttons: scrolled to the end, they sit above them.
+    contentBottomInset,
   },
   ref
 ) {
@@ -204,7 +209,10 @@ const ViewBook = forwardRef(function ViewBook(
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-[70ch] mx-auto px-5 sm:px-8 py-12 sm:py-16">
+          <div
+            className="max-w-[70ch] mx-auto px-5 sm:px-8 py-12 sm:py-16"
+            style={contentBottomInset ? { paddingBottom: contentBottomInset } : undefined}
+          >
             {animated ? (
               <div
                 className={`transition-opacity duration-150 ease-out ${

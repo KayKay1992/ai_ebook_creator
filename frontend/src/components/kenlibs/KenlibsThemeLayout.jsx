@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import KenlibsWhatsAppButton from "./KenlibsWhatsAppButton";
 
 // No longer a theming wrapper (Step 47) — the terracotta/navy/cream
@@ -10,11 +10,20 @@ import KenlibsWhatsAppButton from "./KenlibsWhatsAppButton";
 // deliberately skips KenlibsNav/KenlibsFooter for a calmer reading
 // surface, but still needs this one persistent affordance) — and admin
 // routes, which never render inside this layout, correctly never see it.
-const KenlibsThemeLayout = () => (
-  <>
-    <Outlet />
-    <KenlibsWhatsAppButton />
-  </>
-);
+//
+// The gated reader (/kenlibs/read/...) is the exception: it puts this
+// button in its own floating-button dock with the notepad button (so the
+// two never overlap the chapter's Previous/Next buttons), so the
+// free-floating copy is skipped there.
+const KenlibsThemeLayout = () => {
+  const { pathname } = useLocation();
+  const readerHasItsOwn = pathname.startsWith("/kenlibs/read/");
+  return (
+    <>
+      <Outlet />
+      {!readerHasItsOwn && <KenlibsWhatsAppButton />}
+    </>
+  );
+};
 
 export default KenlibsThemeLayout;

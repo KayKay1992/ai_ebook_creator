@@ -19,6 +19,7 @@ import getErrorMessage from "../utils/getErrorMessage";
 import { getReadingLanguage, setReadingLanguage } from "../utils/readingLanguage";
 import ReadingLanguageSelect from "../components/kenlibs/ReadingLanguageSelect";
 import TranslationNotice from "../components/kenlibs/TranslationNotice";
+import KenlibsWhatsAppButton from "../components/kenlibs/KenlibsWhatsAppButton";
 import SelectionToolbar from "../components/kenlibs/SelectionToolbar";
 import HighlightPopover from "../components/kenlibs/HighlightPopover";
 import { TOOLBAR_WIDTH, POPOVER_WIDTH } from "../utils/annotationUi";
@@ -100,6 +101,45 @@ const extractSentenceContext = (range, selectedText) => {
 // Step 32 adds resume-where-you-left-off and a private notepad, both
 // backed by ReaderProgress and scoped to this page only — the admin's own
 // /view-book/:bookId preview doesn't get either.
+// Floating controls at the bottom of the reader (all fixed, z-40):
+//   left:  the audiobook "Listen" pill, or the open player (full width on
+//          phones, a 400px card from 640px up), reporting its own height;
+//   right: one dock column: WhatsApp support above the notepad button.
+// On phones the dock sits above the open player instead of on top of it.
+// The chapter's scrolling content always ends with at least the height of
+// the tallest of these (+ safe-area inset), so scrolled to the end, the
+// last lines and the Previous/Next buttons sit above them, never under.
+const FLOAT_EDGE_PX = 24; // bottom-6
+const OPEN_PLAYER_EDGE_PX = 16; // the open player's bottom-4
+const DOCK_GAP_PX = 12;
+const DOCK_HEIGHT_PX = 56 + 12 + 48; // notepad + gap + WhatsApp
+const CONTENT_CLEARANCE_PX = 16;
+
+// A popup's top: below its anchor if it fits above the floating controls
+// (the bottom `reservePx` of the screen); otherwise above both the anchor
+// and that zone (an anchor can itself sit beside the controls); always on
+// screen.
+const placeAbove = (reservePx, { below, above, height }) => {
+  const limit = window.innerHeight - reservePx;
+  if (below + height <= limit) return below;
+  const top = Math.min(above, limit) - height;
+  if (top >= 8) return top;
+  return Math.max(8, Math.min(below, window.innerHeight - height - 8));
+};
+
+const useMinWidth = (px) => {
+  const query = `(min-width: ${px}px)`;
+  const [matches, setMatches] = useState(() => typeof window !== "undefined" && Boolean(window.matchMedia?.(query).matches));
+  useEffect(() => {
+    const list = window.matchMedia?.(query);
+    if (!list) return undefined;
+    const onChange = (event) => setMatches(event.matches);
+    list.addEventListener("change", onChange);
+    return () => list.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+};
+
 const KenlibsReadPage = () => {
   const { bookId } = useParams();
   const navigate = useNavigate();
@@ -116,6 +156,21 @@ const KenlibsReadPage = () => {
   // which stays the fallback for chapters without narration.
   const [audioData, setAudioData] = useState(null);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
+  const [playerHeight, setPlayerHeight] = useState(0);
+  const isWide = useMinWidth(640);
+  const shownPlayerHeight = audioData ? playerHeight : 0;
+  // The dock rides above the open player on phones (it's full width there).
+  const dockBottomPx = !isWide && isPlayerExpanded && shownPlayerHeight ? OPEN_PLAYER_EDGE_PX + shownPlayerHeight + DOCK_GAP_PX : FLOAT_EDGE_PX;
+  const playerTopPx = shownPlayerHeight ? (isPlayerExpanded ? OPEN_PLAYER_EDGE_PX : FLOAT_EDGE_PX) + shownPlayerHeight : 0;
+  // How much of the bottom of the screen floating controls can cover.
+  const floatingReservePx = Math.max(playerTopPx, dockBottomPx + DOCK_HEIGHT_PX) + CONTENT_CLEARANCE_PX;
+  const floatingReserveRef = useRef(floatingReservePx);
+  useEffect(() => {
+    floatingReserveRef.current = floatingReservePx;
+  }, [floatingReservePx]);
+  // A popup's top: below its anchor if it fits above the floating
+  // controls, otherwise above the anchor, always on screen.
+  const placeNear = (options) => placeAbove(floatingReserveRef.current, options);
   // The chapter on screen, as state (currentChapterIndexRef below is the
   // same value for callbacks) so the audiobook player can follow it.
   const [visibleChapterIndex, setVisibleChapterIndex] = useState(0);
@@ -475,7 +530,7 @@ const KenlibsReadPage = () => {
       Math.max(rect.left, 12),
       window.innerWidth - EXPLAIN_POPUP_WIDTH - 12
     );
-    const top = Math.min(rect.bottom + 10, window.innerHeight - EXPLAIN_POPUP_HEIGHT_ESTIMATE);
+    const top = placeAbove(floatingReserveRef.current, { below: rect.bottom + 10, above: rect.top - 10, height: EXPLAIN_POPUP_HEIGHT_ESTIMATE });
 
     // Highlights stay within one paragraph: a selection that runs on into
     // the next one is clipped to the end of the first.
@@ -493,7 +548,7 @@ const KenlibsReadPage = () => {
       if (end > start) anchor = { paragraphIndex: paragraphIndexOf(startParagraph), start, end };
     }
     const toolbarPosition = {
-      top: Math.min(rect.bottom + 10, window.innerHeight - 64),
+      top: placeAbove(floatingReserveRef.current, { below: rect.bottom + 10, above: rect.top - 10, height: 52 }),
       left: Math.min(Math.max(rect.left, 12), window.innerWidth - TOOLBAR_WIDTH - 12),
     };
 
@@ -531,8 +586,10 @@ const KenlibsReadPage = () => {
   const languageOfChapter = (chapter) =>
     chapter?.isTranslated && activeLanguageCode ? activeLanguageCode : "original";
 
+  // Opens below the tap, or above it when there isn't room below without
+  // landing on the floating controls (see floatingReserveRef).
   const popoverPositionAt = (x, y) => ({
-    top: Math.min(y + 16, window.innerHeight - 260),
+    top: placeNear({ below: y + 16, above: y - 16, height: 260 }),
     left: Math.min(Math.max(x - POPOVER_WIDTH / 2, 12), window.innerWidth - POPOVER_WIDTH - 12),
   });
 
@@ -1036,6 +1093,7 @@ const KenlibsReadPage = () => {
         <ViewBook
           ref={viewBookRef}
           book={readingBook}
+          contentBottomInset={`calc(${floatingReservePx}px + env(safe-area-inset-bottom))`}
           backTo="/kenlibs/my-books"
           backLabel="My Books"
           animated
@@ -1089,21 +1147,30 @@ const KenlibsReadPage = () => {
               onUseListenMode={handleUseListenModeForChapter}
               onPlaybackStart={handleAudiobookPlaybackStart}
               onExpandedChange={setIsPlayerExpanded}
+              onHeightChange={setPlayerHeight}
             />
           </Suspense>
         )}
 
-        {/* Floating notepad toggle — fixed, so it never obscures reading
-            content and doesn't require touching ViewBook's own layout.
-            Moves up on phones while the full-width audiobook player is open. */}
-        <motion.button
-          onClick={() => setIsNotepadOpen((open) => !open)}
-          whileTap={{ scale: 0.92 }}
-          className={`fixed ${isPlayerExpanded ? "bottom-[17rem] sm:bottom-6" : "bottom-6"} right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-r from-accent to-accent-secondary text-white shadow-xl shadow-accent-500/30 flex items-center justify-center`}
-          title="My notes"
+        {/* Floating button dock (see FLOAT_EDGE_PX above): WhatsApp support
+            and the notepad toggle in one column, so they can't overlap each
+            other, and ViewBook's contentBottomInset keeps the chapter's end
+            clear of them. Rides above the open player on phones. */}
+        <div
+          className="fixed right-6 z-40 flex flex-col items-center gap-3"
+          style={{ bottom: `calc(${dockBottomPx}px + env(safe-area-inset-bottom))` }}
         >
-          <NotebookPen className="w-6 h-6" />
-        </motion.button>
+          <KenlibsWhatsAppButton docked />
+          <motion.button
+            onClick={() => setIsNotepadOpen((open) => !open)}
+            whileTap={{ scale: 0.92 }}
+            className="w-14 h-14 rounded-full bg-gradient-to-r from-accent to-accent-secondary text-white shadow-xl shadow-accent-500/30 flex items-center justify-center"
+            title="My notes"
+            aria-label="My notes"
+          >
+            <NotebookPen className="w-6 h-6" />
+          </motion.button>
+        </div>
 
         {/* Step 36: word/phrase explanation popup — anchored near the
             selection via inline position style, closed by setting

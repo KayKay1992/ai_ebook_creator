@@ -82,6 +82,10 @@ const AudiobookPlayer = forwardRef(
       onUseListenMode,
       onPlaybackStart,
       onExpandedChange,
+      // Reports the on-screen height (px) of whichever form is showing (the
+      // "Listen" pill or the open player), so the reader can keep its
+      // floating buttons and the chapter's end clear of it.
+      onHeightChange,
     },
     ref
   ) => {
@@ -128,6 +132,23 @@ const AudiobookPlayer = forwardRef(
       setIsExpanded(value);
       onExpandedChange?.(value);
     };
+
+    // The fixed element on screen (pill or open player), measured as it
+    // changes size (chapter list opened, error shown, …).
+    const [floatingEl, setFloatingEl] = useState(null);
+    const onHeightChangeRef = useRef(onHeightChange);
+    useEffect(() => {
+      onHeightChangeRef.current = onHeightChange;
+    }, [onHeightChange]);
+    useEffect(() => {
+      if (!floatingEl) return undefined;
+      const report = () => onHeightChangeRef.current?.(Math.ceil(floatingEl.getBoundingClientRect().height));
+      report();
+      if (typeof ResizeObserver === "undefined") return undefined;
+      const observer = new ResizeObserver(report);
+      observer.observe(floatingEl);
+      return () => observer.disconnect();
+    }, [floatingEl]);
 
     const savePosition = useCallback(
       (force = false) => {
@@ -465,8 +486,9 @@ const AudiobookPlayer = forwardRef(
 
         {!isExpanded ? (
           <button
+            ref={setFloatingEl}
             onClick={() => setExpanded(true)}
-            className="fixed bottom-6 left-6 z-40 flex items-center gap-2 h-14 pl-4 pr-5 rounded-full bg-gray-900 text-white shadow-xl shadow-black/20"
+            className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-6 z-40 flex items-center gap-2 h-14 pl-4 pr-5 rounded-full bg-gray-900 text-white shadow-xl shadow-black/20"
             aria-label="Open audiobook player"
           >
             {isPlaying ? <Volume2 className="w-5 h-5 animate-pulse" /> : <Headphones className="w-5 h-5" />}
@@ -476,7 +498,8 @@ const AudiobookPlayer = forwardRef(
           </button>
         ) : (
           <div
-            className="fixed z-40 bottom-4 left-4 right-4 sm:right-auto sm:w-[400px] bg-white rounded-3xl shadow-2xl shadow-black/20 border border-gray-100 overflow-hidden"
+            ref={setFloatingEl}
+            className="fixed z-40 bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 sm:right-auto sm:w-[400px] bg-white rounded-3xl shadow-2xl shadow-black/20 border border-gray-100 overflow-hidden"
             role="region"
             aria-label="Audiobook player"
           >

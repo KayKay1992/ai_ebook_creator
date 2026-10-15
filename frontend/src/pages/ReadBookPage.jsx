@@ -111,6 +111,9 @@ const ReadBookPage = () => {
         backLabel="Home"
         animated
         renderChapterContent={renderChapterContent}
+        // Clears KenlibsThemeLayout's WhatsApp button (fixed bottom-24
+        // right-6, 48px), so it never covers Previous/Next or the end.
+        contentBottomInset="calc(160px + env(safe-area-inset-bottom))"
         headerControls={
           hasMore ? (
             <Link

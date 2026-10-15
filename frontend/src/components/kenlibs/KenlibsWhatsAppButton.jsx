@@ -18,7 +18,10 @@ import { buildWhatsAppHref } from "../../utils/kenlibsSupport";
 // Uses the Step 39 terracotta accent rather than WhatsApp's own green — a
 // third, unrelated brand color would clash with this app's deliberately
 // narrow navy/terracotta/cream palette.
-const KenlibsWhatsAppButton = () => (
+// `docked`: rendered inside a page's own floating-button column (the
+// gated reader's dock) instead of positioning itself; KenlibsThemeLayout
+// then skips the free-floating copy on that page.
+const KenlibsWhatsAppButton = ({ docked = false }) => (
   <motion.a
     href={buildWhatsAppHref("Hi, I have a question about Kenlibs.")}
     target="_blank"
@@ -28,7 +31,7 @@ const KenlibsWhatsAppButton = () => (
     transition={{ delay: 0.3, type: "spring", stiffness: 300, damping: 22 }}
     whileHover={{ scale: 1.06 }}
     whileTap={{ scale: 0.94 }}
-    className="fixed bottom-24 right-6 z-40 w-12 h-12 rounded-full bg-accent text-white shadow-lg shadow-accent-500/30 flex items-center justify-center"
+    className={`${docked ? "" : "fixed bottom-24 right-6 z-40 "}w-12 h-12 rounded-full bg-accent text-white shadow-lg shadow-accent-500/30 flex items-center justify-center`}
     title="Chat with us on WhatsApp"
     aria-label="Chat with us on WhatsApp"
   >
