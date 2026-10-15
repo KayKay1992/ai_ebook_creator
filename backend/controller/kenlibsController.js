@@ -11,6 +11,7 @@ const { fetchImageBuffer } = require('./exportController');
 const { renderCertificate } = require('../utils/certificateRenderer');
 const { playableAudioEntries } = require('../utils/audioSummary');
 const { signedAudioUrl } = require('../utils/audioStorage');
+const { publishedLanguages, publishedTranslation } = require('../utils/translationAccess');
 
 // Separate client instance from aiController.js's — same SDK/API key, but
 // deliberately not imported from there: aiController's endpoints all check
@@ -179,6 +180,61 @@ const readBook = async (req, res) => {
         // The book exists — deliberately 403, not 404, but no book data in
         // the response body beyond a plain message.
         return res.status(403).json({ message: "You don't have access to this book" });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+//@desc    Languages this book has published AI translations in (at least
+//         one published chapter), for the reader's language selector. Same
+//         access rule as readBook.
+//@route   GET /api/kenlibs/translations/:bookId
+//@access  Private — 403 without access.
+const getBookTranslations = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.bookId)) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+        const book = await Book.findById(req.params.bookId).select('chapters._id');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+        if (!(await hasBookAccess(req.user, book._id))) {
+            return res.status(403).json({ message: "You don't have access to this book" });
+        }
+        const chapterIds = new Set(book.chapters.map((chapter) => String(chapter._id)));
+        res.status(200).json({ languages: await publishedLanguages(book._id, chapterIds) });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+//@desc    A book's published translation in one language: the published
+//         chapters only (title + markdown, keyed by chapter id). Chapters
+//         without a published translation aren't included; the reader
+//         shows the original for those. Drafts never leave the admin
+//         endpoints. Same access rule as readBook.
+//@route   GET /api/kenlibs/read/:bookId/translation/:lang
+//@access  Private — 403 without access, 404 if nothing is published.
+const readBookTranslation = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.bookId)) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+        const book = await Book.findById(req.params.bookId).select('chapters._id');
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+        if (!(await hasBookAccess(req.user, book._id))) {
+            return res.status(403).json({ message: "You don't have access to this book" });
+        }
+        const chapterIds = new Set(book.chapters.map((chapter) => String(chapter._id)));
+        const translation = await publishedTranslation(book._id, req.params.lang, chapterIds);
+        if (!translation) {
+            return res.status(404).json({ message: 'This book has no published translation in that language.' });
+        }
+        res.set('Cache-Control', 'no-store');
+        res.status(200).json(translation);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
     }
@@ -655,4 +711,6 @@ module.exports = {
     getMyAccessMap,
     getCheckoutPaymentDetails,
     getBookAudio,
+    getBookTranslations,
+    readBookTranslation,
 };

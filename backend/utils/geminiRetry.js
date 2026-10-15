@@ -90,13 +90,25 @@ const rateWaitCapMs = () => {
 const MAX_RATE_WAITS = 10;
 
 // Spaces out the starts of requests sharing one `throttle` object
-// ({ next: 0 }) by at least `minIntervalMs`.
+// ({ next: 0 }) by at least `minIntervalMs`, measured from when the
+// previous request actually started. (Reserving slots alone isn't enough:
+// on a busy event loop a request can start late, and the next reserved
+// slot would then come too soon after it.)
 const awaitSlot = async (throttle, minIntervalMs) => {
     if (!throttle || !minIntervalMs) return;
     const now = Date.now();
+    // Reserve a slot, so concurrent callers keep their order.
     const startAt = Math.max(now, throttle.next || 0);
     throttle.next = startAt + minIntervalMs;
     if (startAt > now) await sleep(startAt - now);
+    // Then make sure the last request that actually started is far enough
+    // back. Check-and-set happens between awaits, so it can't interleave.
+    for (let wait = (throttle.lastStart || 0) + minIntervalMs - Date.now(); wait > 0; ) {
+        await sleep(wait);
+        wait = (throttle.lastStart || 0) + minIntervalMs - Date.now();
+    }
+    throttle.lastStart = Date.now();
+    throttle.next = Math.max(throttle.next, throttle.lastStart + minIntervalMs);
 };
 
 // Runs `attempt()` (one Gemini request) with the retry rules above.

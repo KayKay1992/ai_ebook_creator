@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Activity,
   Headphones,
+  Languages,
 } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
 
@@ -31,6 +32,7 @@ import VitalsTab from "../components/editor/VitalsTab";
 
 // Lazy: only admins who open the Audiobook tab download it.
 const AudiobookTab = lazy(() => import("../components/editor/AudiobookTab"));
+const TranslationsTab = lazy(() => import("../components/editor/TranslationsTab"));
 import EditorSkeleton from "../components/skeletons/EditorSkeleton";
 
 // Same word-in-title detection used server-side (aiController.js's
@@ -793,6 +795,18 @@ const EditorPage = () => {
                 <Headphones className="w-4 h-4" />
                 <span className="hidden md:inline">Audiobook</span>
               </button>
+              <button
+                onClick={() => setActiveTab("translations")}
+                className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium transition-all ${
+                  activeTab === "translations"
+                    ? "bg-white text-accent-hover shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+                title="Translations"
+              >
+                <Languages className="w-4 h-4" />
+                <span className="hidden md:inline">Translations</span>
+              </button>
             </div>
 
             {/* Actions */}
@@ -901,6 +915,19 @@ const EditorPage = () => {
                 }
               >
                 <AudiobookTab
+                  bookId={bookId}
+                  hasUnsavedChanges={saveStatus === "unsaved" || saveStatus === "saving"}
+                />
+              </Suspense>
+            ) : activeTab === "translations" ? (
+              <Suspense
+                fallback={
+                  <div className="flex justify-center py-16">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  </div>
+                }
+              >
+                <TranslationsTab
                   bookId={bookId}
                   hasUnsavedChanges={saveStatus === "unsaved" || saveStatus === "saving"}
                 />

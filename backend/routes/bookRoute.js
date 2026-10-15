@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
 const { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice, uploadChapterAudioFile } = require('../controller/audioController');
+const {
+    getTranslationsOverview,
+    getTranslationStatus,
+    getTranslatedChapter,
+    queueTranslation,
+    updateTranslatedChapter,
+    reviewTranslatedChapter,
+    publishTranslatedChapter,
+    unpublishTranslatedChapter,
+    publishAllReviewed,
+    deleteTranslatedChapter,
+} = require('../controller/translationController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 const rateLimit = require('express-rate-limit');
 const { uploadCover, uploadChapterImage: uploadChapterImageMiddleware, uploadCoverDesignImage, uploadChapterAudio } = require('../middleware/uploadMiddleware');
@@ -40,6 +52,9 @@ const audioLimiter = (max) =>
 const generateAudioLimiter = audioLimiter(60);
 const previewVoiceLimiter = audioLimiter(30);
 const uploadAudioLimiter = audioLimiter(60);
+// Queuing translations (each queued chapter is a few Gemini requests in the
+// background, paced by the job itself).
+const translateLimiter = audioLimiter(60);
 
 router.get('/:id/audio', getAudioStatus);
 router.post('/:id/audio/generate', generateAudioLimiter, generateAudio);
@@ -47,6 +62,18 @@ router.post('/:id/audio/preview', previewVoiceLimiter, previewVoice);
 router.delete('/:id/audio/:chapterId', deleteChapterAudio);
 // MP3 made elsewhere (e.g. scripts/narrate-book.js output, a studio recording).
 router.post('/:id/audio/:chapterId/upload', uploadAudioLimiter, uploadChapterAudio, uploadChapterAudioFile);
+
+// AI translations (controller/translationController.js; owner-checked there).
+router.get('/:id/translations', getTranslationsOverview);
+router.get('/:id/translations/:lang', getTranslationStatus);
+router.post('/:id/translations/:lang/translate', translateLimiter, queueTranslation);
+router.post('/:id/translations/:lang/publish-reviewed', publishAllReviewed);
+router.get('/:id/translations/:lang/:chapterId', getTranslatedChapter);
+router.put('/:id/translations/:lang/:chapterId', updateTranslatedChapter);
+router.delete('/:id/translations/:lang/:chapterId', deleteTranslatedChapter);
+router.post('/:id/translations/:lang/:chapterId/review', reviewTranslatedChapter);
+router.post('/:id/translations/:lang/:chapterId/publish', publishTranslatedChapter);
+router.post('/:id/translations/:lang/:chapterId/unpublish', unpublishTranslatedChapter);
 
 router.route('/cover/:id')
     .put(uploadCover, updateBookCover);

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import MDEditor from "@uiw/react-md-editor";
@@ -16,6 +16,9 @@ import useDocumentTitle from "../hooks/useDocumentTitle";
 import useListenMode from "../hooks/useListenMode";
 import { buildSpeechBlocks } from "../utils/speechText";
 import getErrorMessage from "../utils/getErrorMessage";
+import { getReadingLanguage, setReadingLanguage } from "../utils/readingLanguage";
+import ReadingLanguageSelect from "../components/kenlibs/ReadingLanguageSelect";
+import TranslationNotice from "../components/kenlibs/TranslationNotice";
 
 // Only downloaded when the book actually has AI narration (see audioData
 // below), so readers of books without audio never load it.
@@ -99,6 +102,14 @@ const KenlibsReadPage = () => {
   // The chapter on screen, as state (currentChapterIndexRef below is the
   // same value for callbacks) so the audiobook player can follow it.
   const [visibleChapterIndex, setVisibleChapterIndex] = useState(0);
+  // Published AI translations: the languages with at least one published
+  // chapter, the reader's preferred one (remembered per device), and the
+  // loaded translation ({ language, chapters }) while reading one. `book`
+  // always stays the original: the audiobook player and saved progress use
+  // it; what's on screen comes from readingBook below.
+  const [translationLanguages, setTranslationLanguages] = useState([]);
+  const [readingLanguage, setReadingLanguageState] = useState(getReadingLanguage);
+  const [translation, setTranslation] = useState(null);
   const audiobookPlayerRef = useRef(null);
   const [isDownloadingCertificate, setIsDownloadingCertificate] = useState(false);
   // Step 36: the word/phrase explanation popup. null = closed. `key` forces
@@ -175,10 +186,32 @@ const KenlibsReadPage = () => {
     resumeBlockIndexRef.current = initialSpokenBlockIndex;
   }, [initialSpokenBlockIndex]);
 
+  // The book as displayed: chapters with a published translation in the
+  // chosen language get its title and text (and no recap, which is in the
+  // original language); the rest stay original. Same chapters, same order,
+  // so chapter indexes and progress line up either way.
+  const readingBook = useMemo(() => {
+    if (!book || !translation) return book;
+    const translated = new Map(translation.chapters.map((chapter) => [chapter.chapterId, chapter]));
+    return {
+      ...book,
+      chapters: book.chapters.map((chapter) => {
+        const match = translated.get(String(chapter._id));
+        return match
+          ? { ...chapter, title: match.title || chapter.title, content: match.content, summary: "", isTranslated: true }
+          : { ...chapter, isTranslated: false };
+      }),
+    };
+  }, [book, translation]);
+  const activeLanguage = translation?.language || null;
+  // Listen Mode (device voice) only where the language config allows it.
+  const isListenAvailable = !activeLanguage || activeLanguage.listenMode;
+
   const listenMode = useListenMode({
+    language: activeLanguage?.speechLang || "en",
     onChapterEnd: () => {
       if (!isListenModeOn) return;
-      const chapters = book?.chapters || [];
+      const chapters = readingBook?.chapters || [];
       const nextIndex = currentChapterIndexRef.current + 1;
       if (nextIndex >= chapters.length) return; // end of book — nothing more to advance to
       viewBookRef.current?.goToNextChapter();
@@ -191,7 +224,7 @@ const KenlibsReadPage = () => {
   // changes (manually or via auto-advance), and when resuming a previous
   // session's position — same primitive either way.
   const speakChapter = (index, fromBlockIndex = 0) => {
-    const chapter = book?.chapters?.[index];
+    const chapter = readingBook?.chapters?.[index];
     if (!chapter) return;
     const material = buildSpeechBlocks(chapter.content);
     if (material.blocks.length === 0) return; // nothing speakable in this chapter
@@ -217,6 +250,37 @@ const KenlibsReadPage = () => {
       speakChapter(currentChapterIndexRef.current, startBlock);
     }
   };
+
+  // Switching language: remembered for this device; Listen Mode stops (the
+  // text it was reading changed). The chosen translation loads below.
+  const handleLanguageChange = (code) => {
+    setReadingLanguage(code);
+    setReadingLanguageState(code);
+    setTranslation(null);
+    if (isListenModeOn) {
+      setIsListenModeOn(false);
+      listenMode.stop();
+    }
+  };
+
+  // Loads the preferred language's translation once we know the book has
+  // one published (otherwise the original is shown).
+  const isPreferredLanguagePublished = translationLanguages.some((language) => language.code === readingLanguage);
+  useEffect(() => {
+    if (!isPreferredLanguagePublished) return undefined;
+    let cancelled = false;
+    axiosInstance
+      .get(API_PATHS.KENLIBS.READ_TRANSLATION(bookId, readingLanguage))
+      .then((res) => !cancelled && setTranslation(res.data))
+      .catch(() => {
+        if (cancelled) return;
+        setTranslation(null);
+        toast.error("Couldn't load the translation. Showing the original.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, readingLanguage, isPreferredLanguagePublished]);
 
   // Audiobook player hooks. The player and Listen Mode never play together:
   // starting one stops the other.
@@ -363,6 +427,14 @@ const KenlibsReadPage = () => {
 
     const body = (
       <>
+      {activeLanguage && (
+        <TranslationNotice
+          chapter={chapter}
+          language={activeLanguage}
+          hasAudio={Boolean(audioData)}
+          isListenAvailable={isListenAvailable}
+        />
+      )}
       <ChapterRecap key={chapter._id || chapterIndex} summary={chapter.summary} />
       <div ref={contentContainerRef} onMouseUp={handleSelectionEnd} onTouchEnd={handleTouchSelectionEnd}>
         {blocks.length === 0 ? (
@@ -461,6 +533,13 @@ const KenlibsReadPage = () => {
         );
         setInitialChapterIndex(resolvedInitialIndex);
         setVisibleChapterIndex(resolvedInitialIndex);
+
+        // Translations are optional too: any failure just means no
+        // language selector.
+        axiosInstance
+          .get(API_PATHS.KENLIBS.TRANSLATIONS(bookId))
+          .then((res) => setTranslationLanguages(res.data?.languages || []))
+          .catch(() => setTranslationLanguages([]));
 
         // Narration is optional: 404 (no audio) or any failure just means
         // no player, never a broken reading page.
@@ -636,7 +715,7 @@ const KenlibsReadPage = () => {
       <>
         <ViewBook
           ref={viewBookRef}
-          book={book}
+          book={readingBook}
           backTo="/kenlibs/my-books"
           backLabel="My Books"
           animated
@@ -644,12 +723,22 @@ const KenlibsReadPage = () => {
           onChapterChange={handleChapterChange}
           renderChapterContent={renderChapterContent}
           headerControls={
-            <ListenModeControls
-              listenMode={listenMode}
-              isActive={isListenModeOn}
-              onToggle={handleToggleListenMode}
-              onReplay={() => speakChapter(currentChapterIndexRef.current)}
-            />
+            <>
+              <ReadingLanguageSelect
+                compact
+                languages={translationLanguages}
+                value={isPreferredLanguagePublished ? readingLanguage : ""}
+                onChange={handleLanguageChange}
+              />
+              {isListenAvailable && (
+                <ListenModeControls
+                  listenMode={listenMode}
+                  isActive={isListenModeOn}
+                  onToggle={handleToggleListenMode}
+                  onReplay={() => speakChapter(currentChapterIndexRef.current)}
+                />
+              )}
+            </>
           }
         />
 

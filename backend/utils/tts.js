@@ -1,4 +1,4 @@
-const { GoogleGenAI } = require('@google/genai');
+const { getClient } = require('./geminiClient');
 const { pcmFromInlineData } = require('./audioEncoding');
 const { withGeminiRetry, isRetryable, parseQuotaError, rateLimitKind, QuotaExhaustedError } = require('./geminiRetry');
 
@@ -45,19 +45,6 @@ const getConcurrency = () => {
 const getMinIntervalMs = () => {
     const n = parseInt(process.env.AUDIO_TTS_MIN_INTERVAL_MS, 10);
     return Number.isFinite(n) && n > 0 ? Math.min(n, 10 * 60 * 1000) : 0;
-};
-
-let client = null;
-const getClient = () => {
-    if (!client) {
-        client = new GoogleGenAI({
-            apiKey: process.env.GEMINI_API_KEY,
-            // A ~2-minute chunk normally takes well under a minute; this
-            // just stops a stuck request holding a job forever.
-            httpOptions: { timeout: 180000 },
-        });
-    }
-    return client;
 };
 
 class TtsError extends Error {

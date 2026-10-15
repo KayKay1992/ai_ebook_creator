@@ -32,17 +32,19 @@ const VOICE_START_TIMEOUT_MS = 2500;
 // to highlight.
 const hasSpeechSynthesis = typeof window !== "undefined" && "speechSynthesis" in window;
 
-// Content is English-only today (no per-book language field exists yet —
-// see the architecture doc's Step 37 for planned per-book translations);
-// prefer any installed voice whose lang is English rather than whatever the
-// device happens to list first. Confirmed via a real Android device that
+// Books are written in English, so by default prefer any installed voice
+// whose lang is English rather than whatever the device happens to list
+// first. A published translation the reader switched to can ask for another
+// language (`language`, e.g. "fr"); speakFrom then picks a matching voice. Confirmed via a real Android device that
 // the naive "first voice" pick can land on an arbitrary regional voice
 // (e.g. "Assamese India") whose synthesis backend isn't actually
 // functional, producing a "synthesis-failed" error with no audio at all.
-const pickDefaultVoice = (available) =>
-  available.find((v) => v.lang?.toLowerCase().startsWith("en")) || available[0];
+const speaksLanguage = (voice, language) => Boolean(voice?.lang?.toLowerCase().startsWith(language));
 
-const useListenMode = ({ onChapterEnd }) => {
+const pickDefaultVoice = (available, language = "en") =>
+  available.find((v) => speaksLanguage(v, language)) || available[0];
+
+const useListenMode = ({ onChapterEnd, language = "en" }) => {
   // Known synchronously at mount, so the "unsupported" case never needs a
   // setState call inside the effect body below — it's just the initial
   // value.
@@ -88,6 +90,10 @@ const useListenMode = ({ onChapterEnd }) => {
   // increasing token has no such timing dependency: stale callbacks are
   // simply ones whose captured token no longer matches current.
   const utteranceTokenRef = useRef(0);
+  const languageRef = useRef(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
 
   useEffect(() => {
     if (!hasSpeechSynthesis) return; // already reflected in the initial state above
@@ -169,7 +175,7 @@ const useListenMode = ({ onChapterEnd }) => {
       return lastWorkingVoiceRef.current;
     }
     return (
-      voicesRef.current.find((v) => notTried(v) && v.lang?.toLowerCase().startsWith("en")) ||
+      voicesRef.current.find((v) => notTried(v) && speaksLanguage(v, languageRef.current)) ||
       null
     );
   };
@@ -231,6 +237,19 @@ const useListenMode = ({ onChapterEnd }) => {
       setSelectedVoiceURI(voice.voiceURI);
     }
 
+    // Reading a translation: use a voice for its language if the device
+    // has one (the selected voice may be an English one).
+    if (!speaksLanguage(voice, languageRef.current)) {
+      const match = voicesRef.current.find(
+        (v) => speaksLanguage(v, languageRef.current) && !unavailableVoiceURIsRef.current.has(v.voiceURI)
+      );
+      if (match) {
+        voice = match;
+        voiceRef.current = match;
+        setSelectedVoiceURI(match.voiceURI);
+      }
+    }
+
     const myToken = utteranceTokenRef.current + 1;
     utteranceTokenRef.current = myToken;
 
@@ -241,7 +260,11 @@ const useListenMode = ({ onChapterEnd }) => {
     // otherwise defaults to "" (empty string), which some Android TTS
     // engines are known to silently fail to match to any installed voice
     // (no error, no audio) rather than falling back to a system default.
-    utterance.lang = voice?.lang || (typeof navigator !== "undefined" ? navigator.language : "") || "en-US";
+    utterance.lang =
+      voice?.lang ||
+      (languageRef.current !== "en" ? languageRef.current : "") ||
+      (typeof navigator !== "undefined" ? navigator.language : "") ||
+      "en-US";
 
     let hasStarted = false;
     let startTimeoutId = null;
@@ -507,6 +530,9 @@ const useListenMode = ({ onChapterEnd }) => {
   return {
     isSupported,
     isCheckingSupport,
+    // Whether this device has a voice for `language` (false = it would
+    // read with a voice for another language).
+    hasLanguageVoice: voices.some((v) => speaksLanguage(v, language)),
     voices,
     selectedVoiceURI,
     selectVoice,

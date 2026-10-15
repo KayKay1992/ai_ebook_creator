@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, BookX, ShoppingBag, BookOpenCheck, Headphones } from "lucide-react";
+import { ArrowLeft, BookX, ShoppingBag, BookOpenCheck, Headphones, Languages } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import KenlibsNav from "../components/kenlibs/KenlibsNav";
@@ -10,6 +10,8 @@ import FlipCover from "../components/kenlibs/FlipCover";
 import StarRating from "../components/kenlibs/StarRating";
 import BookReviewsSection from "../components/kenlibs/BookReviewsSection";
 import Button from "../components/ui/Button";
+import ReadingLanguageSelect from "../components/kenlibs/ReadingLanguageSelect";
+import { getReadingLanguage, setReadingLanguage } from "../utils/readingLanguage";
 import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
@@ -110,6 +112,9 @@ const KenlibsBookDetailPage = () => {
   // fetch's shape) so this page doesn't depend on the ratings feature to
   // know whether to show "Read Now" instead of a purchase prompt.
   const [hasAccess, setHasAccess] = useState(false);
+  // Preferred reading language for this device (utils/readingLanguage.js);
+  // the reader opens the book in it when a published translation exists.
+  const [readingLanguage, setReadingLanguageState] = useState(getReadingLanguage);
 
   useDocumentTitle(book ? `${book.title} — Kenlibs` : "Kenlibs");
 
@@ -327,6 +332,32 @@ const KenlibsBookDetailPage = () => {
                 </span>
               )}
             </div>
+
+            {book.translationLanguages?.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className="flex items-center gap-1.5 text-sm text-gray-600">
+                  <Languages className="w-4 h-4 text-gray-400" />
+                  Also in {book.translationLanguages.map((l) => l.nativeName || l.name).join(", ")}{" "}
+                  <span className="text-xs text-gray-400">(AI-translated)</span>
+                </p>
+                {hasAccess && (
+                  <div className="space-y-1">
+                    <ReadingLanguageSelect
+                      id="detail-reading-language"
+                      languages={book.translationLanguages}
+                      value={book.translationLanguages.some((l) => l.code === readingLanguage) ? readingLanguage : ""}
+                      onChange={(code) => {
+                        setReadingLanguage(code);
+                        setReadingLanguageState(code);
+                      }}
+                    />
+                    {book.hasAudio && (
+                      <p className="text-xs text-gray-400">The audiobook is narrated in the original language.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Aggregate rating — a real trust/conversion signal, so it sits
                 right under the price rather than buried near the reviews

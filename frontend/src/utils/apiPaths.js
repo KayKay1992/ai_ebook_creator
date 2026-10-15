@@ -30,6 +30,13 @@ export const API_PATHS = {
     AUDIO_PREVIEW: (bookId) => `/api/books/${bookId}/audio/preview`,
     AUDIO_DELETE: (bookId, chapterId) => `/api/books/${bookId}/audio/${chapterId}`,
     AUDIO_UPLOAD: (bookId, chapterId) => `/api/books/${bookId}/audio/${chapterId}/upload`,
+    TRANSLATIONS: (bookId) => `/api/books/${bookId}/translations`,
+    TRANSLATION_STATUS: (bookId, lang) => `/api/books/${bookId}/translations/${lang}`,
+    TRANSLATION_QUEUE: (bookId, lang) => `/api/books/${bookId}/translations/${lang}/translate`,
+    TRANSLATION_PUBLISH_REVIEWED: (bookId, lang) => `/api/books/${bookId}/translations/${lang}/publish-reviewed`,
+    TRANSLATION_CHAPTER: (bookId, lang, chapterId) => `/api/books/${bookId}/translations/${lang}/${chapterId}`,
+    TRANSLATION_ACTION: (bookId, lang, chapterId, action) =>
+      `/api/books/${bookId}/translations/${lang}/${chapterId}/${action}`,
   },
   PUBLIC: {
     GET_BOOK_BY_SHARE_ID: "/api/public/books",
@@ -73,6 +80,8 @@ export const API_PATHS = {
     MY_RATING: (bookId) => `/api/kenlibs/ratings/${bookId}/mine`,
     ACCESS: (bookId) => `/api/kenlibs/access/${bookId}`,
     AUDIO: (bookId) => `/api/kenlibs/audio/${bookId}`,
+    TRANSLATIONS: (bookId) => `/api/kenlibs/translations/${bookId}`,
+    READ_TRANSLATION: (bookId, lang) => `/api/kenlibs/read/${bookId}/translation/${lang}`,
     MY_ACCESS_MAP: "/api/kenlibs/my-access-map",
     PAYMENT_DETAILS: "/api/kenlibs/payment-details",
   },

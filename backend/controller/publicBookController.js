@@ -1,6 +1,7 @@
 const Book = require("../models/Book");
 const Bundle = require("../models/Bundle");
 const { AUDIO_SUMMARY_FIELDS, withAudioSummary } = require("../utils/audioSummary");
+const { publishedLanguages } = require("../utils/translationAccess");
 
 //@desc    Get a published book's read-only content by its public shareId
 //@route   GET /api/public/books/:shareId
@@ -93,9 +94,16 @@ const getKenlibsBookById = async (req, res) => {
       return res.status(404).json({ message: "Book not found" });
     }
 
+    // Languages with a published AI translation: names only, never any
+    // translated text (that needs access, like the book itself).
+    const chapterIds = new Set((book.chapters || []).map((chapter) => String(chapter._id)));
+    const translationLanguages = (await publishedLanguages(book._id, chapterIds)).map(
+      ({ code, name, nativeName }) => ({ code, name, nativeName })
+    );
+
     // hasAudio + audioChapterCount only — the raw audio entries (and the
     // chapter ids used to count them) are stripped.
-    res.status(200).json(withAudioSummary(book));
+    res.status(200).json({ ...withAudioSummary(book), translationLanguages });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }

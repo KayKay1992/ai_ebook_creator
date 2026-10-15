@@ -160,7 +160,11 @@ client-side, since that's the actual security boundary.
 /kenlibs/my-books               reader's approved purchases + pending requests
 /kenlibs/read/:bookId           gated reading view (server-verifies access);
                                 also hosts the audiobook player when the book has
-                                narration (GET /api/kenlibs/audio/:bookId)
+                                narration (GET /api/kenlibs/audio/:bookId), the
+                                "Chapter recap", and the language selector for
+                                published AI translations
+                                (GET /api/kenlibs/translations/:bookId,
+                                GET /api/kenlibs/read/:bookId/translation/:lang)
 ```
 
 ### New — admin only
@@ -169,6 +173,11 @@ client-side, since that's the actual security boundary.
                         generate/regenerate/delete, "Generate all missing"
                         (API: /api/books/:id/audio, .../generate, .../preview,
                         .../:chapterId)
+/editor/:bookId → Translations tab   AI translation per language and chapter:
+                        translate (background job), edit draft, mark reviewed,
+                        publish/unpublish (API: /api/books/:id/translations/...)
+/editor/:bookId → Details tab   Chapter summaries panel (API: POST
+                        /api/ai/chapter-summary; saved with the book)
 /admin/purchases        pending requests queue, approve/reject, view evidence
 /admin/users             all registered readers + what they've purchased
 ```
@@ -446,23 +455,61 @@ reusing the existing AI auth/rate-limit pattern) that sends the word +
 surrounding sentence to Gemini. AI fallback is opt-in-per-lookup only, never
 automatic, matching the cost-control intent this step was scoped around.
 
-**Step 37 — Multi-language translation, Nigerian languages first (scoped, not
-yet sent)**
-Decision made: start with Yoruba/Igbo/Hausa (confirmed supported by Google
-Cloud Translation API, along with Fulani/Kanuri/Tiv) over global languages,
-matching the core audience. Known tradeoff: machine translation quality for
-these languages is real but meaningfully behind major global languages —
-reader-facing UI must set honest expectations ("Machine-translated — quality
-may vary"), not present it as equivalent to the original.
-Architecture: translations are pre-generated and stored per book+language
-(new BookTranslation model: book, language, chapters[], status), NEVER
-translated live per-read — full-book translation cost must not scale with
-readership. Admin-triggered per book via a new admin-only endpoint
-(POST /api/admin/books/:id/translate/:language), not automatic on publish.
-Reader gets a language picker on KenlibsReadPage when translations exist;
-resume position (ReaderProgress) applies globally per book, not per
-language, for v1. Requires a GCP project + Translation API credentials —
-not yet set up, needed before this step can start.
+**Step 37 — Multi-language translation, Nigerian languages first (BUILT,
+uncommitted at time of writing)**
+Built with Gemini (the existing GEMINI_API_KEY and quota handling) rather
+than the originally planned Google Cloud Translation API, so no GCP project
+or new credentials were needed. Languages: Nigerian Pidgin, Yoruba, Igbo,
+Hausa, French, kept in one config constant
+(backend/config/translationLanguages.js). Known tradeoff unchanged: machine
+translation for these languages is real but behind major global
+languages, so every translated chapter carries an "AI-translated" label
+and nothing reaches readers without the admin's review and publish.
+Architecture, as built:
+- Pre-generated and stored, NEVER translated live per read: a separate
+  BookTranslation collection, one document per (book, language), with a
+  draft and a published copy of each chapter. Status per chapter: draft →
+  reviewed → published; publishing is per chapter and manual only.
+  Editing or re-translating a published chapter changes only its draft;
+  readers keep the published copy until it's republished.
+- Admin-triggered background job per book, language and chapter
+  (utils/translationJobs.js), the same design as audiobook narration:
+  database as the queue, one chapter and one Gemini request at a time,
+  chunked by paragraph and resumable per chunk, "Waiting for quota" when
+  Gemini's daily limit is hit, heartbeat + restart recovery. Paragraph
+  alignment is enforced (JSON array in, same-length array out); markdown,
+  numbers and ₦ amounts are preserved and checked; names of people, brands
+  and places are not translated. A source chapter edited after translation
+  flags its translation "Out of date" (text hash).
+- Admin endpoints under /api/books/:id/translations (owner-checked, like
+  every book endpoint) and an editor "Translations" tab with a side-by-side
+  draft editor.
+- Readers: GET /api/kenlibs/translations/:bookId and
+  GET /api/kenlibs/read/:bookId/translation/:lang, both behind
+  hasBookAccess like readBook; published chapters only. The public detail
+  page lists published languages by name (no text); the share link never
+  includes translations. KenlibsReadPage and the book detail page get a
+  language selector (only languages with something published), remembered
+  per device. Chapters not yet translated show the original with a note.
+- Listening: no audio narration for translations (the audiobook player
+  stays on the original, and the UI says so). Listen Mode (device voice) is
+  off for Pidgin, Yoruba, Igbo and Hausa, and on for French with a French
+  device voice where available.
+- Resume position (ReaderProgress) stays per book, not per language:
+  translations keep the same chapters and paragraph structure, so it lines
+  up either way.
+
+**Chapter recaps (AI chapter summaries, DONE)**
+Each chapter can have a short reader-facing summary (Book.chapters[].summary,
+max 1,200 characters), shown as a collapsible "Chapter recap" at the top of
+the chapter in the gated reader only (readBook, behind hasBookAccess). Never
+on the public share link or the storefront. Drafted one chapter at a time by
+POST /api/ai/chapter-summary (admin + owner, returns a draft, saves nothing)
+or written by hand in the editor's Details tab. AI drafts follow the teaser's
+safety pattern: they pause all autosave until the admin reviews them and
+clicks Save, and an admin-edited summary is never replaced without asking.
+"Generate for all" skips chapters that already have one, so it resumes after
+a quota stop.
 
 **Step 38 — Design revisit of Step 31 (DONE, commits b2a998e + bd2ab21)**
 Step 31's Framer Motion pass was flagged as not meeting the bar wanted
