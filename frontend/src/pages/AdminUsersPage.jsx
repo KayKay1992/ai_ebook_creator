@@ -12,6 +12,7 @@ import {
   Gift,
   Wallet,
   UserX,
+  FlaskConical,
 } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -115,6 +116,21 @@ const AdminUsersPage = () => {
     }
   };
 
+  // Test accounts are left out of analytics when "Hide test data" is on.
+  const toggleTestAccount = async (reader) => {
+    const next = !reader.isTestAccount;
+    setActingOnId(reader._id);
+    try {
+      await axiosInstance.put(API_PATHS.ADMIN.TEST_ACCOUNT(reader._id), { isTestAccount: next });
+      setReaders((prev) => prev.map((r) => (r._id === reader._id ? { ...r, isTestAccount: next } : r)));
+      toast.success(next ? `${reader.name} is marked as a test account.` : `${reader.name} is no longer a test account.`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Couldn't update the test-account flag"));
+    } finally {
+      setActingOnId(null);
+    }
+  };
+
   const resetLink = resetResult?.resetLink || "";
 
   const copyResetLink = async () => {
@@ -181,12 +197,31 @@ const AdminUsersPage = () => {
                         <p className="text-sm text-gray-500 truncate">
                           {reader.isDeleted ? "Account deleted" : reader.email}
                         </p>
-                        <p className="text-xs text-gray-400 mt-0.5">Joined {formatDate(reader.createdAt)}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Joined {formatDate(reader.createdAt)}
+                          {reader.isTestAccount && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium">Test account</span>
+                          )}
+                        </p>
                       </div>
                     </div>
 
                     {!reader.isDeleted && (
                       <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => toggleTestAccount(reader)}
+                          disabled={actingOnId === reader._id}
+                          aria-pressed={!!reader.isTestAccount}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 ${
+                            reader.isTestAccount
+                              ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                              : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                          }`}
+                          title={reader.isTestAccount ? "Test account — click to count it in analytics again" : "Mark as a test account (hidden from analytics with “Hide test data”)"}
+                          aria-label={reader.isTestAccount ? `Unmark ${reader.name} as a test account` : `Mark ${reader.name} as a test account`}
+                        >
+                          <FlaskConical className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => setResetTarget(reader)}
                           className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"

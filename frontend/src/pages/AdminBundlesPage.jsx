@@ -7,6 +7,7 @@ import getErrorMessage from "../utils/getErrorMessage";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Button from "../components/ui/Button";
 import InputField from "../components/ui/inputField";
+import { formatNaira } from "../utils/kenlibsPricing";
 
 const EMPTY_FORM = { title: "", description: "", price: "", isForSale: false, books: [] };
 
@@ -265,7 +266,7 @@ const AdminBundlesPage = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-gray-900">{bundle.title}</h3>
                     <span className="text-sm text-gray-500">
-                      ₦{Number(bundle.price).toFixed(2)}
+                      {formatNaira(bundle.price)}
                     </span>
                     <span
                       className={`text-xs font-medium px-2 py-0.5 rounded-full ${

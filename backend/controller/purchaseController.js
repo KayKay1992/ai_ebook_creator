@@ -40,6 +40,8 @@ const resolvePurchasableItem = async (itemType, itemId) => {
 // itemType), so it can't be `.populate()`d directly — batch-fetch each side
 // and attach just enough for the UI to show something recognizable instead
 // of a bare ObjectId. Shared by the reader's own list and the admin queue.
+const unknownItemTitle = (itemType) => `Deleted ${itemType === 'bundle' ? 'bundle' : 'book'} (title unknown)`;
+
 const enrichWithItemDetails = async (requests) => {
     const bookIds = requests.filter((r) => r.itemType === 'book').map((r) => r.item);
     const bundleIds = requests.filter((r) => r.itemType === 'bundle').map((r) => r.item);
@@ -64,7 +66,11 @@ const enrichWithItemDetails = async (requests) => {
             r.itemType === 'book' ? bookMap.get(r.item.toString()) : bundleMap.get(r.item.toString());
         return {
             ...r,
-            itemTitle: source?.title || 'Item no longer available',
+            // Live title, else the snapshot taken at request time, else
+            // (an old request whose item was deleted before snapshots) an
+            // honest "unknown".
+            itemTitle: source?.title || r.itemTitle || unknownItemTitle(r.itemType),
+            itemDeleted: !source,
             itemAuthor: r.itemType === 'book' ? source?.author || null : undefined,
             itemCoverImage: source?.coverDesign?.front?.backgroundImage || source?.coverImage || null,
             itemBooks:
@@ -226,6 +232,7 @@ const createPurchaseRequest = async (req, res) => {
             itemType,
             item,
             amount: price, // server-side snapshot — never trust a client-sent amount
+            itemTitle: title, // snapshot too, so a later rename/delete can't lose the name
             creditApplied,
             evidenceImage: uploadResult.secure_url,
         });
@@ -454,6 +461,7 @@ const resubmitPurchaseRequest = async (req, res) => {
 };
 
 module.exports = {
+    unknownItemTitle,
     createPurchaseRequest,
     getMyPurchaseRequests,
     getAllPurchaseRequests,

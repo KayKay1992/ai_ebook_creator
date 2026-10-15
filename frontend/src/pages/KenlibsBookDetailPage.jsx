@@ -12,6 +12,7 @@ import BookReviewsSection from "../components/kenlibs/BookReviewsSection";
 import Button from "../components/ui/Button";
 import ReadingLanguageSelect from "../components/kenlibs/ReadingLanguageSelect";
 import { getReadingLanguage, setReadingLanguage } from "../utils/readingLanguage";
+import { trackBookView } from "../utils/bookViews";
 import { useAuth } from "../context/AuthContext";
 import { getBookBadge } from "../utils/kenlibsPricing";
 import useDocumentTitle from "../hooks/useDocumentTitle";
@@ -128,6 +129,12 @@ const KenlibsBookDetailPage = () => {
     image: book?.coverImage || book?.coverDesign?.front?.backgroundImage,
     url: book ? `${window.location.origin}/kenlibs/book/${id}` : undefined,
   });
+
+  // Anonymous view count for the analytics funnel (once per book per day
+  // per browser; see utils/bookViews.js).
+  useEffect(() => {
+    trackBookView(id);
+  }, [id]);
 
   useEffect(() => {
     const fetchBook = async () => {

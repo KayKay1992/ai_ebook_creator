@@ -93,6 +93,13 @@ const userSchema = new mongoose.Schema({
     deletedAt: {
         type: Date,
     },
+    // Set by the admin (Users page) for accounts used to test the store:
+    // the analytics "Hide test data" toggle leaves out their purchases and
+    // the account itself. Changes nothing else about the account.
+    isTestAccount: {
+        type: Boolean,
+        default: false,
+    },
     // The admin's own receiving-account details — used both to show real
     // payment instructions to readers at checkout (see
     // kenlibsController.js's getCheckoutPaymentDetails, which deliberately

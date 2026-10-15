@@ -61,6 +61,15 @@ const purchaseRequestSchema = new mongoose.Schema(
             type: Number,
             required: true,
         },
+        // Snapshot of the book's/bundle's title at request time (like
+        // `amount` for the price), so analytics and purchase lists can still
+        // name an item that was later renamed or deleted. Older requests are
+        // filled by scripts/backfill-purchase-titles.js where the item still
+        // exists; '' means unknown.
+        itemTitle: {
+            type: String,
+            default: '',
+        },
         evidenceImage: {
             type: String,
             required: true,

@@ -43,6 +43,7 @@ export const API_PATHS = {
     KENLIBS_STOREFRONT: "/api/public/kenlibs",
     KENLIBS_BOOK: "/api/public/kenlibs/books",
     KENLIBS_BUNDLE: "/api/public/kenlibs/bundles",
+    KENLIBS_BOOK_VIEW: (id) => `/api/public/kenlibs/books/${id}/view`,
   },
   AI: {
     GENERATE_OUTLINE: "/api/ai/generate-outline",
@@ -92,6 +93,8 @@ export const API_PATHS = {
     DELETE_USER: (id) => `/api/admin/users/${id}`,
     RESET_USER_PASSWORD: (id) => `/api/admin/users/${id}/reset-password`,
     ANALYTICS: "/api/admin/analytics",
+    ATTENTION: "/api/admin/attention",
+    TEST_ACCOUNT: (id) => `/api/admin/users/${id}/test-account`,
     REVIEWS: "/api/admin/ratings",
     DELETE_REVIEW: (id) => `/api/admin/ratings/${id}`,
     PAYMENT_DETAILS: "/api/admin/payment-details",

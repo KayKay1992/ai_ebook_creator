@@ -47,7 +47,8 @@ const redact = (value) => {
         const secret = process.env[name];
         if (secret && secret.length >= 6) text = text.split(secret).join(`<${name}>`);
     }
-    // Credentials inside any URL (mongodb+srv://user:pass@host, etc.).
+    // Credentials inside any URL (a user name and password before the "@"
+    // of a MongoDB or HTTP URL).
     return text.replace(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1***:***@');
 };
 for (const method of ['log', 'info', 'warn', 'error']) {

@@ -9,7 +9,8 @@ const MAX_STACK = 8000;
 const MAX_PATH = 300;
 
 const RULES = [
-    // Credentials inside any URL (mongodb+srv://user:pass@host, https://u:p@...).
+    // Credentials inside any URL (a user name and password before the "@"
+    // of a MongoDB or HTTP URL).
     [/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1[credentials]@'],
     // JSON Web Tokens.
     [/\beyJ[\w-]{5,}\.[\w-]{5,}\.[\w-]{5,}\b/g, '[token]'],

@@ -14,6 +14,10 @@ import {
   Wallet,
   Briefcase,
   Bug,
+  ChevronDown,
+  Library,
+  Receipt,
+  Settings2,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -21,23 +25,140 @@ import axiosInstance from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import ProfileDropdown from "./ProfileDropdown";
 
-// Same set of destinations as the desktop "Admin nav" div below, plus
-// Dashboard (currently only reachable via the logo) and Profile (currently
-// only reachable via ProfileDropdown) — a slide-out sidebar is expected to
-// be a complete, self-sufficient nav menu on its own, not assume the
-// reader also spots the logo or opens the separate profile menu.
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/bundles", label: "Bundles", icon: Package },
-  { to: "/admin/purchases", label: "Purchases", icon: ShieldCheck, badgeKey: "pending" },
-  { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/client-books", label: "Client Books", icon: Briefcase },
-  { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/admin/reviews", label: "Reviews", icon: MessageSquareText },
-  { to: "/admin/payment-settings", label: "Payment Settings", icon: Wallet },
-  { to: "/admin/errors", label: "Errors", icon: Bug },
-  { to: "/profile", label: "Profile", icon: User },
+// Admin destinations, grouped so the header never has to fit (and wrap)
+// eight separate links: Catalog / Sales / System are menus on lg+ screens
+// and headings in the mobile sidebar. The sidebar also lists Dashboard and
+// Profile so it works as a complete menu on its own.
+const NAV_GROUPS = [
+  {
+    id: "catalog",
+    label: "Catalog",
+    icon: Library,
+    items: [
+      { to: "/admin/bundles", label: "Bundles", icon: Package },
+      { to: "/admin/client-books", label: "Client Books", icon: Briefcase },
+    ],
+  },
+  {
+    id: "sales",
+    label: "Sales",
+    icon: Receipt,
+    items: [
+      { to: "/admin/purchases", label: "Purchases", icon: ShieldCheck, badgeKey: "pending" },
+      { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { to: "/admin/reviews", label: "Reviews", icon: MessageSquareText },
+      { to: "/admin/payment-settings", label: "Payment Settings", icon: Wallet },
+    ],
+  },
+  {
+    id: "system",
+    label: "System",
+    icon: Settings2,
+    items: [
+      { to: "/admin/users", label: "Users", icon: Users },
+      { to: "/admin/errors", label: "Errors", icon: Bug },
+    ],
+  },
 ];
+const SIDEBAR_SECTIONS = [
+  { id: "main", label: null, items: [{ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
+  ...NAV_GROUPS,
+  { id: "account", label: "Account", items: [{ to: "/profile", label: "Profile", icon: User }] },
+];
+
+const CountBadge = ({ count, inverted = false }) =>
+  count > 0 ? (
+    <span
+      className={`min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold flex items-center justify-center ${
+        inverted ? "bg-white/25 text-white" : "bg-accent text-white"
+      }`}
+    >
+      {count}
+    </span>
+  ) : null;
+
+// One header menu (Catalog / Sales / System). Opens on click; closes on an
+// outside click, Escape (focus back to the button) or choosing a link.
+const NavGroupMenu = ({ group, pathname, badges }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const buttonRef = useRef(null);
+  const isActive = group.items.some((item) => pathname.startsWith(item.to));
+  const groupBadge = group.items.reduce((sum, item) => sum + (badges[item.badgeKey] || 0), 0);
+  const Icon = group.icon;
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointer = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls={`nav-menu-${group.id}`}
+        onClick={() => setOpen((v) => !v)}
+        className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+          isActive ? "bg-accent-50 text-accent-hover" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+        }`}
+      >
+        <Icon className="w-4 h-4" />
+        {group.label}
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        {groupBadge > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-semibold flex items-center justify-center">
+            {groupBadge}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          id={`nav-menu-${group.id}`}
+          className="absolute right-0 mt-2 w-60 bg-white rounded-2xl border border-gray-100 shadow-xl p-1.5 z-50"
+        >
+          {group.items.map((item) => {
+            const ItemIcon = item.icon;
+            const active = pathname.startsWith(item.to);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setOpen(false)}
+                aria-current={active ? "page" : undefined}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+                  active ? "bg-accent text-white" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <ItemIcon className="w-4 h-4 flex-shrink-0" />
+                {item.label}
+                <span className="ml-auto">
+                  <CountBadge count={badges[item.badgeKey] || 0} inverted={active} />
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const DashboardLayout = ({ children }) => {
   const { user, logout } = useAuth();
@@ -50,6 +171,7 @@ const DashboardLayout = ({ children }) => {
   // expanding dropdown, per this step's own spec.
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const badges = { pending: pendingCount };
 
   // A single fetch on layout mount (not a polling loop) just to badge the
   // nav link — cheap at this app's scale, and only fires for admins since
@@ -95,113 +217,42 @@ const DashboardLayout = ({ children }) => {
     <div className="min-h-screen bg-gray-50">
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
 
             {/* Logo */}
             <Link
               to="/dashboard"
-              className="flex items-center gap-3 group"
+              className="flex items-center gap-2 sm:gap-3 group min-w-0"
             >
               <div className="w-10 h-10 bg-gradient-to-br from-accent to-accent-secondary rounded-2xl flex items-center justify-center shadow-lg shadow-accent-500/20 group-hover:scale-105 transition-transform">
                 <BookOpen className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900 tracking-tight">
+              <span className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight whitespace-nowrap max-[359px]:sr-only">
                 AI Book Creator
               </span>
             </Link>
 
-            {/* Admin nav — desktop, unchanged */}
-            <div className="hidden sm:flex items-center gap-1">
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/bundles"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <Package className="w-4 h-4" />
-                  Bundles
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/purchases"
-                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  Purchases
-                  {pendingCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-semibold flex items-center justify-center">
-                      {pendingCount}
-                    </span>
-                  )}
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/users"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <Users className="w-4 h-4" />
-                  Users
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/client-books"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <Briefcase className="w-4 h-4" />
-                  Client Books
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/analytics"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Analytics
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/reviews"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <MessageSquareText className="w-4 h-4" />
-                  Reviews
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/payment-settings"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <Wallet className="w-4 h-4" />
-                  Payment Settings
-                </Link>
-              )}
-              {user?.role === "admin" && (
-                <Link
-                  to="/admin/errors"
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                >
-                  <Bug className="w-4 h-4" />
-                  Errors
-                </Link>
-              )}
-            </div>
+            {/* Admin nav — grouped menus from lg up; the sidebar below lg. */}
+            {user?.role === "admin" && (
+              <nav aria-label="Admin" className="hidden lg:flex items-center gap-1">
+                {NAV_GROUPS.map((group) => (
+                  <NavGroupMenu key={group.id} group={group} pathname={location.pathname} badges={badges} />
+                ))}
+              </nav>
+            )}
 
             <div className="flex items-center gap-2">
               {/* Mobile hamburger — only ever meaningful for an admin, same
-                  as the desktop links it replaces below sm:. */}
+                  as the header menus it replaces below lg:. */}
               {user?.role === "admin" && (
                 <button
                   onClick={() => setIsSidebarOpen(true)}
-                  className="sm:hidden w-10 h-10 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="lg:hidden relative w-10 h-10 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
                   aria-label="Open menu"
                 >
                   <Menu className="w-5 h-5" />
+                  {pendingCount > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-accent" />}
                 </button>
               )}
 
@@ -238,7 +289,7 @@ const DashboardLayout = ({ children }) => {
           removes it from hit-testing, tab order, and the accessibility
           tree whenever closed, so a stalled animation can never leave it
           silently blocking the page. */}
-      <div className="sm:hidden fixed inset-0 z-50" inert={!isSidebarOpen}>
+      <div className="lg:hidden fixed inset-0 z-50" inert={!isSidebarOpen}>
         <motion.div
           animate={{ opacity: isSidebarOpen ? 1 : 0 }}
           transition={{ duration: 0.2 }}
@@ -266,42 +317,41 @@ const DashboardLayout = ({ children }) => {
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
-            {NAV_ITEMS.map((item) => {
-              const isActive = location.pathname.startsWith(item.to);
-              const Icon = item.icon;
-              const badgeCount = item.badgeKey === "pending" ? pendingCount : 0;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setIsSidebarOpen(false)}
-                  className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-accent text-white"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  {item.label}
-                  {badgeCount > 0 && (
-                    <span
-                      className={`ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold flex items-center justify-center ${
-                        isActive ? "bg-white/25 text-white" : "bg-accent text-white"
+          <nav aria-label="Admin" className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-4">
+            {SIDEBAR_SECTIONS.map((section) => (
+              <div key={section.id} className="flex flex-col gap-1">
+                {section.label && (
+                  <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{section.label}</p>
+                )}
+                {section.items.map((item) => {
+                  const isActive = location.pathname.startsWith(item.to);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setIsSidebarOpen(false)}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                        isActive ? "bg-accent text-white" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                       }`}
                     >
-                      {badgeCount}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      {item.label}
+                      <span className="ml-auto">
+                        <CountBadge count={badges[item.badgeKey] || 0} inverted={isActive} />
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         </motion.div>
       </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         {children}
       </main>
     </div>

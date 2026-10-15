@@ -222,8 +222,13 @@ const escapeMultiline = (value = '') => escapeHtml(value).replace(/\r?\n/g, '<br
 const frontendUrl = (path) => `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}${path}`;
 
 // Same format as the storefront's formatNaira (frontend/src/utils/kenlibsPricing.js).
-const formatNaira = (amount) =>
-    `₦${Number(amount || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+// Same rule as the frontend's formatNaira (utils/kenlibsPricing.js):
+// thousands separators; two decimals only when there are any (₦5,000, ₦9.99).
+const formatNaira = (amount) => {
+    const value = Number(amount) || 0;
+    const digits = Math.round(value * 100) % 100 === 0 ? 0 : 2;
+    return `₦${value.toLocaleString('en-NG', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+};
 
 const formatSubmittedAt = (date) =>
     `${new Date(date).toLocaleString('en-GB', {

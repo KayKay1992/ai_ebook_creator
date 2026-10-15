@@ -3,6 +3,7 @@ const User = require('../models/User');
 const PurchaseRequest = require('../models/PurchaseRequest');
 const ReferralReward = require('../models/ReferralReward');
 const Rating = require('../models/Rating');
+const mongoose = require('mongoose');
 const ReaderProgress = require('../models/ReaderProgress');
 const ReaderAnnotation = require('../models/ReaderAnnotation');
 const { generateResetToken, buildResetLink } = require('./authController');
@@ -14,8 +15,10 @@ const { sendPasswordResetEmail } = require('../utils/sendEmail');
 //@access  Private/Admin
 const getReaders = async (req, res) => {
     try {
-        const readers = await User.find({ role: 'reader' })
-            .select('name email createdAt isDeleted creditBalance')
+        // Everyone who isn't an admin, including older accounts with no
+        // `role` field at all (they're readers; {role: 'reader'} missed them).
+        const readers = await User.find({ role: { $ne: 'admin' } })
+            .select('name email createdAt isDeleted creditBalance isTestAccount')
             .sort({ createdAt: -1 })
             .lean();
 
@@ -288,7 +291,31 @@ const updatePaymentDetails = async (req, res) => {
     }
 };
 
+//@desc    Flag (or unflag) an account as a test account, so analytics'
+//         "Hide test data" leaves it out. Changes nothing else.
+//@route   PUT /api/admin/users/:id/test-account   Body: { isTestAccount }
+//@access  Private/Admin
+const setTestAccount = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
+        if (typeof req.body?.isTestAccount !== 'boolean') {
+            return res.status(400).json({ message: 'isTestAccount must be true or false.' });
+        }
+        const user = await User.findOneAndUpdate(
+            { _id: req.params.id, role: { $ne: 'admin' } },
+            { $set: { isTestAccount: req.body.isTestAccount } },
+            { returnDocument: 'after' }
+        ).select('isTestAccount');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.status(200).json({ _id: user._id, isTestAccount: user.isTestAccount });
+    } catch (error) {
+        res.locals.error = error;
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 module.exports = {
+    setTestAccount,
     getReaders,
     resetUserPassword,
     deleteUser,

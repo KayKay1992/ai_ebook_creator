@@ -575,7 +575,7 @@ regression from Step 31's original Framer Motion usage — a widespread
 AnimatePresence freeze bug — was found and fixed separately in d9bc0e8
 (which also added the mobile admin sidebar).
 
-**Error monitoring (BUILT, uncommitted at time of writing)**
+**Error monitoring (DONE, commit 81b2016)**
 Self-hosted, no third-party service. Server errors (5xx responses only),
 failed background jobs (audio narration, translation) and readers'
 browser errors are recorded in an ErrorLog collection, grouped so a
@@ -616,6 +616,53 @@ details, readers' private notes and highlights. Keep backups private;
 never commit, upload or share them (backups/ is git-ignored). Book images,
 covers and audio live in Cloudinary and are NOT in a backup; it only holds
 their URLs/ids.
+
+**Admin analytics redesign**
+/admin/analytics (controller/analyticsController.js, GET /api/admin/analytics
+and /api/admin/attention). Definitions:
+- Days are Lagos calendar days (Africa/Lagos). Range: from/to (YYYY-MM-DD)
+  or range=all; every figure is compared with the previous range of the
+  same length (trend chips). Percentages from fewer than 30 people carry
+  a "based on N" warning.
+- Revenue = CASH RECEIVED: amount − creditApplied, counted on the day a
+  purchase was approved. Gross sales and store credit used are shown under
+  it. Only approved purchases count (revoked ones drop out).
+- Readers = every account that is not an admin (role != 'admin'). Old
+  accounts have no role field at all, so never query { role: 'reader' };
+  the admin Users page uses the same rule.
+- Conversion = readers who have ever had an approved purchase / readers,
+  as of the end of the range (and as of its start, for the trend).
+- "Hide test data" (off by default, shown as a banner when on): leaves out
+  purchases cheaper than minPrice (default ₦100) and everything from admin
+  accounts and accounts flagged isTestAccount (toggle on the Users page,
+  PUT /api/admin/users/:id/test-account).
+- Funnel: book page views → sign-ups → purchase requests → approved, each a
+  total for the range (not a cohort). Views come from BookViewDaily
+  ({ book, day, views }), counted by POST /api/public/kenlibs/books/:id/view
+  from the book detail page (utils/bookViews.js: once per book per day per
+  browser via localStorage). Anonymous: no IP, account, cookie or
+  fingerprint is stored. Bots and prefetches are skipped, rate limited
+  60/10 min per IP, off with BOOK_VIEW_TRACKING_ENABLED=false. There is no
+  view history from before it shipped and the page says so.
+- PurchaseRequest.itemTitle is a snapshot of the title when the request
+  was made, so a deleted book or bundle still shows its real name; only
+  when neither the live item nor a snapshot exists does it show "Deleted
+  book (title unknown)". Older requests can be filled in with
+  `node scripts/backfill-purchase-titles.js` (from backend/): a dry run by
+  default that prints every change; `--apply` writes; it only fills empty
+  itemTitle fields from items that still exist, never changes anything
+  else; `--set-title <requestId> "Title"` supplies a title by hand for a
+  deleted item. Take a backup first.
+- "Needs attention" row: pending purchase requests (and how long the
+  oldest has waited), unresolved errors, audio and translation chapters
+  that failed or are waiting for quota. Not affected by the date range.
+- One Naira format everywhere (utils/kenlibsPricing.js formatNaira, and
+  backend utils/sendEmail.js): thousands separators, decimals only when
+  there are any (₦5,000, ₦1,500.50).
+- Admin nav groups (components/layout/DashboardLayout.jsx): Catalog
+  (Bundles, Client Books), Sales (Purchases, Analytics, Reviews, Payment
+  Settings), System (Users, Errors) as menus from lg up; below lg, the
+  slide-out sidebar lists the same groups as headings.
 
 ---
 

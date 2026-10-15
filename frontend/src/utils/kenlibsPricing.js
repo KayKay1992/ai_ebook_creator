@@ -13,5 +13,11 @@ export const getBookBadge = ({ price, isForSale }) => {
   return { type: "comingSoon", label: "Coming Soon" };
 };
 
-export const formatNaira = (amount) =>
-  `₦${Number(amount).toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
+// The one Naira format for the whole app (the backend's emails use the
+// same rule): thousands separators, and two decimals only when there are
+// any. ₦5,000 · ₦1,500.50 · ₦9.99 · ₦0
+export const formatNaira = (amount) => {
+  const value = Number(amount) || 0;
+  const digits = Math.round(value * 100) % 100 === 0 ? 0 : 2;
+  return `₦${value.toLocaleString("en-NG", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+};
