@@ -34,3 +34,8 @@ tts-sample-*.mp3
 # Local Kokoro narration: its own node_modules (ignored above) and the
 # downloaded model cache
 scripts/local-tts/.model-cache/
+
+# Database backups (scripts/backup.js): personal data (emails, password
+# hashes, payment details). Never commit. Each backup folder also carries
+# its own .gitignore of "*" in case it's written elsewhere in the repo.
+backups/

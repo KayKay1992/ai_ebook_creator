@@ -478,8 +478,8 @@ reusing the existing AI auth/rate-limit pattern) that sends the word +
 surrounding sentence to Gemini. AI fallback is opt-in-per-lookup only, never
 automatic, matching the cost-control intent this step was scoped around.
 
-**Step 37 — Multi-language translation, Nigerian languages first (BUILT,
-uncommitted at time of writing)**
+**Step 37 — Multi-language translation, Nigerian languages first (DONE,
+commit d0122e9)**
 Built with Gemini (the existing GEMINI_API_KEY and quota handling) rather
 than the originally planned Google Cloud Translation API, so no GCP project
 or new credentials were needed. Languages: Nigerian Pidgin, Yoruba, Igbo,
@@ -522,7 +522,7 @@ Architecture, as built:
   translations keep the same chapters and paragraph structure, so it lines
   up either way.
 
-**Highlights, notes and bookmarks (BUILT, uncommitted at time of writing)**
+**Highlights, notes and bookmarks (DONE, commit d92493c)**
 Readers can highlight text in four colors, attach a note to a highlight,
 copy or "Explain" a selection (the word-explain popup now opens from the
 selection toolbar instead of on every selection), and bookmark a chapter or
@@ -574,6 +574,29 @@ product no longer reads as two visually distinct halves. A related
 regression from Step 31's original Framer Motion usage — a widespread
 AnimatePresence freeze bug — was found and fixed separately in d9bc0e8
 (which also added the mobile admin sidebar).
+
+**Backups and restore (BUILT, uncommitted at time of writing)**
+Free, local backups of the whole MongoDB database, run on the admin's own
+PC (never on Render), using backend/.env's MONGO_URI. From backend/:
+- `npm run backup`: every collection to backups/<date_time>/ as Extended
+  JSON (exact ObjectIds and Dates), streamed, with a manifest of document
+  counts and a checksum per file. `--out <dir>` for elsewhere, `--keep N`
+  to keep only the newest N (off unless asked).
+- `npm run backup:verify`: proves a backup restores, by restoring it into
+  a temporary database, comparing counts, and dropping it. The real
+  database is never written.
+- `npm run restore -- <folder>`: a dry run unless `--apply`; checks every
+  checksum and count first; refuses to overwrite the database the backup
+  came from unless `--yes-overwrite` AND the database name is typed;
+  `--target-uri`/`--target-db` to restore elsewhere, `--only` for some
+  collections; never drops a collection without `--drop` (otherwise it
+  only adds missing documents).
+WARNING: a backup contains personal data: readers' emails and names,
+password hashes, purchases and payment evidence links, the admin's bank
+details, readers' private notes and highlights. Keep backups private;
+never commit, upload or share them (backups/ is git-ignored). Book images,
+covers and audio live in Cloudinary and are NOT in a backup; it only holds
+their URLs/ids.
 
 ---
 
