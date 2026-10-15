@@ -125,6 +125,25 @@ A reader can access a book if **either**:
 This check happens **server-side, on every reading request** — never inferred
 client-side, since that's the actual security boundary.
 
+Full chapter text is only ever returned to: readers passing this check
+(`GET /api/kenlibs/read/:bookId` and the translation/audio reader
+endpoints), the book's owner (the admin editor endpoints and owner-only
+exports). The public share link is a **preview only** (see below); the
+storefront, detail and OG/crawler endpoints never return chapter text.
+
+### Share link (preview only)
+`/read/:shareId` (API: `GET /api/public/books/:shareId`) is public, so it
+returns a preview built server-side from an allowlist
+(`backend/utils/sharePreview.js`): the first `SHARE_PREVIEW_CHAPTERS`
+chapters (default 1) as excerpts of about 1,500 characters ending at a
+paragraph boundary, and every other chapter as a locked title
+(`locked: true`, no content), plus `isPreview`, `totalChapters` and
+`previewChapters`. Never chapter descriptions, summaries, the teaser,
+translations or audio. A direct API call gets exactly the same preview; the
+share page only displays it, with lock icons and a "Preview only: buy the
+full book" button to `/kenlibs/book/:id` (signup-first buy flow). shareIds
+are 12-character random ids (72 bits), and unpublishing makes the link 404.
+
 ---
 
 ## 4. Route map
@@ -146,6 +165,8 @@ client-side, since that's the actual security boundary.
 /kenlibs/book/:id       book detail page (price, blurb, back cover, "Request to Buy",
                         "About this book" teaser from Book.previewContent)
 /kenlibs/bundle/:id     bundle detail page
+/read/:shareId          share link: PREVIEW only (first chapter excerpt,
+                        other chapters locked), links to /kenlibs/book/:id
 ```
 
 ### New — reader auth (separate from admin auth conceptually, same User model)

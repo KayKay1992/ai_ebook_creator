@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, X, ChevronDown } from "lucide-react";
+import { ArrowLeft, X, ChevronDown, Lock } from "lucide-react";
 import CoverPreview from "../cards/CoverPreview";
 
 const ViewChapterSidebar = ({
@@ -169,8 +169,16 @@ const ViewChapterSidebar = ({
                       >
                         {chapter.title || `Chapter ${index + 1}`}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
                         Chapter {index + 1}
+                        {/* Only the public share-link preview marks chapters locked. */}
+                        {chapter.locked && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <Lock className="w-3 h-3" />
+                            <span>Locked</span>
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>

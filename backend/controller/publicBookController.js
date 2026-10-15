@@ -2,8 +2,16 @@ const Book = require("../models/Book");
 const Bundle = require("../models/Bundle");
 const { AUDIO_SUMMARY_FIELDS, withAudioSummary } = require("../utils/audioSummary");
 const { publishedLanguages } = require("../utils/translationAccess");
+const { buildSharePreview } = require("../utils/sharePreview");
 
-//@desc    Get a published book's read-only content by its public shareId
+//@desc    A published book's public PREVIEW by its shareId: the first
+//         SHARE_PREVIEW_CHAPTERS chapters (default 1) as ~1,500-character
+//         excerpts cut at a paragraph boundary, every other chapter as a
+//         locked title only (utils/sharePreview.js). Never the full text:
+//         that needs hasBookAccess (GET /api/kenlibs/read/:bookId). Never
+//         summaries, translations, audio or the storefront teaser either.
+//         The response is built from an explicit allowlist, not by
+//         stripping fields from the book.
 //@route   GET /api/public/books/:shareId
 //@access  Public — no auth. Returns 404 for any book that isn't currently
 //         published, even if the shareId itself is valid/guessed, so
@@ -14,19 +22,14 @@ const getPublicBookByShareId = async (req, res) => {
       shareId: req.params.shareId,
       status: "published",
     })
-      .select("title subtitle author coverImage chapters coverDesign")
+      .select("title subtitle author coverImage coverDesign chapters._id chapters.title chapters.content")
       .lean();
 
     if (!book) {
       return res.status(404).json({ message: "Book not found" });
     }
 
-    // Chapter recaps are for readers with access (gated reader) only:
-    // never sent on the public share link.
-    book.chapters = (book.chapters || []).map(
-      ({ summary, summaryEdited, summarySourceHash, ...chapter }) => chapter
-    );
-    res.status(200).json(book);
+    res.status(200).json(buildSharePreview(book));
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
