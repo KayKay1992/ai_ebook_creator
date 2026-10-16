@@ -38,6 +38,10 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered by src/utils/registerServiceWorker.js instead of the
+      // plugin's injected registerSW.js, so a browser that refuses the
+      // service worker can't cause an unhandled promise rejection.
+      injectRegister: false,
       // The real Kenlibs icon set (Step 48) — favicon.ico + apple-touch-icon
       // are referenced directly by index.html's <link> tags but aren't
       // otherwise picked up as manifest icons, so they're listed here to

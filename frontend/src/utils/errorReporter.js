@@ -1,4 +1,5 @@
 import { BASE_URL } from "./apiPaths";
+import { isNoise } from "./errorNoise";
 
 // Sends browser errors to the backend's error monitoring
 // (POST /api/errors/report → backend/utils/errorLogger.js). Fire-and-forget:
@@ -6,22 +7,14 @@ import { BASE_URL } from "./apiPaths";
 // scrubs and size-limits everything again; this side just avoids sending
 // noise or floods:
 //   - known noise (ResizeObserver, extensions, cancelled requests, the
-//     network dropping) is skipped,
+//     network dropping, the browser refusing the service worker) is
+//     skipped (utils/errorNoise.js),
 //   - the same message is sent at most once a minute, and at most 10
 //     reports per page load.
 // Only the page path is sent (no query string or hash), never page content.
 
 const MAX_REPORTS_PER_PAGE = 10;
 const SAME_MESSAGE_GAP_MS = 60 * 1000;
-
-const NOISE = [
-  /ResizeObserver loop/i,
-  /^Script error\.?$/i,
-  /(chrome|moz|safari|safari-web|ms-browser)-extension:\/\//i,
-  /\b(AbortError|CanceledError|ERR_CANCELED)\b/,
-  /\b(canceled|cancelled|the operation was aborted)\b/i,
-  /\b(Network ?Error|Failed to fetch|Load failed|NetworkError when attempting to fetch|ERR_NETWORK|timeout of \d+ms exceeded)\b/i,
-];
 
 // A lazily loaded chunk that no longer exists (after a deploy) or couldn't
 // download. Not a bug to report: the page just needs a refresh.
@@ -47,7 +40,7 @@ export const reportError = (kind, error, { componentStack = "" } = {}) => {
   try {
     if (isChunkLoadError(error)) return;
     const { message, stack } = describe(error);
-    if (!message || NOISE.some((pattern) => pattern.test(message) || pattern.test(stack))) return;
+    if (isNoise(message, stack)) return;
     if (sent >= MAX_REPORTS_PER_PAGE) return;
     const now = Date.now();
     if (now - (lastSentAt.get(message) || 0) < SAME_MESSAGE_GAP_MS) return;
