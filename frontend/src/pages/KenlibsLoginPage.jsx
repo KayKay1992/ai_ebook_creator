@@ -13,6 +13,10 @@ import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import PasskeyLoginButton from "../components/auth/PasskeyLoginButton";
+import { flagPasskeyPrompt } from "../utils/passkeySupport";
+import RateLimitNotice from "../components/auth/RateLimitNotice";
+import { rateLimitMessage } from "../utils/rateLimit";
 
 const SUCCESS_DISPLAY_MS = 700;
 
@@ -41,32 +45,42 @@ const KenlibsLoginPage = () => {
   const [formData, setFormData] = useState({ email: signupEmail, password: "" });
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [rateLimit, setRateLimit] = useState(null);
   const cardControls = useAnimation();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Shared by the password form and the passkey button: both get the same
+  // token from the server, then finish signing in the same way.
+  const completeLogin = async (token) => {
+    const profileResponse = await axiosInstance.get(API_PATHS.AUTH.PROFILE, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    login(profileResponse.data, token);
+    toast.success("Welcome back!");
+    setIsSuccess(true);
+    setTimeout(
+      () => navigate(from || (profileResponse.data.role === "admin" ? "/dashboard" : "/kenlibs")),
+      SUCCESS_DISPLAY_MS
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setRateLimit(null);
     try {
       const response = await axiosInstance.post(API_PATHS.AUTH.LOGIN, formData);
-      const { token } = response.data;
-
-      const profileResponse = await axiosInstance.get(API_PATHS.AUTH.PROFILE, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      login(profileResponse.data, token);
-      toast.success("Welcome back!");
-      setIsSuccess(true);
-      setTimeout(
-        () => navigate(from || (profileResponse.data.role === "admin" ? "/dashboard" : "/kenlibs")),
-        SUCCESS_DISPLAY_MS
-      );
+      // Offer "Sign in faster with your fingerprint" once (PasskeyPrompt).
+      flagPasskeyPrompt();
+      await completeLogin(response.data.token);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Login failed. Please try again."));
+      const limited = rateLimitMessage(error);
+      if (limited) setRateLimit(limited);
+      else toast.error(getErrorMessage(error, "Login failed. Please try again."));
       setLoading(false);
       // A short shake reinforces the toast without replacing it — the form
       // itself flags the problem, not just a transient notification.
@@ -132,6 +146,7 @@ const KenlibsLoginPage = () => {
                       Account created. Sign in to continue.
                     </p>
                   )}
+                  <RateLimitNotice message={rateLimit} />
                   <form onSubmit={handleSubmit} className="space-y-5">
                     <InputField
                       type="email"
@@ -168,6 +183,12 @@ const KenlibsLoginPage = () => {
                       </Button>
                     </motion.div>
                   </form>
+
+                  <PasskeyLoginButton
+                    email={formData.email}
+                    disabled={loading}
+                    onSignedIn={(data) => completeLogin(data.token)}
+                  />
 
                   <div className="text-center mt-6">
                     <p className="text-gray-600 text-sm">

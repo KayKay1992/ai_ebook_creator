@@ -664,6 +664,55 @@ and /api/admin/attention). Definitions:
   Settings), System (Users, Errors) as menus from lg up; below lg, the
   slide-out sidebar lists the same groups as headings.
 
+**Passkeys (fingerprint / Face ID / screen lock sign-in)**
+An addition to email+password, for readers and admins (WebAuthn,
+@simplewebauthn/server + /browser). Routes under /api/auth/passkeys
+(routes/passkeyRoute.js, controller/passkeyController.js):
+- POST /login/options { email? } and /login/verify { flowId, response }:
+  public. The options never depend on the email or any account (no
+  allowCredentials, "discoverable" passkeys only), so they reveal nothing;
+  verify returns exactly the POST /api/auth/login response (same JWT).
+- GET /, POST /register/options { password? } + /register/verify
+  { flowId, response, nickname }, PUT and DELETE /:passkeyId: signed in,
+  own passkeys only. Adding needs a sign-in in the last 10 minutes or the
+  password. Max 5 per user. User verification required.
+- Relying party: the FRONTEND (WEBAUTHN_ORIGIN / WEBAUTHN_RP_ID /
+  WEBAUTHN_RP_NAME, defaults from FRONTEND_URL), never the Render API.
+  The RP ID is the domain passkeys belong to: today kenlibs-sooty.vercel.app.
+  Moving to a custom domain later makes existing passkeys unusable
+  (passwords keep working; readers add a new passkey). Vercel preview URLs
+  can't use them.
+- Storage: Passkey (publicKey never returned or logged), WebAuthnChallenge
+  (5 minutes, TTL index, single use), AuthEvent (passkey added / removed /
+  renamed / sign-in; user id, type and nickname only; 90 days). Deleted
+  with the account; password reset doesn't touch passkeys.
+- Signature counter: 0 that stays 0 is accepted (synced passkeys); a
+  non-zero counter that doesn't increase is rejected as a possible clone.
+- Rate limits per IP and per passkey/account (middleware/passkeyRateLimits.js).
+- UI: "Sign in with fingerprint / passkey" on /kenlibs/login and /login
+  (only when the browser supports WebAuthn), "Fingerprint & passkeys" on
+  /kenlibs/profile (new reader profile page, in the Kenlibs nav) and the
+  admin /profile, a one-time "Sign in faster with your fingerprint next
+  time" prompt after a password sign-in. The WebAuthn library loads only
+  when a passkey is used.
+- Needs Node 20+ (engines; server.js exits with a clear message; on Render
+  set NODE_VERSION if needed).
+
+**Brute-force limits on the password endpoints**
+middleware/authRateLimits.js (separate from the passkey limits), limits
+from env with safe defaults (backend/.env.example):
+- POST /api/auth/login: failed attempts only, 10 per 15 min per IP + email
+  (a successful login resets it, other people's failures never count) and
+  100 per 15 min per IP across all emails.
+- POST /api/auth/forgot-password: 20/hour per IP (429) and 5/hour per email
+  (same generic 200 reply, no email sent).
+- POST /api/auth/register: 10/hour per IP. POST /api/auth/reset-password/:token:
+  20/hour per IP.
+- 429 { code: "rate_limited", retryAfterSeconds, message: "Too many
+  attempts. Please wait N minutes and try again." }, shown inline on both
+  login pages and both forgot-password pages; never says whether an
+  account exists. Successful responses unchanged. In memory, per process.
+
 ---
 
 ## 9. Open decisions worth confirming before Step 23

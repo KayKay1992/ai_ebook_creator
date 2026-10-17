@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import toast from 'react-hot-toast'
 import { User, Mail, Sparkles } from 'lucide-react'
 import DashboardLayout from '../components/layout/DashboardLayout'
@@ -8,6 +8,9 @@ import { useAuth } from '../context/AuthContext'
 import axiosInstance from '../utils/axiosInstance'
 import { API_PATHS } from '../utils/apiPaths'
 import ProfileSkeleton from '../components/skeletons/ProfileSkeleton'
+
+// Fingerprint & passkeys; its WebAuthn code loads only on this page.
+const PasskeysSection = lazy(() => import('../components/auth/PasskeysSection'))
 
 const ProfilePage = () => {
   const { user, updateUser, loading: authLoading } = useAuth()
@@ -138,6 +141,12 @@ const ProfilePage = () => {
         <p className="text-xs text-gray-400 mt-4 text-center">
           Changes to your name are reflected instantly across your workspace.
         </p>
+
+        <div className="mt-8">
+          <Suspense fallback={null}>
+            <PasskeysSection />
+          </Suspense>
+        </div>
       </div>
     </DashboardLayout>
   )

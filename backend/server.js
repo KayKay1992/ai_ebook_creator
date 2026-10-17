@@ -1,3 +1,5 @@
+// First: stop with a clear message on Node older than 20 (utils/nodeVersion.js).
+require('./utils/nodeVersion').assertSupportedNode();
 require('dotenv').config();
 const connectDB = require('./config/db');
 const app = require('./app');

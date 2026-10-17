@@ -13,6 +13,7 @@ const KenlibsNav = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isMyBooksActive = location.pathname.startsWith("/kenlibs/my-books");
   const isReferralsActive = location.pathname.startsWith("/kenlibs/referrals");
+  const isProfileActive = location.pathname.startsWith("/kenlibs/profile");
 
   return (
     <header className="sticky top-0 z-40 bg-accent-secondary border-b-2 border-accent">
@@ -28,7 +29,7 @@ const KenlibsNav = () => {
           </Link>
 
           {/* Desktop links */}
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-1 lg:gap-2">
             <Link
               to="/kenlibs/support"
               title="Support"
@@ -40,35 +41,48 @@ const KenlibsNav = () => {
               <>
                 <Link
                   to="/kenlibs/my-books"
-                  className="relative px-4 py-2 text-sm font-medium text-white/80 hover:text-white transition-colors"
+                  className="relative px-3 lg:px-4 py-2 text-sm font-medium whitespace-nowrap text-white/80 hover:text-white transition-colors"
                 >
                   My Books
                   {isMyBooksActive && (
                     <motion.span
                       layoutId="kenlibs-nav-active"
-                      className="absolute left-4 right-4 -bottom-[1px] h-0.5 bg-accent rounded-full"
+                      className="absolute left-3 right-3 lg:left-4 lg:right-4 -bottom-[1px] h-0.5 bg-accent rounded-full"
                       transition={{ type: "spring", stiffness: 500, damping: 35 }}
                     />
                   )}
                 </Link>
                 <Link
                   to="/kenlibs/referrals"
-                  className="relative px-4 py-2 text-sm font-medium text-white/80 hover:text-white transition-colors"
+                  className="relative px-3 lg:px-4 py-2 text-sm font-medium whitespace-nowrap text-white/80 hover:text-white transition-colors"
                 >
                   Referrals
                   {isReferralsActive && (
                     <motion.span
                       layoutId="kenlibs-nav-active"
-                      className="absolute left-4 right-4 -bottom-[1px] h-0.5 bg-accent rounded-full"
+                      className="absolute left-3 right-3 lg:left-4 lg:right-4 -bottom-[1px] h-0.5 bg-accent rounded-full"
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                </Link>
+                <Link
+                  to="/kenlibs/profile"
+                  className="relative px-3 lg:px-4 py-2 text-sm font-medium whitespace-nowrap text-white/80 hover:text-white transition-colors"
+                >
+                  Profile
+                  {isProfileActive && (
+                    <motion.span
+                      layoutId="kenlibs-nav-active"
+                      className="absolute left-3 right-3 lg:left-4 lg:right-4 -bottom-[1px] h-0.5 bg-accent rounded-full"
                       transition={{ type: "spring", stiffness: 500, damping: 35 }}
                     />
                   )}
                 </Link>
                 <button
                   onClick={logout}
-                  className="px-4 py-2 text-sm font-medium text-white/60 hover:text-white transition-colors"
+                  className="px-3 lg:px-4 py-2 text-sm font-medium whitespace-nowrap text-white/60 hover:text-white transition-colors"
                 >
-                  {user?.name?.split(" ")[0] || "Account"} · Log out
+                  <span className="inline-block max-w-[7rem] truncate align-bottom">{user?.name?.split(" ")[0] || "Account"}</span> · Log out
                 </button>
               </>
             ) : (
@@ -150,6 +164,17 @@ const KenlibsNav = () => {
                 }`}
               >
                 Referrals
+              </Link>
+              <Link
+                to="/kenlibs/profile"
+                onClick={() => setIsMobileOpen(false)}
+                className={`px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                  isProfileActive
+                    ? "bg-accent text-white"
+                    : "text-white/80 hover:bg-white/10"
+                }`}
+              >
+                Profile
               </Link>
               <button
                 onClick={() => {

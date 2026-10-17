@@ -8,18 +8,22 @@ const {
   resetPassword,
 } = require("../controller/authController");
 const { protect } = require("../middleware/authMiddleware");
+// Brute-force limits for the password endpoints (middleware/authRateLimits.js).
+const { createAuthRateLimiters } = require("../middleware/authRateLimits");
+
+const limits = createAuthRateLimiters();
 
 const router = express.Router();
 
 // @route   POST /api/auth/register
 // @desc    Register a new user
 // @access  Public
-router.post("/register", registerUser);
+router.post("/register", ...limits.register, registerUser);
 
 // @route   POST /api/auth/login
 // @desc    Login a user
 // @access  Public
-router.post("/login", loginUser);
+router.post("/login", ...limits.login, loginUser);
 
 // @route   GET /api/auth/profile
 // @desc    Get current user profile
@@ -35,11 +39,11 @@ router.put("/profile", protect, updateUserProfile);
 // @desc    Request a password reset token (see authController.js's TODO —
 //          not production-safe until real email delivery is wired up)
 // @access  Public
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", ...limits.forgotPassword, forgotPassword);
 
 // @route   POST /api/auth/reset-password/:token
 // @desc    Complete a password reset with a valid token
 // @access  Public
-router.post("/reset-password/:token", resetPassword);
+router.post("/reset-password/:token", ...limits.resetPassword, resetPassword);
 
 module.exports = router;

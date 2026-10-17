@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
 const authRoutes = require('./routes/authRoute');
+const passkeyRoutes = require('./routes/passkeyRoute');
 const bookRoutes = require('./routes/bookRoute');
 const aiRoutes = require('./routes/aiRoute');
 const exportRoutes = require('./routes/exportRoute');
@@ -123,6 +124,8 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 //define routes
+// Passkeys first: more specific than /api/auth (routes/passkeyRoute.js).
+app.use('/api/auth/passkeys', passkeyRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/ai', aiRoutes);

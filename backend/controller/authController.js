@@ -264,4 +264,7 @@ module.exports = {
     resetPassword,
     generateResetToken,
     buildResetLink,
+    // Also used by passkeyController.js, so a passkey sign-in issues
+    // exactly the same token as a password login.
+    generateToken,
 };

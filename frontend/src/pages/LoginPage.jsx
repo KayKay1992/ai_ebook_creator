@@ -8,6 +8,10 @@ import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
+import PasskeyLoginButton from "../components/auth/PasskeyLoginButton";
+import { flagPasskeyPrompt } from "../utils/passkeySupport";
+import RateLimitNotice from "../components/auth/RateLimitNotice";
+import { rateLimitMessage } from "../utils/rateLimit";
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -15,6 +19,7 @@ const LoginPage = () => {
     password: "",
   });
   const [loading, setLoading] = useState(false);
+  const [rateLimit, setRateLimit] = useState(null);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -23,24 +28,30 @@ const LoginPage = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Shared by the password form and the passkey button.
+  const completeLogin = async (token) => {
+    const profileResponse = await axiosInstance.get(API_PATHS.AUTH.PROFILE, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    login(profileResponse.data, token);
+    toast.success("Welcome back!");
+    navigate(profileResponse.data.role === "admin" ? "/dashboard" : "/kenlibs");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setRateLimit(null);
     try {
       const response = await axiosInstance.post(API_PATHS.AUTH.LOGIN, formData);
-      const { token } = response.data;
-
-      const profileResponse = await axiosInstance.get(API_PATHS.AUTH.PROFILE, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      login(profileResponse.data, token);
-      toast.success("Welcome back!");
-      navigate(profileResponse.data.role === "admin" ? "/dashboard" : "/kenlibs");
+      // Offer "Sign in faster with your fingerprint" once (PasskeyPrompt).
+      flagPasskeyPrompt();
+      await completeLogin(response.data.token);
     } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Login failed. Please try again.",
-      );
+      const limited = rateLimitMessage(error);
+      if (limited) setRateLimit(limited);
+      else toast.error(error.response?.data?.message || "Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -64,6 +75,7 @@ const LoginPage = () => {
 
         {/* Form Card */}
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-100">
+          <RateLimitNotice message={rateLimit} />
           <form onSubmit={handleSubmit} className="space-y-6">
             <InputField
               type="email"
@@ -104,6 +116,12 @@ const LoginPage = () => {
               Sign In
             </Button>
           </form>
+
+          <PasskeyLoginButton
+            email={formData.email}
+            disabled={loading}
+            onSignedIn={(data) => completeLogin(data.token)}
+          />
 
           <div className="text-center mt-8">
             <p className="text-gray-600">

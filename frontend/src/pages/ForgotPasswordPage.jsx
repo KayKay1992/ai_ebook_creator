@@ -8,6 +8,8 @@ import Button from "../components/ui/Button";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 import getErrorMessage from "../utils/getErrorMessage";
+import RateLimitNotice from "../components/auth/RateLimitNotice";
+import { rateLimitMessage } from "../utils/rateLimit";
 
 // Mirrors LoginPage.jsx's chrome exactly (same gradient background, same
 // icon badge/card shape) — this is reached from LoginPage's own "Forgot
@@ -24,10 +26,12 @@ const ForgotPasswordPage = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [rateLimit, setRateLimit] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setRateLimit(null);
     try {
       // Short per-request timeout (the shared instance allows 2 minutes for
       // AI calls) so the spinner can never hang on a slow backend.
@@ -39,7 +43,9 @@ const ForgotPasswordPage = () => {
       setIsSubmitted(true);
       toast.success("If that email exists, a reset link has been sent");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Couldn't request a password reset"));
+      const limited = rateLimitMessage(error);
+      if (limited) setRateLimit(limited);
+      else toast.error(getErrorMessage(error, "Couldn't request a password reset"));
     } finally {
       setLoading(false);
     }
@@ -62,6 +68,8 @@ const ForgotPasswordPage = () => {
 
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-100">
           {!isSubmitted ? (
+            <>
+            <RateLimitNotice message={rateLimit} />
             <form onSubmit={handleSubmit} className="space-y-6">
               <InputField
                 type="email"
@@ -77,6 +85,7 @@ const ForgotPasswordPage = () => {
                 Send Reset Link
               </Button>
             </form>
+            </>
           ) : (
             <div className="space-y-4 text-center">
               <div className="w-12 h-12 rounded-full bg-accent-50 flex items-center justify-center mx-auto">

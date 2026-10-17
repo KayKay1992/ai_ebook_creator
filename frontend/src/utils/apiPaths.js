@@ -12,6 +12,14 @@ export const API_PATHS = {
     FORGOT_PASSWORD: "/api/auth/forgot-password",
     RESET_PASSWORD: (token) => `/api/auth/reset-password/${token}`,
   },
+  PASSKEYS: {
+    LIST: "/api/auth/passkeys",
+    ONE: (passkeyId) => `/api/auth/passkeys/${passkeyId}`,
+    REGISTER_OPTIONS: "/api/auth/passkeys/register/options",
+    REGISTER_VERIFY: "/api/auth/passkeys/register/verify",
+    LOGIN_OPTIONS: "/api/auth/passkeys/login/options",
+    LOGIN_VERIFY: "/api/auth/passkeys/login/verify",
+  },
   BOOKS: {
     CREATE_BOOK: "/api/books",
     GET_BOOKS: "/api/books",

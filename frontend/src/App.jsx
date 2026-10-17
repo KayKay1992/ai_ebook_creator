@@ -4,6 +4,7 @@ import AdminRoute from "./components/auth/AdminRoute";
 import ReaderRoute from "./components/auth/ReaderRoute";
 import KenlibsPage from "./pages/KenlibsPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
+import PasskeyPromptHost from "./components/auth/PasskeyPromptHost";
 import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
 import lazyWithRetry from "./utils/lazyWithRetry";
 
@@ -35,6 +36,7 @@ const KenlibsResetPasswordPage = lazyWithRetry(() => import("./pages/KenlibsRese
 const KenlibsCheckoutPage = lazyWithRetry(() => import("./pages/KenlibsCheckoutPage"));
 const KenlibsMyBooksPage = lazyWithRetry(() => import("./pages/KenlibsMyBooksPage"));
 const KenlibsReferralsPage = lazyWithRetry(() => import("./pages/KenlibsReferralsPage"));
+const KenlibsProfilePage = lazyWithRetry(() => import("./pages/KenlibsProfilePage"));
 const KenlibsReadPage = lazyWithRetry(() => import("./pages/KenlibsReadPage"));
 const KenlibsTermsPage = lazyWithRetry(() => import("./pages/KenlibsTermsPage"));
 const KenlibsPrivacyPage = lazyWithRetry(() => import("./pages/KenlibsPrivacyPage"));
@@ -57,6 +59,7 @@ const App = () => {
   return (
     <div>
       <OfflineBanner />
+      <PasskeyPromptHost />
       <Suspense fallback={<PageFallback />}>
       <Routes>
         {/* "/" is the app's entry point for a logged-out visitor — redirects
@@ -108,6 +111,10 @@ const App = () => {
           <Route
             path="/kenlibs/referrals"
             element={<ReaderRoute><KenlibsReferralsPage /></ReaderRoute>}
+          />
+          <Route
+            path="/kenlibs/profile"
+            element={<ReaderRoute><KenlibsProfilePage /></ReaderRoute>}
           />
           <Route
             path="/kenlibs/read/:bookId"
