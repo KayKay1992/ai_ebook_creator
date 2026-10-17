@@ -713,6 +713,25 @@ from env with safe defaults (backend/.env.example):
   login pages and both forgot-password pages; never says whether an
   account exists. Successful responses unchanged. In memory, per process.
 
+**Storefront redesign (brand flier)**
+Reference: design-ref/Gemini_Generated_Image_.jpg (the phone screen in the
+launch flier). Reader-facing pages use a dark green (forest tokens in
+index.css) for the header bar (KenlibsNav, the reader's own header via
+ViewBook headerTheme="brand", the footer); admin keeps navy. The home page
+(/kenlibs) opens with a full-width green hero: inline SVG leaves (no
+photo), the serif headline "Discover Great Books on Kenlibs" (Fraunces
+Soft, the only preloaded font) with "Kenlibs" in orange, "Read anytime,
+anywhere." in Nunito, and a white pill search that filters the loaded
+books by title or author on the client. Phones then show Featured as two
+upright covers per row (first 4); tablet and desktop keep the fanned
+Featured row and the existing desktop navigation. Phones get a bottom tab
+bar (Home, Library = My Books, Profile = /kenlibs/profile) on storefront
+and account pages only, never on the reader, checkout, sign-in pages or
+admin; the page reserves its height (plus the safe-area inset) and the
+WhatsApp button sits above it. Fonts are self-hosted (src/fonts.css,
+@fontsource-variable packages), no Google Fonts request. Reduced-motion
+preferences are respected app-wide.
+
 ---
 
 ## 9. Open decisions worth confirming before Step 23

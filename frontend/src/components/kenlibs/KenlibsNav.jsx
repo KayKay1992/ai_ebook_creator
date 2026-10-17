@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BookOpen, LifeBuoy, Menu, X } from "lucide-react";
+import { LifeBuoy, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import KenlibsLogo from "./KenlibsLogo";
 
 // Deliberately separate from the admin Navbar/DashboardLayout — Kenlibs is
 // the reader-facing surface (see KENLIBS-ARCHITECTURE.md section 1): a
@@ -16,14 +17,15 @@ const KenlibsNav = () => {
   const isProfileActive = location.pathname.startsWith("/kenlibs/profile");
 
   return (
-    <header className="sticky top-0 z-40 bg-accent-secondary border-b-2 border-accent">
+    <header className="sticky top-0 z-40 bg-forest">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link to="/kenlibs" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 bg-accent rounded-xl flex items-center justify-center text-white shadow-lg shadow-black/20 transition-transform group-hover:scale-105">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <span className="text-xl font-semibold text-white tracking-tight">
+          <Link
+            to="/kenlibs"
+            className="flex items-center gap-2.5 group rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-forest"
+          >
+            <KenlibsLogo className="w-9 h-9 shadow-lg shadow-black/20 rounded-[10px] transition-transform motion-safe:group-hover:scale-105" />
+            <span className="font-rounded text-[22px] font-extrabold text-white tracking-tight">
               Kenlibs
             </span>
           </Link>
@@ -98,8 +100,9 @@ const KenlibsNav = () => {
           {/* Mobile toggle */}
           <button
             onClick={() => setIsMobileOpen((open) => !open)}
-            className="sm:hidden w-10 h-10 rounded-xl flex items-center justify-center text-white/80 hover:bg-white/10 transition-colors"
+            className="sm:hidden w-11 h-11 -mr-1.5 rounded-xl flex items-center justify-center text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
             aria-label="Toggle menu"
+            aria-expanded={isMobileOpen}
           >
             {/* No AnimatePresence/exit here (Step 52 audit) — dropping the
                 exit half of the crossfade removes any risk of a stuck

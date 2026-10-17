@@ -13,6 +13,16 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The only preloaded font: the storefront hero headline (the page's
+         largest text, so it shouldn't swap late). Every other face in
+         src/fonts.css loads on demand with font-display: swap. -->
+    <link
+      rel="preload"
+      href="./node_modules/@fontsource-variable/fraunces/files/fraunces-latin-soft-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <!-- Shared default tab title for the whole app (single HTML shell, no
          per-route title otherwise). Kenlibs pages override this dynamically
          via useDocumentTitle (see src/hooks) for a more specific title while

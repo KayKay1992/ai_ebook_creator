@@ -11,12 +11,12 @@ import KenlibsCardSkeleton from "../components/kenlibs/KenlibsCardSkeleton";
 import KenlibsSearchBar from "../components/kenlibs/KenlibsSearchBar";
 import useDocumentTitle from "../hooks/useDocumentTitle";
 import { useAuth } from "../context/AuthContext";
-import kenlibsHero from "../assets/kenlibs-hero.webp";
+import KenlibsHeroLeaves from "../components/kenlibs/KenlibsHeroLeaves";
+import useMediaQuery from "../hooks/useMediaQuery";
 
-const heroFadeUp = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
-};
+// Phones show this many Featured books as a two-per-row grid (the brand
+// flier's home screen); wider screens keep the fanned row.
+const PHONE_FEATURED_COUNT = 4;
 
 // A book's genre badge can be set independently on the front or back cover
 // (Cover Designer, Step 22) — front is the one actually shown on the
@@ -68,7 +68,7 @@ const KenlibsRow = ({ title, children, physical = false }) => {
       </h2>
       <motion.div
         ref={ref}
-        className={`flex gap-5 overflow-x-auto pb-3 -mx-6 px-6 lg:-mx-8 lg:px-8 snap-x snap-mandatory [scrollbar-width:thin] ${
+        className={`flex gap-5 overflow-x-auto pb-3 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 scroll-pl-5 sm:scroll-pl-6 lg:scroll-pl-8 snap-x snap-mandatory [scrollbar-width:thin] ${
           physical ? "pt-3" : ""
         }`}
         initial="hidden"
@@ -109,6 +109,7 @@ const KenlibsPage = () => {
   // grid rendering, so cards simply render without a rating badge until (or
   // unless) this resolves.
   const [ratingsById, setRatingsById] = useState({});
+  const isPhone = useMediaQuery("(max-width: 639.98px)");
 
   useEffect(() => {
     const fetchStorefront = async () => {
@@ -211,62 +212,43 @@ const KenlibsPage = () => {
     <div className="min-h-screen bg-surface-warm">
       <KenlibsNav />
 
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
-        {/* Hero — an illustration (cascading book spines rising into an open
-            book) sits as the section's background, right-aligned with
-            built-in negative space on its left for this text. Below lg, the
-            wide (1920x720) illustration would just crop down to an
-            unreadable sliver, so it's swapped for a plain brand gradient
-            instead via a media query on background-image (not a hidden
-            <img>, which browsers would still fetch even while invisible) —
-            genuinely skips the image request on narrow viewports rather
-            than just hiding it. */}
-        <motion.section
-          className="relative overflow-hidden rounded-3xl mb-12"
-          initial="hidden"
-          animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.09 } } }}
-        >
-          <style>{`
-            .kenlibs-hero-bg {
-              background-image: linear-gradient(135deg, var(--color-accent-secondary), var(--color-accent));
-            }
-            @media (min-width: 1024px) {
-              .kenlibs-hero-bg {
-                background-image: url(${kenlibsHero});
-                background-size: cover;
-                background-position: right center;
-              }
-            }
-          `}</style>
-          <div className="kenlibs-hero-bg relative px-6 py-12 lg:px-14 lg:py-16 lg:min-h-[380px] flex flex-col justify-center">
-            <div className="max-w-md">
-              <motion.h1
-                variants={heroFadeUp}
-                className="font-serif text-3xl lg:text-5xl font-bold text-white lg:text-gray-900 leading-tight tracking-tight"
-              >
-                Your library of Kenlibs originals
-              </motion.h1>
-              <motion.p
-                variants={heroFadeUp}
-                className="text-white/85 lg:text-gray-600 mt-4 text-base lg:text-lg max-w-sm"
-              >
-                Browse books and bundles — hover a cover for a quick preview.
-              </motion.p>
-
-              {!isLoading && (books.length > 0 || bundles.length > 0) && (
-                <motion.div variants={heroFadeUp} className="mt-7">
-                  <KenlibsSearchBar
-                    onSearchChange={setSearchQuery}
-                    genres={genres}
-                    selectedGenre={selectedGenre}
-                    onSelectGenre={setSelectedGenre}
-                  />
-                </motion.div>
-              )}
+      {/* Hero (brand flier design, design-ref/): full-width deep green band,
+          soft leaves on the right (inline SVG, no image), the serif headline
+          with "Kenlibs" in orange, and the search pill. Plain HTML with no
+          entrance animation, so the headline paints (and counts for LCP)
+          straight away. On wide screens the same band, with the text in a
+          left column and larger leaves on the right. */}
+      <section
+        aria-labelledby="kenlibs-hero-title"
+        className="relative overflow-hidden bg-gradient-to-b from-forest-deep to-forest-deeper"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_30%,rgba(61,107,44,0.35),transparent_60%)]"
+          aria-hidden="true"
+        />
+        <KenlibsHeroLeaves className="pointer-events-none absolute right-0 top-0 h-full w-[46%] sm:w-[40%] lg:w-[38%] max-w-[520px] opacity-80" />
+        <div className="relative max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 pt-7 pb-8 sm:pt-12 sm:pb-12 lg:py-20">
+          <div className="max-w-xl">
+            <h1
+              id="kenlibs-hero-title"
+              className="font-headline font-extrabold text-white text-[2.4rem] leading-[1.08] sm:text-5xl lg:text-6xl tracking-tight max-w-[9ch] sm:max-w-none [font-variation-settings:'SOFT'_100]"
+            >
+              Discover Great Books on <span className="text-accent-on-dark">Kenlibs</span>
+            </h1>
+            <p className="font-rounded text-white/90 mt-3 text-[17px] sm:text-xl font-semibold">Read anytime, anywhere.</p>
+            <div className="mt-6 sm:mt-8">
+              <KenlibsSearchBar
+                onSearchChange={setSearchQuery}
+                genres={genres}
+                selectedGenre={selectedGenre}
+                onSelectGenre={setSelectedGenre}
+              />
             </div>
           </div>
-        </motion.section>
+        </div>
+      </section>
+
+      <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 pt-6 pb-10 sm:pt-10">
 
         {isLoading ? (
           <>
@@ -342,7 +324,26 @@ const KenlibsPage = () => {
           )
         ) : (
           <>
-            {featured.length > 0 && (
+            {featured.length > 0 && isPhone && (
+              <section className="mb-10" aria-labelledby="kenlibs-featured-title">
+                <h2 id="kenlibs-featured-title" className="text-xl font-bold text-gray-900 mb-4 tracking-tight">
+                  Featured
+                </h2>
+                <motion.div className="grid grid-cols-2 gap-x-4 gap-y-7" initial="hidden" animate="show" variants={rowRevealVariants}>
+                  {featured.slice(0, PHONE_FEATURED_COUNT).map((book) => (
+                    <KenlibsBookCard
+                      key={book._id}
+                      book={book}
+                      fluid
+                      rating={ratingsById[book._id]}
+                      owned={ownedBookIds.has(book._id)}
+                    />
+                  ))}
+                </motion.div>
+              </section>
+            )}
+
+            {featured.length > 0 && !isPhone && (
               <KenlibsRow title="Featured" physical>
                 {featured.map((book, i) => (
                   <KenlibsBookCard

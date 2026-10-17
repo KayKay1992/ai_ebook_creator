@@ -1100,6 +1100,7 @@ const KenlibsReadPage = () => {
           initialChapterIndex={initialChapterIndex}
           onChapterChange={handleChapterChange}
           renderChapterContent={renderChapterContent}
+          headerTheme="brand"
           headerControls={
             <>
               <ReadingLanguageSelect

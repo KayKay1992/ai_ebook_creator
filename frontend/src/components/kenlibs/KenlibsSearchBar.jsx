@@ -1,26 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
-// Debounced independently of the parent's committed query — the input stays
-// snappy on every keystroke, but onSearchChange (which drives the actual
-// filtering) only fires once typing pauses.
+// The storefront hero's search (KenlibsPage): a white pill on the green
+// hero, filtering the loaded books by title or author (and bundles by
+// title) on the client. Debounced independently of the parent's committed
+// query: the input stays snappy on every keystroke, but onSearchChange
+// (which drives the actual filtering) only fires once typing pauses.
 const DEBOUNCE_MS = 200;
 
+// Genre pills sit on the dark green hero: the active one is white with
+// green text, the others translucent white (both well above 4.5:1).
 const pillClass = (active) =>
-  `px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-    active
-      ? "bg-accent text-white"
-      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+  `min-h-[44px] px-4 rounded-full text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-forest-deep ${
+    active ? "bg-white text-forest" : "bg-white/10 text-white hover:bg-white/20"
   }`;
 
-const KenlibsSearchBar = ({
-  onSearchChange,
-  genres,
-  selectedGenre,
-  onSelectGenre,
-}) => {
+const KenlibsSearchBar = ({ onSearchChange, genres = [], selectedGenre, onSelectGenre }) => {
   const [input, setInput] = useState("");
   const debounceRef = useRef(null);
+  const inputRef = useRef(null);
+  const inputId = useId();
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -31,44 +30,53 @@ const KenlibsSearchBar = ({
 
   return (
     <div>
-      <div className="relative max-w-md">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+      <form role="search" className="relative max-w-xl" onSubmit={(e) => e.preventDefault()}>
+        <label htmlFor={inputId} className="sr-only">
+          Search books by title or author
+        </label>
+        <Search
+          className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none"
+          aria-hidden="true"
+        />
         <input
-          type="text"
+          ref={inputRef}
+          id={inputId}
+          type="search"
+          enterKeyHint="search"
+          autoComplete="off"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Search by title or author…"
-          aria-label="Search books and bundles"
-          className="w-full pl-11 pr-10 py-3 rounded-2xl border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-shadow"
+          placeholder="Search by title or author..."
+          className="w-full h-[52px] pl-[52px] pr-14 rounded-full bg-white text-[15px] text-gray-900 placeholder:text-gray-500 shadow-lg shadow-black/25 focus:outline-none focus-visible:ring-4 focus-visible:ring-accent-on-dark/70 [&::-webkit-search-cancel-button]:appearance-none"
         />
         {input && (
           <button
             type="button"
-            onClick={() => setInput("")}
+            onClick={() => {
+              setInput("");
+              inputRef.current?.focus();
+            }}
             aria-label="Clear search"
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X className="w-4 h-4" />
           </button>
         )}
-      </div>
+      </form>
 
       {/* Only worth showing once the catalog actually has more than one
           genre in use — a single-value or all-empty set can't filter
           anything, so forcing the pill row on would just show noise. */}
       {genres.length >= 2 && (
-        <div className="flex flex-wrap gap-2 mt-4">
-          <button
-            type="button"
-            onClick={() => onSelectGenre(null)}
-            className={pillClass(selectedGenre === null)}
-          >
+        <div className="flex flex-wrap gap-2 mt-4" role="group" aria-label="Filter by genre">
+          <button type="button" aria-pressed={selectedGenre === null} onClick={() => onSelectGenre(null)} className={pillClass(selectedGenre === null)}>
             All
           </button>
           {genres.map((genre) => (
             <button
               key={genre}
               type="button"
+              aria-pressed={selectedGenre === genre}
               onClick={() => onSelectGenre(genre)}
               className={pillClass(selectedGenre === genre)}
             >

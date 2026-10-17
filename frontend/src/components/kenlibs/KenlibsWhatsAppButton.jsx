@@ -21,7 +21,10 @@ import { buildWhatsAppHref } from "../../utils/kenlibsSupport";
 // `docked`: rendered inside a page's own floating-button column (the
 // gated reader's dock) instead of positioning itself; KenlibsThemeLayout
 // then skips the free-floating copy on that page.
-const KenlibsWhatsAppButton = ({ docked = false }) => (
+// `aboveTabBar`: on phones the storefront tab bar (KenlibsTabBar) is at the
+// bottom, so the button sits 16px above it (and its safe-area inset);
+// from sm up, the usual bottom-24.
+const KenlibsWhatsAppButton = ({ docked = false, aboveTabBar = false }) => (
   <motion.a
     href={buildWhatsAppHref("Hi, I have a question about Kenlibs.")}
     target="_blank"
@@ -31,7 +34,7 @@ const KenlibsWhatsAppButton = ({ docked = false }) => (
     transition={{ delay: 0.3, type: "spring", stiffness: 300, damping: 22 }}
     whileHover={{ scale: 1.06 }}
     whileTap={{ scale: 0.94 }}
-    className={`${docked ? "" : "fixed bottom-24 right-6 z-40 "}w-12 h-12 rounded-full bg-accent text-white shadow-lg shadow-accent-500/30 flex items-center justify-center`}
+    className={`${docked ? "" : `fixed right-6 z-40 ${aboveTabBar ? "bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:bottom-24" : "bottom-24"} `}w-12 h-12 rounded-full bg-accent text-white shadow-lg shadow-accent-500/30 flex items-center justify-center`}
     title="Chat with us on WhatsApp"
     aria-label="Chat with us on WhatsApp"
   >

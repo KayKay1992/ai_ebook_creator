@@ -56,6 +56,9 @@ const ViewBook = forwardRef(function ViewBook(
     // player, note buttons) can never cover the last lines or the
     // Previous/Next buttons: scrolled to the end, they sit above them.
     contentBottomInset,
+    // "brand": the reader-facing green header (gated reader and share
+    // preview); "light" (default): the white header the admin preview uses.
+    headerTheme = "light",
   },
   ref
 ) {
@@ -162,28 +165,42 @@ const ViewBook = forwardRef(function ViewBook(
       {/* Main Reading Area */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-200">
+        <header
+          className={`sticky top-0 z-30 ${
+            headerTheme === "brand" ? "bg-forest text-white" : "bg-white/80 backdrop-blur-xl border-b border-gray-200"
+          }`}
+        >
           <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4 min-w-0">
               <button
                 onClick={() => setIsSidebarOpen(true)}
-                className="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors"
+                className={`lg:hidden w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                  headerTheme === "brand" ? "text-white hover:bg-white/10" : "text-gray-600 hover:bg-gray-100"
+                }`}
+                aria-label="Chapters"
               >
                 <Menu className="w-5 h-5" />
               </button>
 
               <div className="min-w-0">
-                <h1 className="text-base font-semibold text-gray-900 truncate">
+                <h1 className={`text-base font-semibold truncate ${headerTheme === "brand" ? "text-white" : "text-gray-900"}`}>
                   {book.title || "Untitled Book"}
                 </h1>
-                <p className="text-xs text-gray-500 truncate">
+                <p className={`text-xs truncate ${headerTheme === "brand" ? "text-white/75" : "text-gray-500"}`}>
                   {book.author || "Unknown Author"}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              {headerControls}
+              {/* On the green header the page's controls (styled for a white
+                  background) sit on a light pill, keeping their contrast. */}
+              {headerControls &&
+                (headerTheme === "brand" ? (
+                  <div className="flex items-center gap-1 bg-white rounded-2xl p-1">{headerControls}</div>
+                ) : (
+                  headerControls
+                ))}
 
               {/* Font Size Controls */}
               <div className="flex items-center gap-2 bg-gray-100 rounded-2xl p-1">

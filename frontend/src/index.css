@@ -1,9 +1,15 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap");
+/* Self-hosted fonts (src/fonts.css); no Google Fonts request. */
+@import "./fonts.css";
 @import "tailwindcss";
 
 @theme {
   --font-display: "Inter", sans-serif;
   --font-serif: "Fraunces", serif;
+  /* Reader-facing brand type (storefront redesign): the hero headline's
+     soft serif, and the rounded sans for the wordmark, hero sub-line and
+     mobile tab labels. Body text stays Inter. */
+  --font-headline: "Fraunces Soft", "Fraunces", Georgia, serif;
+  --font-rounded: "Nunito", "Inter", ui-rounded, system-ui, sans-serif;
   --breakpoint-3xl: 1920px;
 
   /* Brand accent — burnt-orange/terracotta (hue ~18°), a classical
@@ -36,6 +42,20 @@
   --color-accent-secondary: #1b2a4a;
   --color-accent-secondary-hover: #121f38;
 
+  /* Reader-facing brand green (storefront redesign): the header bar on every
+     reader page (KenlibsNav, the reader's own header, KenlibsFooter) and
+     the storefront hero, sampled from the brand flier
+     (design-ref/Gemini_Generated_Image_.jpg). Admin keeps the navy above.
+     White on forest is 15.8:1; accent-on-dark on forest-deep is 7.1:1. */
+  --color-forest: #09262e;
+  --color-forest-deep: #02272a;
+  --color-forest-deeper: #001719;
+  --color-forest-leaf: #24471b;
+  --color-forest-leaf-light: #3d6b2c;
+  /* The brand orange lightened for text on the dark green (the "Kenlibs"
+     in the hero headline); --color-accent itself is unchanged. */
+  --color-accent-on-dark: #ec894a;
+
   --color-surface: #ffffff;
   /* Genuine cream, not near-white — same value Step 39 introduced for
      Kenlibs, now the app-wide default. */
@@ -43,6 +63,18 @@
 
   --color-ink: var(--color-gray-900);
   --color-ink-muted: var(--color-gray-500);
+}
+
+/* Visitors who ask their system for reduced motion: no smooth scrolling,
+   and CSS transitions/animations finish at once (Framer Motion is handled
+   by MotionConfig in main.jsx). */
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer base {

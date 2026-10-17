@@ -39,3 +39,4 @@ scripts/local-tts/.model-cache/
 # hashes, payment details). Never commit. Each backup folder also carries
 # its own .gitignore of "*" in case it's written elsewhere in the repo.
 backups/
+design-ref

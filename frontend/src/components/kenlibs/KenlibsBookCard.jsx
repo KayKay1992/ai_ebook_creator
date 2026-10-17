@@ -30,14 +30,16 @@ const TILT_PATTERN = [
   "rotate-1 -translate-y-2",
 ];
 
-const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0, rating, owned = false }) => {
+// fluid: fills its grid cell (the phone storefront's two-per-row Featured
+// grid) instead of the fixed width used in horizontal rows.
+const KenlibsBookCard = ({ book, angled = false, tiltIndex = 0, rating, owned = false, fluid = false }) => {
   const badge = getBookBadge(book);
   const tiltClass = angled ? TILT_PATTERN[tiltIndex % TILT_PATTERN.length] : "";
 
   return (
     <Link
       to={`/kenlibs/book/${book._id}`}
-      className="group block w-40 sm:w-48 flex-shrink-0 snap-start"
+      className={`group block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-surface-warm ${fluid ? "w-full min-w-0" : "w-40 sm:w-48 flex-shrink-0 snap-start"}`}
     >
       <motion.div variants={cardEntranceVariants}>
         <div

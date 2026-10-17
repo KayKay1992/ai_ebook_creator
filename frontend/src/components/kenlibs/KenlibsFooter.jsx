@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Mail, MessageCircle, BookOpen } from "lucide-react";
+import { Mail, MessageCircle } from "lucide-react";
+import KenlibsLogo from "./KenlibsLogo";
 import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF } from "../../utils/kenlibsSupport";
 
 // Rendered at the bottom of every reader-facing Kenlibs page that already
@@ -9,14 +10,12 @@ import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_DISPLAY, SUPPORT_WHATSAPP_HREF } from "
 // surface stays calm/uninterrupted per Step 31's reading-experience
 // philosophy, same reasoning as why it skips KenlibsNav too.
 const KenlibsFooter = () => (
-  <footer className="bg-accent-secondary text-white/70">
+  <footer className="bg-forest text-white/70">
     <div className="max-w-7xl mx-auto px-6 lg:px-8 py-10">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-8">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center text-white flex-shrink-0">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          <span className="text-white font-semibold">Kenlibs</span>
+          <KenlibsLogo className="w-8 h-8 flex-shrink-0" />
+          <span className="font-rounded text-lg font-extrabold text-white">Kenlibs</span>
         </div>
 
         <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm">

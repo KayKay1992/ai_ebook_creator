@@ -114,6 +114,7 @@ const ReadBookPage = () => {
         // Clears KenlibsThemeLayout's WhatsApp button (fixed bottom-24
         // right-6, 48px), so it never covers Previous/Next or the end.
         contentBottomInset="calc(160px + env(safe-area-inset-bottom))"
+        headerTheme="brand"
         headerControls={
           hasMore ? (
             <Link

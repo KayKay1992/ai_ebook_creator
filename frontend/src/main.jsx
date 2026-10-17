@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { MotionConfig } from 'framer-motion'
 import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
@@ -19,12 +20,16 @@ if (import.meta.env.PROD) registerServiceWorker({ base: import.meta.env.BASE_URL
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
+      {/* Framer Motion skips movement for visitors who ask their system for
+          reduced motion (opacity fades still run). */}
+      <MotionConfig reducedMotion="user">
       <AuthProvider>
         <BrowserRouter>
           <App />
         </BrowserRouter>
         <Toaster  position='bottom-right'/>
       </AuthProvider>
+      </MotionConfig>
     </ErrorBoundary>
   </StrictMode>,
 )

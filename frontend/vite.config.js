@@ -104,6 +104,10 @@ export default defineConfig({
           '**/EditorPage-*.js',
           '**/AudiobookTab-*.js',
           '**/*.{mp3,m4a,aac,ogg,oga,opus,wav,flac}',
+          // Self-hosted fonts (src/fonts.css): only the four Latin upright
+          // faces are precached; italics and Latin Extended load on demand.
+          '**/*-italic-*.woff2',
+          '**/*-latin-ext-*.woff2',
         ],
         runtimeCaching: [
           // Hashed build chunks not in the precache (see globIgnores above).
