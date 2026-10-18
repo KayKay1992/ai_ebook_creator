@@ -104,10 +104,9 @@ const App = () => {
             path="/kenlibs/checkout/:itemType/:id"
             element={<ReaderRoute><KenlibsCheckoutPage /></ReaderRoute>}
           />
-          <Route
-            path="/kenlibs/my-books"
-            element={<ReaderRoute><KenlibsMyBooksPage /></ReaderRoute>}
-          />
+          {/* No ReaderRoute redirect: the Library shows signed-out visitors
+              its own sign-in prompt (its data endpoint is protected). */}
+          <Route path="/kenlibs/my-books" element={<KenlibsMyBooksPage />} />
           <Route
             path="/kenlibs/referrals"
             element={<ReaderRoute><KenlibsReferralsPage /></ReaderRoute>}

@@ -86,6 +86,9 @@ const AudiobookPlayer = forwardRef(
       // "Listen" pill or the open player), so the reader can keep its
       // floating buttons and the chapter's end clear of it.
       onHeightChange,
+      // Open the full player straight away (the Library's "Listen" shortcut).
+      // Playback still waits for a tap.
+      initiallyExpanded = false,
     },
     ref
   ) => {
@@ -102,7 +105,7 @@ const AudiobookPlayer = forwardRef(
       const saved = Number(readSaved(bookId).rate);
       return SPEEDS.includes(saved) ? saved : 1;
     });
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(initiallyExpanded);
     const [isListOpen, setIsListOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [endedBook, setEndedBook] = useState(false);
@@ -132,6 +135,11 @@ const AudiobookPlayer = forwardRef(
       setIsExpanded(value);
       onExpandedChange?.(value);
     };
+    // The page sizes its floating controls around the open player.
+    useEffect(() => {
+      if (initiallyExpanded) onExpandedChange?.(true);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // The fixed element on screen (pill or open player), measured as it
     // changes size (chapter list opened, error shown, …).

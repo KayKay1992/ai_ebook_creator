@@ -45,7 +45,7 @@ const KenlibsNav = () => {
                   to="/kenlibs/my-books"
                   className="relative px-3 lg:px-4 py-2 text-sm font-medium whitespace-nowrap text-white/80 hover:text-white transition-colors"
                 >
-                  My Books
+                  Library
                   {isMyBooksActive && (
                     <motion.span
                       layoutId="kenlibs-nav-active"
@@ -155,7 +155,7 @@ const KenlibsNav = () => {
                     : "text-white/80 hover:bg-white/10"
                 }`}
               >
-                My Books
+                Library
               </Link>
               <Link
                 to="/kenlibs/referrals"

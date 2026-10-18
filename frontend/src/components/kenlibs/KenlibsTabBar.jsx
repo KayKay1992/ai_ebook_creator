@@ -6,7 +6,7 @@ import { activeTab, TAB_BAR_HEIGHT } from "../../utils/kenlibsTabBar";
 // (see utils/kenlibsTabBar.js for exactly which). Mounted by
 // KenlibsThemeLayout, which also reserves the same height (plus the
 // safe-area inset) at the bottom of the page so nothing ends up hidden
-// behind it, and lifts the WhatsApp button above it. Library is My Books;
+// behind it, and lifts the WhatsApp button above it. Library is /kenlibs/my-books;
 // Profile is the reader profile (ReaderRoute sends signed-out visitors to
 // log in first).
 const TABS = [

@@ -1,11 +1,19 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import MDEditor from "@uiw/react-md-editor";
 import toast from "react-hot-toast";
 import { Lock, BookX, ArrowLeft, NotebookPen, X, Award, Download, Highlighter } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
-import { API_PATHS } from "../utils/apiPaths";
+import { API_PATHS, BASE_URL } from "../utils/apiPaths";
+import {
+  readLocalProgress,
+  writeLocalProgress,
+  serverPosition,
+  pickLatestPosition,
+  resolveChapterIndex,
+  scrollFraction,
+} from "../utils/readingProgress";
 import ViewBook from "../components/view/ViewBook";
 import Button from "../components/ui/Button";
 import MarkdownContent from "../components/shared/MarkdownContent";
@@ -54,6 +62,10 @@ const NOTES_SAVE_DELAY_MS = 800;
 // every few seconds while actively reading, and this position only needs to
 // be "in the right neighborhood" on resume, not exact.
 const SPOKEN_BLOCK_SAVE_DELAY_MS = 3000;
+// How far down the chapter the reader is: saved locally as they scroll
+// (throttled) and to the server once scrolling pauses this long.
+const SCROLL_SAMPLE_MS = 400;
+const SCROLL_SAVE_DELAY_MS = 5000;
 
 // Step 36's word-explain popup: selections longer than this are almost
 // certainly an accidental multi-paragraph drag rather than a word/phrase
@@ -143,6 +155,12 @@ const useMinWidth = (px) => {
 const KenlibsReadPage = () => {
   const { bookId } = useParams();
   const navigate = useNavigate();
+  // Shortcuts from the Library page: ?panel=highlights|bookmarks opens the
+  // highlights panel, ?listen=1 opens the audiobook player (playback still
+  // needs a tap: browsers block autoplay).
+  const [searchParams] = useSearchParams();
+  const requestedPanel = searchParams.get("panel");
+  const wantsListen = searchParams.get("listen") === "1";
   const [book, setBook] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | ok | forbidden | not-found
   const [initialChapterIndex, setInitialChapterIndex] = useState(0);
@@ -188,7 +206,7 @@ const KenlibsReadPage = () => {
   const annotationsApi = useAnnotations(bookId);
   const [selectionToolbar, setSelectionToolbar] = useState(null);
   const [activeHighlight, setActiveHighlight] = useState(null); // { id, position, focusNote }
-  const [isAnnotationsOpen, setIsAnnotationsOpen] = useState(false);
+  const [isAnnotationsOpen, setIsAnnotationsOpen] = useState(requestedPanel === "highlights" || requestedPanel === "bookmarks");
   // Where the current chapter's highlights were found in the rendered text:
   // { chapterKey, byId: { [id]: resolveAnchor result } }.
   const [resolvedHighlights, setResolvedHighlights] = useState({ chapterKey: "", byId: {} });
@@ -251,7 +269,11 @@ const KenlibsReadPage = () => {
   // timing. See schedulePositionSave/flushPositionSave below.
   const positionSaveTimerRef = useRef(null);
   const positionSaveInFlightRef = useRef(false);
-  const pendingPositionRef = useRef(null); // { lastChapterIndex?, lastSpokenBlockIndex? }
+  const pendingPositionRef = useRef(null); // { lastChapterIndex?, lastChapterId?, chapterProgress?, lastSpokenBlockIndex?, positionUpdatedAt }
+  // Position within the chapter (0–1) to scroll back to once the first
+  // chapter has rendered; null once restored (or nothing to restore).
+  const restoreFractionRef = useRef(null);
+  const lastSavedFractionRef = useRef(0);
   const viewBookRef = useRef(null);
   // Which chapter Listen Mode should read — kept in sync with ViewBook's own
   // chapter index via handleChapterChange below (the same callback already
@@ -904,12 +926,34 @@ const KenlibsReadPage = () => {
 
         const chapters = bookRes.data?.chapters || [];
         const finalIndex = chapters.length - 1;
-        const resolvedInitialIndex = Math.min(
-          Math.max(progressRes?.data?.lastChapterIndex ?? 0, 0),
-          Math.max(finalIndex, 0)
+        // This device's copy (offline fallback) and the server's: whichever
+        // was recorded last wins.
+        const local = readLocalProgress(bookId);
+        const { position, source } = pickLatestPosition(
+          local,
+          serverPosition(progressRes?.data),
+          progressRes ? progressRes.data?.lastChapterIndex ?? 0 : null
         );
+        const resolvedInitialIndex = resolveChapterIndex(position, chapters);
         setInitialChapterIndex(resolvedInitialIndex);
         setVisibleChapterIndex(resolvedInitialIndex);
+        currentChapterIndexRef.current = resolvedInitialIndex;
+        const sameChapter = !position?.chapterId || String(chapters[resolvedInitialIndex]?._id) === position.chapterId;
+        restoreFractionRef.current = sameChapter && position?.chapterProgress > 0.01 ? position.chapterProgress : null;
+        lastSavedFractionRef.current = sameChapter ? position?.chapterProgress || 0 : 0;
+        // Read here while offline (or on this device after another): send
+        // the newer local position up; the server keeps whichever is newer.
+        if (source === "local" && progressRes && chapters[resolvedInitialIndex]) {
+          // Nothing else is saving yet at load, so a direct request.
+          axiosInstance
+            .put(API_PATHS.KENLIBS.PROGRESS(bookId), {
+              lastChapterIndex: resolvedInitialIndex,
+              lastChapterId: String(chapters[resolvedInitialIndex]._id),
+              chapterProgress: position.chapterProgress || 0,
+              positionUpdatedAt: position.updatedAt,
+            })
+            .catch(() => {});
+        }
 
         // Translations are optional too: any failure just means no
         // language selector.
@@ -964,8 +1008,20 @@ const KenlibsReadPage = () => {
       });
   };
 
+  // Every position save carries the time it was recorded on this device
+  // (the server merges devices on it), and is mirrored to localStorage.
   const schedulePositionSave = (fields, delayMs) => {
-    pendingPositionRef.current = { ...pendingPositionRef.current, ...fields };
+    const positionUpdatedAt = Date.now();
+    pendingPositionRef.current = { ...pendingPositionRef.current, ...fields, positionUpdatedAt };
+    const chapterIndex = fields.lastChapterIndex ?? currentChapterIndexRef.current;
+    if ("lastChapterIndex" in fields || "chapterProgress" in fields) {
+      writeLocalProgress(bookId, {
+        chapterIndex,
+        chapterId: String(book?.chapters?.[chapterIndex]?._id || ""),
+        chapterProgress: fields.chapterProgress ?? 0,
+        updatedAt: positionUpdatedAt,
+      });
+    }
     if (positionSaveTimerRef.current) clearTimeout(positionSaveTimerRef.current);
     positionSaveTimerRef.current = setTimeout(flushPositionSave, delayMs);
   };
@@ -981,7 +1037,12 @@ const KenlibsReadPage = () => {
     // straight to the button shouldn't have to wait out the normal
     // "close the tab" debounce window first.
     const isFinalChapter = index === (book?.chapters?.length ?? 0) - 1;
-    schedulePositionSave({ lastChapterIndex: index }, isFinalChapter ? 0 : CHAPTER_SAVE_DELAY_MS);
+    restoreFractionRef.current = null;
+    lastSavedFractionRef.current = 0;
+    schedulePositionSave(
+      { lastChapterIndex: index, lastChapterId: String(book?.chapters?.[index]?._id || ""), chapterProgress: 0 },
+      isFinalChapter ? 0 : CHAPTER_SAVE_DELAY_MS
+    );
 
     // Chapter changed while actively listening — whether the reader clicked
     // Next/Previous/a sidebar entry themselves, or this is Listen Mode's own
@@ -1056,6 +1117,51 @@ const KenlibsReadPage = () => {
     }, NOTES_SAVE_DELAY_MS);
   };
 
+  // Position within the chapter: restore it once the opening chapter has
+  // rendered, then follow scrolling (sampled, not every scroll event) and
+  // save after a pause. setTimeout, not requestAnimationFrame, so it also
+  // runs in background tabs.
+  useEffect(() => {
+    if (status !== "ok") return undefined;
+    let sampleTimer = null;
+    let restoring = restoreFractionRef.current !== null;
+    const restoreTimer = setTimeout(() => {
+      const fraction = restoreFractionRef.current;
+      if (fraction !== null) {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (max > 0) window.scrollTo({ top: Math.round(fraction * max), behavior: "instant" });
+        restoreFractionRef.current = null;
+      }
+      setTimeout(() => {
+        restoring = false;
+      }, 300);
+    }, 450);
+    const sample = () => {
+      sampleTimer = null;
+      if (restoring) return;
+      const fraction = scrollFraction(window.scrollY, document.documentElement.scrollHeight, window.innerHeight);
+      if (Math.abs(fraction - lastSavedFractionRef.current) < 0.01) return;
+      lastSavedFractionRef.current = fraction;
+      const index = currentChapterIndexRef.current;
+      schedulePositionSave(
+        { lastChapterIndex: index, lastChapterId: String(book?.chapters?.[index]?._id || ""), chapterProgress: fraction },
+        SCROLL_SAVE_DELAY_MS
+      );
+    };
+    const onScroll = () => {
+      if (!sampleTimer) sampleTimer = setTimeout(sample, SCROLL_SAMPLE_MS);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      clearTimeout(restoreTimer);
+      clearTimeout(sampleTimer);
+      window.removeEventListener("scroll", onScroll);
+    };
+    // schedulePositionSave is a plain per-render function (see the Listen
+    // Mode effect below); this follows the loaded book only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, book]);
+
   // Best-effort final save if the reader closes/leaves/refreshes before a
   // debounce timer fires — fire-and-forget, since unload handlers can't
   // reliably await a response. Covers notes, chapter index, and Listen
@@ -1072,7 +1178,20 @@ const KenlibsReadPage = () => {
         pendingNotesRef.current = null;
       }
       if (Object.keys(update).length === 0) return;
-      axiosInstance.put(API_PATHS.KENLIBS.PROGRESS(bookId), update).catch(() => {});
+      // keepalive lets this request finish after the page is gone (an XHR
+      // is cancelled by the browser on unload).
+      let token;
+      try {
+        token = localStorage.getItem("token") || "";
+      } catch {
+        token = "";
+      }
+      fetch(`${BASE_URL}${API_PATHS.KENLIBS.PROGRESS(bookId)}`, {
+        method: "PUT",
+        keepalive: true,
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(update),
+      }).catch(() => {});
     };
     window.addEventListener("beforeunload", flushPending);
     window.addEventListener("pagehide", flushPending);
@@ -1095,7 +1214,7 @@ const KenlibsReadPage = () => {
           book={readingBook}
           contentBottomInset={`calc(${floatingReservePx}px + env(safe-area-inset-bottom))`}
           backTo="/kenlibs/my-books"
-          backLabel="My Books"
+          backLabel="Library"
           animated
           initialChapterIndex={initialChapterIndex}
           onChapterChange={handleChapterChange}
@@ -1149,6 +1268,7 @@ const KenlibsReadPage = () => {
               onPlaybackStart={handleAudiobookPlaybackStart}
               onExpandedChange={setIsPlayerExpanded}
               onHeightChange={setPlayerHeight}
+              initiallyExpanded={wantsListen}
             />
           </Suspense>
         )}
@@ -1218,6 +1338,7 @@ const KenlibsReadPage = () => {
           })()}
 
         <AnnotationsPanel
+          initialTab={requestedPanel === "bookmarks" ? "bookmarks" : "highlights"}
           isOpen={isAnnotationsOpen}
           onClose={() => setIsAnnotationsOpen(false)}
           bookTitle={readingBook?.title || book?.title}
@@ -1325,7 +1446,7 @@ const KenlibsReadPage = () => {
 
       <Button onClick={() => navigate("/kenlibs/my-books")} className="flex items-center gap-2">
         <ArrowLeft className="w-4 h-4" />
-        Back to My Books
+        Back to Library
       </Button>
     </motion.div>
   );

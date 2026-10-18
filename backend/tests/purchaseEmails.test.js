@@ -310,13 +310,15 @@ describe('reader email: admin decisions', () => {
         expect(email.htmlContent).toContain(`https://kenlibs.test/kenlibs/read/${item._id}`);
     });
 
-    it('links an approved bundle to My Books', async () => {
+    it('links an approved bundle to the Library', async () => {
         const { admin, purchase } = await setup({ itemType: 'bundle' });
 
         await request(app).put(`/api/purchases/${purchase._id}/approve`).set(auth(admin));
 
         await waitFor(() => expect(sentTo('ada@example.com')).toHaveLength(1));
         expect(sentTo('ada@example.com')[0].htmlContent).toContain('https://kenlibs.test/kenlibs/my-books');
+        expect(sentTo('ada@example.com')[0].htmlContent).toContain('Go to your Library');
+        expect(sentTo('ada@example.com')[0].htmlContent).not.toContain('My Books');
     });
 
     it('emails the reader on reject, with the admin note shown and escaped', async () => {
@@ -345,6 +347,8 @@ describe('reader email: admin decisions', () => {
         expect(email.htmlContent).toContain('Hi &lt;script&gt;alert(1)&lt;/script&gt;,');
         expect(email.htmlContent).not.toContain('<script>');
         expect(email.htmlContent).toContain('https://kenlibs.test/kenlibs/my-books');
+        expect(email.textContent).toContain('from your Library and resubmit it');
+        expect(email.htmlContent + email.textContent).not.toContain('My Books');
         // Plain-text version carries the note as-is.
         expect(email.textContent).toContain('Please resend.');
     });
@@ -364,6 +368,7 @@ describe('reader email: admin decisions', () => {
         expect(email.subject).toBe('Your access has changed: Deep Work');
         expect(email.htmlContent).toContain('Payment was reversed by the bank.');
         expect(email.htmlContent).toContain('https://kenlibs.test/kenlibs/my-books');
+        expect(email.htmlContent).toContain('Go to your Library');
     });
 
     it('still returns 200 and keeps the new status when the email fails', async () => {

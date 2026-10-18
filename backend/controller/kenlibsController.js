@@ -293,6 +293,77 @@ const getBookAudio = async (req, res) => {
     }
 };
 
+// Shape returned by both progress endpoints.
+const progressView = (progress, extra = {}) => ({
+    lastChapterIndex: progress?.lastChapterIndex ?? 0,
+    lastChapterId: progress?.lastChapterId ?? '',
+    chapterProgress: progress?.chapterProgress ?? 0,
+    lastSpokenBlockIndex: progress?.lastSpokenBlockIndex ?? 0,
+    positionUpdatedAt: progress?.positionUpdatedAt ?? null,
+    notes: progress?.notes ?? '',
+    completedAt: progress?.completedAt ?? null,
+    ...extra,
+});
+
+const PROGRESS_NOTES_MAX = 50000;
+const MAX_SPOKEN_BLOCK_INDEX = 100000;
+// A device clock a little ahead is tolerated; anything later counts as now,
+// so one bad clock can't pin a position forever.
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+// Validates a progress update. Returns { update, positionAt } or { error }.
+// Every field is optional, but at least one must be present and valid.
+const parseProgressUpdate = (body, chapters) => {
+    const update = {};
+    const has = (key) => body[key] !== undefined;
+    const isInt = (value) => typeof value === 'number' && Number.isInteger(value);
+
+    if (has('lastChapterIndex')) {
+        if (!isInt(body.lastChapterIndex) || body.lastChapterIndex < 0 || body.lastChapterIndex >= Math.max(chapters.length, 1)) {
+            return { error: 'lastChapterIndex must be a chapter number in this book.' };
+        }
+        update.lastChapterIndex = body.lastChapterIndex;
+    }
+    if (has('lastChapterId')) {
+        if (typeof body.lastChapterId !== 'string' || !chapters.some((c) => String(c._id) === body.lastChapterId)) {
+            return { error: 'lastChapterId must be a chapter of this book.' };
+        }
+        update.lastChapterId = body.lastChapterId;
+    }
+    if (has('chapterProgress')) {
+        if (typeof body.chapterProgress !== 'number' || !Number.isFinite(body.chapterProgress) || body.chapterProgress < 0 || body.chapterProgress > 1) {
+            return { error: 'chapterProgress must be a number from 0 to 1.' };
+        }
+        update.chapterProgress = Math.round(body.chapterProgress * 10000) / 10000;
+    }
+    if (has('lastSpokenBlockIndex')) {
+        if (!isInt(body.lastSpokenBlockIndex) || body.lastSpokenBlockIndex < 0 || body.lastSpokenBlockIndex > MAX_SPOKEN_BLOCK_INDEX) {
+            return { error: 'lastSpokenBlockIndex must be a whole number of 0 or more.' };
+        }
+        update.lastSpokenBlockIndex = body.lastSpokenBlockIndex;
+    }
+    if (has('notes')) {
+        if (typeof body.notes !== 'string' || body.notes.length > PROGRESS_NOTES_MAX) {
+            return { error: `notes must be text of at most ${PROGRESS_NOTES_MAX} characters.` };
+        }
+        update.notes = body.notes;
+    }
+    let positionAt = new Date();
+    if (has('positionUpdatedAt')) {
+        const when = new Date(body.positionUpdatedAt);
+        if (!['number', 'string'].includes(typeof body.positionUpdatedAt) || Number.isNaN(when.getTime())) {
+            return { error: 'positionUpdatedAt must be a date.' };
+        }
+        positionAt = when.getTime() > Date.now() + CLOCK_SKEW_MS ? new Date() : when;
+    }
+    if (Object.keys(update).length === 0) {
+        return { error: 'Nothing to save.' };
+    }
+    return { update, positionAt };
+};
+
+const POSITION_FIELDS = ['lastChapterIndex', 'lastChapterId', 'chapterProgress', 'lastSpokenBlockIndex'];
+
 //@desc    Get the requesting reader's own resume position + notes for a
 //         book. No progress yet is the normal first-read case, not an
 //         error — returns sensible zero-value defaults rather than 404.
@@ -300,6 +371,9 @@ const getBookAudio = async (req, res) => {
 //@access  Private — same access rule as readBook.
 const getProgress = async (req, res) => {
     try {
+        if (!mongoose.isValidObjectId(req.params.bookId)) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
         const book = await Book.findById(req.params.bookId).select('_id');
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
@@ -314,12 +388,8 @@ const getProgress = async (req, res) => {
             book: book._id,
         });
 
-        res.status(200).json({
-            lastChapterIndex: progress?.lastChapterIndex ?? 0,
-            lastSpokenBlockIndex: progress?.lastSpokenBlockIndex ?? 0,
-            notes: progress?.notes ?? '',
-            completedAt: progress?.completedAt ?? null,
-        });
+        res.set('Cache-Control', 'no-store');
+        res.status(200).json(progressView(progress));
     } catch (error) {
         res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });
@@ -327,15 +397,20 @@ const getProgress = async (req, res) => {
 };
 
 //@desc    Upsert the requesting reader's resume position and/or notes for a
-//         book. Accepts partial updates — sending only `notes` never
-//         resets `lastChapterIndex`/`lastSpokenBlockIndex` (and vice versa),
-//         since each is only written when actually present in the request
-//         body.
+//         book. Partial updates: only the fields sent are written. Position
+//         fields (chapter, chapter id, how far down the chapter, Listen
+//         Mode block) carry positionUpdatedAt, the time the reader's device
+//         recorded them: an update older than what's stored is ignored
+//         ("latest wins" across devices) and the response says stale: true
+//         with the stored position. Notes are always written.
 //@route   PUT /api/kenlibs/progress/:bookId
-//@access  Private — same access rule as readBook.
+//@access  Private — same access rule as readBook. Rate-limited per user.
 const updateProgress = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.bookId).select('chapters');
+        if (!mongoose.isValidObjectId(req.params.bookId)) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+        const book = await Book.findById(req.params.bookId).select('chapters._id');
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
@@ -344,33 +419,35 @@ const updateProgress = async (req, res) => {
             return res.status(403).json({ message: "You don't have access to this book" });
         }
 
-        const update = {};
-        if (typeof req.body.lastChapterIndex === 'number' && Number.isFinite(req.body.lastChapterIndex)) {
-            update.lastChapterIndex = req.body.lastChapterIndex;
+        const parsed = parseProgressUpdate(req.body || {}, book.chapters);
+        if (parsed.error) {
+            return res.status(400).json({ message: parsed.error });
         }
-        if (
-            typeof req.body.lastSpokenBlockIndex === 'number' &&
-            Number.isFinite(req.body.lastSpokenBlockIndex) &&
-            req.body.lastSpokenBlockIndex >= 0
-        ) {
-            update.lastSpokenBlockIndex = req.body.lastSpokenBlockIndex;
-        }
-        if (typeof req.body.notes === 'string') {
-            update.notes = req.body.notes;
-        }
+        const update = { ...parsed.update };
 
         const existingProgress = await ReaderProgress.findOne({
             reader: req.user._id,
             book: book._id,
-        }).select('completedAt');
+        }).select('completedAt positionUpdatedAt');
+
+        const hasPosition = POSITION_FIELDS.some((key) => key in update);
+        const stale =
+            hasPosition &&
+            existingProgress?.positionUpdatedAt &&
+            existingProgress.positionUpdatedAt.getTime() > parsed.positionAt.getTime();
+        if (stale) {
+            for (const key of POSITION_FIELDS) delete update[key];
+        } else if (hasPosition) {
+            update.positionUpdatedAt = parsed.positionAt;
+            // A new chapter without a position inside it starts at its top.
+            if ('lastChapterIndex' in update && !('chapterProgress' in update)) update.chapterProgress = 0;
+        }
 
         // Completion is a one-time achievement (Step 35), not a live
         // "currently on last chapter" flag: only set completedAt the first
-        // time this request's lastChapterIndex actually reaches the book's
-        // final chapter, and never touch it again afterwards — including
-        // when the reader later navigates back to an earlier chapter (that
-        // update simply won't match this condition, so completedAt is
-        // omitted from $set and stays exactly as it was).
+        // time an applied lastChapterIndex reaches the book's final chapter,
+        // and never touch it again afterwards — including when the reader
+        // later navigates back to an earlier chapter.
         const finalChapterIndex = book.chapters.length - 1;
         if (
             finalChapterIndex >= 0 &&
@@ -380,18 +457,16 @@ const updateProgress = async (req, res) => {
             update.completedAt = new Date();
         }
 
-        const progress = await ReaderProgress.findOneAndUpdate(
-            { reader: req.user._id, book: book._id },
-            { $set: update },
-            { new: true, upsert: true, setDefaultsOnInsert: true }
-        );
+        const progress =
+            Object.keys(update).length > 0
+                ? await ReaderProgress.findOneAndUpdate(
+                      { reader: req.user._id, book: book._id },
+                      { $set: update },
+                      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
+                  )
+                : await ReaderProgress.findOne({ reader: req.user._id, book: book._id });
 
-        res.status(200).json({
-            lastChapterIndex: progress.lastChapterIndex,
-            lastSpokenBlockIndex: progress.lastSpokenBlockIndex,
-            notes: progress.notes,
-            completedAt: progress.completedAt,
-        });
+        res.status(200).json(progressView(progress, stale ? { stale: true } : {}));
     } catch (error) {
         res.locals.error = error;
         res.status(500).json({ message: 'Server Error' });

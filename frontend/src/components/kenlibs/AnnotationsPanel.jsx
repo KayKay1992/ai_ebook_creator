@@ -25,8 +25,10 @@ const AnnotationsPanel = ({
   onJump,
   onUpdate,
   onDelete,
+  // "highlights" | "bookmarks": the tab to open on (Library shortcuts).
+  initialTab = "highlights",
 }) => {
-  const [tab, setTab] = useState("highlights");
+  const [tab, setTab] = useState(initialTab === "bookmarks" ? "bookmarks" : "highlights");
   const closeRef = useRef(null);
 
   useEffect(() => {

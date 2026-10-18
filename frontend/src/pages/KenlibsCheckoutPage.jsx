@@ -22,7 +22,7 @@ const VALID_TYPES = ["book", "bundle"];
 const SUCCESS_DISPLAY_MS = 900;
 
 // Where a reader who already owns the item goes instead of paying again: a
-// book opens in the reader, a bundle (no single reading page) in My Books.
+// book opens in the reader, a bundle (no single reading page) in the Library (/kenlibs/my-books).
 const ownedItemPath = (itemType, id) =>
   itemType === "book" ? `/kenlibs/read/${id}` : "/kenlibs/my-books";
 
@@ -236,10 +236,10 @@ const KenlibsCheckoutPage = () => {
               </>
             ) : null}
             . There's no need to pay or submit again. We'll email you as soon as it's
-            reviewed, and you can check its status in My Books.
+            reviewed, and you can check its status in your Library.
           </p>
           <Link to="/kenlibs/my-books">
-            <Button className="flex items-center gap-2">Go to My Books</Button>
+            <Button className="flex items-center gap-2">Go to your Library</Button>
           </Link>
         </div>
       </div>
@@ -445,7 +445,7 @@ const KenlibsCheckoutPage = () => {
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                   </motion.div>
                   <p className="font-semibold text-gray-900">Request submitted!</p>
-                  <p className="text-sm text-gray-500 mt-1">Taking you to My Books…</p>
+                  <p className="text-sm text-gray-500 mt-1">Taking you to your Library…</p>
                 </motion.div>
               ) : (
                 <motion.form

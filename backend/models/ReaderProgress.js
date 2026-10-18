@@ -32,6 +32,28 @@ const readerProgressSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        // Where in lastChapterIndex the reader is: that chapter's id (so a
+        // reordered book can still be matched) and how far down it they've
+        // scrolled, 0–1. Written by the reader on a debounce (see
+        // KenlibsReadPage), read by the reader (to scroll back there) and by
+        // the Library page (progress bars).
+        lastChapterId: {
+            type: String,
+            default: '',
+        },
+        chapterProgress: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 1,
+        },
+        // When the reader's device recorded the position above. Saves from
+        // several devices are merged "latest wins" on this, not on arrival
+        // order (a phone that was offline can sync an older position late).
+        positionUpdatedAt: {
+            type: Date,
+            default: null,
+        },
         notes: {
             type: String,
             default: '',

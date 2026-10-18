@@ -50,7 +50,7 @@ const enrichWithItemDetails = async (requests) => {
         Book.find({ _id: { $in: bookIds } }).select('title author coverImage coverDesign'),
         // Bundles also carry their books' titles, authors, and cover art —
         // an approved bundle request doesn't map to one readable item, so
-        // the reader's "My Books" list needs each contained book to link to
+        // the reader's Library (/kenlibs/my-books) needs each contained book to link to
         // its own /kenlibs/read/:bookId and show its own real cover, not
         // just a title (Step 49's "Ready to Read" grid).
         Bundle.find({ _id: { $in: bundleIds } })

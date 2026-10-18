@@ -19,6 +19,7 @@ const {
 } = require('../controller/kenlibsController');
 const { getAnnotations, createAnnotation, updateAnnotation, deleteAnnotation } = require('../controller/annotationController');
 const { protect } = require('../middleware/authMiddleware');
+const { getLibrary } = require('../controller/libraryController');
 
 // Genuinely public — same reasoning as the storefront itself (see
 // KENLIBS-ARCHITECTURE.md): an aggregate rating is a trust signal shown to
@@ -72,8 +73,24 @@ router.get('/annotations/:bookId', getAnnotations);
 router.post('/annotations/:bookId', annotationWriteLimiter, createAnnotation);
 router.put('/annotations/:bookId/:annotationId', annotationWriteLimiter, updateAnnotation);
 router.delete('/annotations/:bookId/:annotationId', annotationWriteLimiter, deleteAnnotation);
+// The reader's Library page in one request (libraryController.js).
+router.get('/library', getLibrary);
+
+// Reading-position saves: debounced by the reader (chapter changes, a
+// pause in scrolling, leaving the page), so a real reader stays far below
+// this; it only stops runaway clients.
+const progressWriteLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 240,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user._id.toString(),
+    handler: (req, res) => {
+        res.status(429).json({ message: 'Too many progress updates. Wait a few minutes, then try again.' });
+    },
+});
 router.get('/progress/:bookId', getProgress);
-router.put('/progress/:bookId', updateProgress);
+router.put('/progress/:bookId', progressWriteLimiter, updateProgress);
 router.get('/certificate/:bookId', getCertificate);
 router.post('/explain/:bookId', explainRateLimiter, explainInContext);
 router.post('/ratings/:bookId', createOrUpdateRating);

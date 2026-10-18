@@ -256,14 +256,14 @@ This is the payoff of the last 22 steps — very little here is new rendering wo
 4. On the checkout page: see the price, your own payment instructions (bank
    details — static content you control, not built by the app), upload a
    screenshot/evidence of the transfer, submit. If the reader already owns the item
-   they're sent to read it (a bundle → My Books); if a request for it is already
+   they're sent to read it (a bundle → the Library); if a request for it is already
    pending they see "Your request is pending review" instead of the form (the API
    also refuses that duplicate with a 409).
 5. Land on `/kenlibs/my-books` — see the request as "Pending". The admin gets an
    email (`ADMIN_NOTIFY_EMAIL`, else every `role: admin` account)
 6. (You, the admin, review and approve/reject via `/admin/purchases`). The reader
    gets an email on approve, reject (with your note, and a link to fix and resubmit
-   from My Books) and revoke; a resubmission emails the admin again
+   from the Library) and revoke; a resubmission emails the admin again
 7. Reader's `/kenlibs/my-books` now shows the book as available; clicking it opens
    `/kenlibs/read/:bookId`
 
@@ -725,12 +725,31 @@ anywhere." in Nunito, and a white pill search that filters the loaded
 books by title or author on the client. Phones then show Featured as two
 upright covers per row (first 4); tablet and desktop keep the fanned
 Featured row and the existing desktop navigation. Phones get a bottom tab
-bar (Home, Library = My Books, Profile = /kenlibs/profile) on storefront
+bar (Home, Library = /kenlibs/my-books, Profile = /kenlibs/profile) on storefront
 and account pages only, never on the reader, checkout, sign-in pages or
 admin; the page reserves its height (plus the safe-area inset) and the
 WhatsApp button sits above it. Fonts are self-hosted (src/fonts.css,
 @fontsource-variable packages), no Google Fonts request. Reduced-motion
 preferences are respected app-wide.
+
+**Library page and cross-device reading progress**
+/kenlibs/my-books (the "Library" tab) loads everything in one request,
+GET /api/kenlibs/library (metadata only, the signed-in reader's own data):
+purchase requests with their status, owned books (approved book or book in
+an approved bundle) with progress, audiobook availability, translation
+languages and highlight/note/bookmark counts, and a summary (books owned,
+finished, store credit). The page shows a "Continue reading" card, a
+"Needs attention" list (rejected with the admin's reason, resubmit and
+support; revoked), and a searchable, filterable (All, Reading, Not
+started, Finished, Pending), sortable cover grid. Pending items are visible
+but can't be opened. Signed-out visitors see a sign-in prompt.
+Reading progress was already stored per reader and book (ReaderProgress);
+it now also records the chapter id, how far down the chapter the reader
+is (0–1) and when their device recorded it. Saves are validated,
+rate-limited (240 per 10 minutes per reader) and merged across devices
+"latest wins". The reader keeps a local copy as the offline fallback,
+opens at the newer of the two, scrolls back to the saved spot, and saves on
+chapter change, after a pause in scrolling and when the page is left.
 
 ---
 

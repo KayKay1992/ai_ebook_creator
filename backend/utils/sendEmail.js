@@ -383,9 +383,9 @@ const sendPurchaseDecisionEmail = async ({
 
     if (decision === 'approved') {
         // A book opens straight in the reader. A bundle has no single
-        // reading page, so it goes to My Books, which lists every book in it.
+        // reading page, so it goes to the Library (/kenlibs/my-books), which lists every book in it.
         link = itemType === 'book' && itemId ? frontendUrl(`/kenlibs/read/${itemId}`) : myBooksLink;
-        buttonLabel = itemType === 'book' && itemId ? 'Start reading' : 'Go to My Books';
+        buttonLabel = itemType === 'book' && itemId ? 'Start reading' : 'Go to your Library';
         subject = `Your purchase is approved: ${title}`;
         heading = 'Your purchase is approved';
         introText = `Good news! Your payment for "${title}" has been confirmed, and the ${typeWord} is now in your library.`;
@@ -396,12 +396,12 @@ const sendPurchaseDecisionEmail = async ({
         buttonLabel = 'Fix and resubmit';
         subject = `Your purchase request was not approved: ${title}`;
         heading = 'Your purchase request was not approved';
-        introText = `We couldn't approve your purchase request for "${title}". You can upload new payment evidence from My Books and resubmit it.`;
-        introHtml = `We couldn't approve your purchase request for <strong>${escapeHtml(title)}</strong>. You can upload new payment evidence from My Books and resubmit it.`;
+        introText = `We couldn't approve your purchase request for "${title}". You can upload new payment evidence from your Library and resubmit it.`;
+        introHtml = `We couldn't approve your purchase request for <strong>${escapeHtml(title)}</strong>. You can upload new payment evidence from your Library and resubmit it.`;
         noteLabel = 'Reason';
     } else if (decision === 'revoked') {
         link = myBooksLink;
-        buttonLabel = 'Go to My Books';
+        buttonLabel = 'Go to your Library';
         subject = `Your access has changed: ${title}`;
         heading = 'Your access has changed';
         introText = `Your access to "${title}" has been removed by the Kenlibs team. This can happen when a payment is reversed or needs another look. If you have questions, please contact Kenlibs support.`;
