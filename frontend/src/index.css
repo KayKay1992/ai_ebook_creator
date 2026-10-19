@@ -1,6 +1,8 @@
 /* Self-hosted fonts (src/fonts.css); no Google Fonts request. */
 @import "./fonts.css";
 @import "tailwindcss";
+/* Dark theme tokens for reader-facing pages (see the file). */
+@import "./theme-dark.css";
 
 @theme {
   --font-display: "Inter", sans-serif;

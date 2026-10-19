@@ -54,8 +54,11 @@ export default defineConfig({
         description: 'Browse, buy, and read your library of books — including offline.',
         // Matches frontend/src/index.css's @theme --color-accent (Step 47's
         // terracotta/navy palette promotion).
-        theme_color: '#c4592f',
-        background_color: '#ffffff',
+        // Brand green, same as the header bar in both themes, so the
+        // installed app's status bar and splash never flash white or orange
+        // against a dark page.
+        theme_color: '#09262e',
+        background_color: '#09262e',
         display: 'standalone',
         start_url: '/',
         icons: [

@@ -211,7 +211,9 @@ const ViewBook = forwardRef(function ViewBook(
                 >
                   A-
                 </NavButton>
-                <span className="text-xs text-gray-500 w-10 text-center">{fontSize}px</span>
+                {/* The size readout is hidden on phones in the reader, so the
+                    header controls fit 360px screens; A-/A+ stay. */}
+                <span className={`text-xs text-gray-500 w-10 text-center ${headerTheme === "brand" ? "hidden sm:inline" : ""}`}>{fontSize}px</span>
                 <NavButton
                   {...navButtonMotionProps}
                   onClick={() => setFontSize((s) => Math.min(26, s + 2))}

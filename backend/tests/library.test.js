@@ -159,6 +159,18 @@ describe('reading progress', () => {
         expect((await request(app).get(progressUrl(owned)).set(auth(reader))).body).toMatchObject({ lastChapterIndex: 2, chapterProgress: 0.25 });
     });
 
+    it('chapter number and chapter id always describe the same chapter', async () => {
+        const { reader, owned } = await setup();
+        const id2 = String(owned.chapters[2]._id);
+        await request(app).put(progressUrl(owned)).set(auth(reader)).send({ lastChapterIndex: 2, lastChapterId: id2 });
+        // Only the number (an older client): the id follows it.
+        const byIndex = await request(app).put(progressUrl(owned)).set(auth(reader)).send({ lastChapterIndex: 0 });
+        expect(byIndex.body).toMatchObject({ lastChapterIndex: 0, lastChapterId: String(owned.chapters[0]._id) });
+        // Only the id: the number follows it.
+        const byId = await request(app).put(progressUrl(owned)).set(auth(reader)).send({ lastChapterId: id2 });
+        expect(byId.body).toMatchObject({ lastChapterIndex: 2, lastChapterId: id2 });
+    });
+
     it('a new chapter without a position starts at its top, and finishing sets completedAt once', async () => {
         const { reader, owned } = await setup();
         await request(app).put(progressUrl(owned)).set(auth(reader)).send({ lastChapterIndex: 1, chapterProgress: 0.8 });

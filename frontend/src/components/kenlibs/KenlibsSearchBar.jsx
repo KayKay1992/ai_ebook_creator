@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Search, X } from "lucide-react";
 
 // The storefront hero's search (KenlibsPage): a white pill on the green
@@ -12,7 +13,7 @@ const DEBOUNCE_MS = 200;
 // green text, the others translucent white (both well above 4.5:1).
 const pillClass = (active) =>
   `min-h-[44px] px-4 rounded-full text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-forest-deep ${
-    active ? "bg-white text-forest" : "bg-white/10 text-white hover:bg-white/20"
+    active ? "bg-white theme-keep-light text-forest" : "bg-white/10 text-white hover:bg-white/20"
   }`;
 
 const KenlibsSearchBar = ({ onSearchChange, genres = [], selectedGenre, onSelectGenre }) => {
@@ -20,6 +21,11 @@ const KenlibsSearchBar = ({ onSearchChange, genres = [], selectedGenre, onSelect
   const debounceRef = useRef(null);
   const inputRef = useRef(null);
   const inputId = useId();
+  // Arriving from the 404 page's "Search books" button: focus the field.
+  const focusSearch = Boolean(useLocation().state?.focusSearch);
+  useEffect(() => {
+    if (focusSearch) inputRef.current?.focus();
+  }, [focusSearch]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

@@ -1,0 +1,249 @@
+/* Reader-facing themes: dark mode, plus small light-mode AA adjustments
+   (see the :root[data-theme="light"] block). Originally: dark theme for the reader-facing app (Light / Dark / System, see
+   utils/theme.js). Everything here is scoped to :root[data-theme="dark"],
+   which is only ever set on reader-facing routes, so admin pages always
+   render with the light tokens in index.css, exactly as before.
+
+   How it works: Tailwind v4 utilities read the theme's CSS variables
+   (bg-gray-100 → var(--color-gray-100), …), so redefining those variables
+   here re-colours every reader component at once:
+     - the neutral scale is flipped onto warm charcoal (gray-50 is now the
+       darkest surface, gray-900 the brightest text);
+     - status hues (emerald, red, amber, slate, sky, green) flip their
+       light tints to dark tints and their dark text shades to light ones;
+     - surfaces, the orange accent and the brand green get dark values.
+   White is NOT redefined (text-white must stay white on green/orange);
+   instead the white-background utilities are re-pointed below. A handful of
+   class-level rules fix utilities whose colour serves as both text and
+   background. All text/background pairs were checked for WCAG AA
+   (KENLIBS-ARCHITECTURE.md, "Dark mode"). */
+
+:root {
+  --toast-bg: #ffffff;
+  --toast-fg: var(--color-gray-900);
+  --toast-border: transparent;
+  /* The logo's orange: the brand colour itself, never adjusted for text
+     contrast in either theme (components/kenlibs/KenlibsLogo.jsx). */
+  --kenlibs-brand-orange: #c4592f;
+}
+
+/* Reader pages in light mode (data-theme="light"; admin pages carry no
+   data-theme and keep index.css's tokens exactly). Small, identity-keeping
+   adjustments so text meets WCAG AA on cream and white:
+     gray-500 muted text  #6b7280 → #5f6672  (4.39 → 5.25:1 on cream)
+     gray-400 small notes #9ca3af → #656c78  (2.30 → 4.80:1 on cream)
+     orange text/buttons  #c4592f → #b34d28  (text 3.95 → 4.75:1 on cream,
+                                              white on it 4.36 → 5.24:1)
+     "Owned" badge        emerald-500 → #047857 (white on it 2.47 → 5.48:1) */
+:root[data-theme="light"] {
+  --color-gray-400: #656c78;
+  --color-gray-500: #5f6672;
+  --color-accent: #b34d28;
+}
+:root[data-theme="light"] .bg-emerald-500 { background-color: #047857; }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Warm charcoal neutrals (not black, not blue-grey). */
+  --color-gray-50: #1d1a17;
+  --color-gray-100: #2a2622;
+  --color-gray-200: #37322d;
+  --color-gray-300: #4a443e;
+  --color-gray-400: #8f877e;
+  --color-gray-500: #a8a097;
+  --color-gray-600: #bdb5ab;
+  --color-gray-700: #d2cbc2;
+  --color-gray-800: #e3ddd5;
+  --color-gray-900: #f3efe9;
+  --color-gray-950: #faf7f2;
+
+  /* Surfaces: page (was cream) and cards (was white). */
+  --color-surface-warm: #171412;
+  --color-surface: #221e1b;
+
+  /* Orange: buttons a touch deeper so white text stays AA (4.98:1); light
+     tints become dark tints. Text uses are re-pointed to a lighter orange
+     below (.text-accent, .text-accent-hover). */
+  --color-accent: #b8502a;
+  --color-accent-hover: #94391b;
+  --color-accent-50: #3a2418;
+  --color-accent-100: #4a2c1c;
+  --color-accent-200: #6b3a22;
+  --color-accent-300: #8f4a28;
+  --color-accent-muted: #2e1f16;
+  --kenlibs-accent-text: #f08f58;
+  --kenlibs-accent-text-strong: #f5a878;
+
+  /* Navy partner (gradient buttons): a little lighter so it still shows. */
+  --color-accent-secondary: #2b3c5e;
+  --color-accent-secondary-hover: #22314f;
+  --color-accent-secondary-200: #3a4660;
+
+  /* Brand green, slightly deeper so it sits on the dark page. */
+  --color-forest: #071d23;
+  --color-forest-deep: #021f22;
+  --color-forest-deeper: #011315;
+
+  /* Status hues: light tints → dark tints, dark text → light text. */
+  --color-emerald-50: #10291e;
+  --color-emerald-100: #153424;
+  --color-emerald-200: #1f4a33;
+  --color-emerald-700: #6ee7a8;
+  --color-emerald-800: #86efac;
+  --color-green-50: #10291e;
+  --color-green-700: #86efac;
+  --color-red-50: #3a1717;
+  --color-red-100: #4a1d1d;
+  --color-red-200: #6b2626;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-amber-50: #33260f;
+  --color-amber-100: #3f2f12;
+  --color-amber-200: #5c4415;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fde68a;
+  --color-amber-950: #fef3c7;
+  --color-slate-100: #2a2d33;
+  --color-slate-200: #3a3f47;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #cbd5e1;
+  --color-sky-50: #0f2a38;
+  --color-sky-700: #7dd3fc;
+
+  --toast-bg: #2a2622;
+  --toast-fg: #f3efe9;
+  --toast-border: #37322d;
+}
+
+:root[data-theme="dark"],
+:root[data-theme="dark"] body {
+  background-color: var(--color-surface-warm);
+  color: var(--color-gray-900);
+}
+
+/* White backgrounds → card surface (white text stays white). */
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .hover\:bg-white:hover {
+  background-color: var(--color-surface);
+}
+:root[data-theme="dark"] .bg-white\/80 { background-color: color-mix(in oklab, var(--color-surface) 80%, transparent); }
+:root[data-theme="dark"] .bg-white\/90 { background-color: color-mix(in oklab, var(--color-surface) 90%, transparent); }
+:root[data-theme="dark"] .bg-white\/95 { background-color: color-mix(in oklab, var(--color-surface) 95%, transparent); }
+:root[data-theme="dark"] .to-white { --tw-gradient-to: var(--color-surface); }
+:root[data-theme="dark"] .via-white { --tw-gradient-via: var(--color-surface); }
+/* Opt-out: a light chip that must stay light in both themes (it carries
+   dark text, e.g. the active genre pill on the green hero). */
+:root[data-theme="dark"] .theme-keep-light { background-color: #ffffff; }
+
+/* Orange as TEXT needs a lighter shade on dark (7.7:1 / 8.5:1); the
+   variables above stay deep for buttons with white text. */
+:root[data-theme="dark"] .text-accent,
+:root[data-theme="dark"] .hover\:text-accent:hover { color: var(--kenlibs-accent-text); }
+:root[data-theme="dark"] .text-accent-hover,
+:root[data-theme="dark"] .hover\:text-accent-hover:hover { color: var(--kenlibs-accent-text-strong); }
+:root[data-theme="dark"] .text-accent-secondary { color: #c7d0de; }
+/* Deep orange text (e.g. the chapter recap label) → light orange. */
+:root[data-theme="dark"] .text-accent-900 { color: #f5c4a5; }
+/* "Owned" badge: white text needs a deeper green than emerald-500 (5.5:1). */
+:root[data-theme="dark"] .bg-emerald-500 { background-color: #047857; }
+:root[data-theme="dark"] .text-forest { color: var(--color-forest); }
+
+/* Dark bars and buttons that carry white text keep a dark/strong fill
+   (their shade variables were flipped light above). */
+:root[data-theme="dark"] .bg-gray-900,
+:root[data-theme="dark"] .hover\:bg-gray-900:hover { background-color: #0f0d0b; }
+:root[data-theme="dark"] .bg-gray-900\/80 { background-color: rgb(15 13 11 / 0.85); }
+:root[data-theme="dark"] .bg-gray-800,
+:root[data-theme="dark"] .hover\:bg-gray-800:hover { background-color: #1c1916; }
+:root[data-theme="dark"] .bg-red-600,
+:root[data-theme="dark"] .hover\:bg-red-600:hover { background-color: #dc2626; }
+:root[data-theme="dark"] .hover\:bg-red-700:hover { background-color: #b91c1c; }
+:root[data-theme="dark"] .hover\:bg-amber-600:hover { background-color: #d97706; }
+
+/* Reader: chapter text and its elements. */
+:root[data-theme="dark"] .markdown-content a { color: var(--kenlibs-accent-text); }
+:root[data-theme="dark"] .markdown-content code { color: var(--kenlibs-accent-text-strong); }
+:root[data-theme="dark"] .markdown-content pre {
+  background: #0f0d0b;
+  color: #e9e3db;
+}
+/* Chapter images don't glare on the dark page. Only content images:
+   covers are never inside .markdown-content. */
+:root[data-theme="dark"] .markdown-content img {
+  filter: brightness(0.85) contrast(1.05);
+}
+:root[data-theme="dark"] ::selection {
+  background-color: rgb(184 80 42 / 0.5);
+  color: #ffffff;
+}
+
+/* Highlights re-tuned for dark: deeper, more saturated tints so light text
+   stays readable on top (7.2:1 and up). */
+:root[data-theme="dark"] ::highlight(kenlibs-hl-yellow) { background-color: rgb(202 138 4 / 0.45); }
+:root[data-theme="dark"] ::highlight(kenlibs-hl-green) { background-color: rgb(22 163 74 / 0.45); }
+:root[data-theme="dark"] ::highlight(kenlibs-hl-blue) { background-color: rgb(37 99 235 / 0.45); }
+:root[data-theme="dark"] ::highlight(kenlibs-hl-pink) { background-color: rgb(219 39 119 / 0.45); }
+
+/* Seek slider (AudiobookPlayer): a native <input type="range"> restyled so
+   it matches both themes. Keeps native keyboard support (arrows, Home/End,
+   PageUp/Down) and screen-reader semantics. 44px tall touch area, 6px
+   track, 18px thumb; the played part is filled up to --progress (set
+   inline by the player). Colours are theme tokens, so it follows dark
+   mode automatically. */
+.kenlibs-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  background: transparent;
+  cursor: pointer;
+  --progress: 0%;
+}
+.kenlibs-range:focus { outline: none; }
+.kenlibs-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, var(--color-accent) var(--progress), var(--color-gray-200) var(--progress));
+}
+.kenlibs-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-gray-200);
+}
+.kenlibs-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+}
+.kenlibs-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+.kenlibs-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+.kenlibs-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--color-surface), 0 0 0 5px var(--color-accent-500); }
+.kenlibs-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--color-surface), 0 0 0 5px var(--color-accent-500); }
+.kenlibs-range:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* Theme changes are instant for people who prefer reduced motion; for
+   others the main surfaces cross-fade briefly. */
+@media (prefers-reduced-motion: no-preference) {
+  body { transition: background-color 0.2s ease, color 0.2s ease; }
+}

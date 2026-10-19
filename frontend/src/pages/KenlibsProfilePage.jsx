@@ -5,6 +5,7 @@ import KenlibsNav from "../components/kenlibs/KenlibsNav";
 import KenlibsFooter from "../components/kenlibs/KenlibsFooter";
 import { useAuth } from "../context/AuthContext";
 import useDocumentTitle from "../hooks/useDocumentTitle";
+import ThemeSettings from "../components/kenlibs/ThemeSettings";
 
 // The reader's own profile (/kenlibs/profile, ReaderRoute): account details
 // and "Fingerprint & passkeys". The passkey section (and its WebAuthn code)
@@ -41,6 +42,8 @@ const KenlibsProfilePage = () => {
             .
           </p>
         </section>
+
+        <ThemeSettings />
 
         <Suspense
           fallback={

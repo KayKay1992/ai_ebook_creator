@@ -11,7 +11,7 @@ const KenlibsLogo = ({ className = "w-9 h-9", title }) => (
     focusable="false"
   >
     {title && <title>{title}</title>}
-    <rect width="40" height="40" rx="10" fill="var(--color-accent)" />
+    <rect width="40" height="40" rx="10" fill="var(--kenlibs-brand-orange, #c4592f)" />
     <g fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
       {/* Left and right pages meeting at the spine, gently curved. */}
       <path d="M20 13.5c-2.6-1.9-5.9-2.6-9.5-2.4v15.6c3.6-.2 6.9.5 9.5 2.4" />

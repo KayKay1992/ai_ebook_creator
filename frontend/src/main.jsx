@@ -27,7 +27,12 @@ createRoot(document.getElementById('root')).render(
         <BrowserRouter>
           <App />
         </BrowserRouter>
-        <Toaster  position='bottom-right'/>
+        {/* Colours from theme variables (theme-dark.css), so toasts follow
+            the reader's light/dark theme; admin stays light. */}
+        <Toaster
+          position='bottom-right'
+          toastOptions={{ style: { background: 'var(--toast-bg)', color: 'var(--toast-fg)', border: '1px solid var(--toast-border)' } }}
+        />
       </AuthProvider>
       </MotionConfig>
     </ErrorBoundary>

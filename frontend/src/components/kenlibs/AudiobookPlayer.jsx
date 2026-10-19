@@ -589,13 +589,19 @@ const AudiobookPlayer = forwardRef(
 
               {hasAudioForTarget ? (
                 <>
-                  <div className="mt-4">
+                  <div className="mt-2">
+                    {/* Themed slider (.kenlibs-range in theme-dark.css): the
+                        played part fills up to --progress. */}
                     <input
                       type="range"
                       min={0}
                       max={duration || targetTrack.durationSec || 0}
                       step={1}
                       value={Math.min(currentTime, duration || targetTrack.durationSec || 0)}
+                      style={{
+                        "--progress": `${(duration || targetTrack.durationSec) > 0 ? (Math.min(currentTime, duration || targetTrack.durationSec) / (duration || targetTrack.durationSec)) * 100 : 0}%`,
+                      }}
+                      aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration || targetTrack.durationSec || 0)}`}
                       onChange={(e) => {
                         const value = Number(e.target.value);
                         setCurrentTime(value);
@@ -605,7 +611,7 @@ const AudiobookPlayer = forwardRef(
                           loadChapter(targetIndex, { startAt: value, autoplay: false });
                         }
                       }}
-                      className="w-full accent-accent"
+                      className="kenlibs-range"
                       aria-label="Seek"
                     />
                     <div className="flex justify-between text-xs text-gray-400 tabular-nums">

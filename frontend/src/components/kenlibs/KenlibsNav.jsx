@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { LifeBuoy, Menu, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import KenlibsLogo from "./KenlibsLogo";
+import ThemeToggle from "./ThemeToggle";
 
 // Deliberately separate from the admin Navbar/DashboardLayout — Kenlibs is
 // the reader-facing surface (see KENLIBS-ARCHITECTURE.md section 1): a
@@ -39,6 +40,7 @@ const KenlibsNav = () => {
             >
               <LifeBuoy className="w-4 h-4" />
             </Link>
+            <ThemeToggle className="!min-w-[40px] !min-h-[40px]" />
             {isAuthenticated ? (
               <>
                 <Link
@@ -84,7 +86,7 @@ const KenlibsNav = () => {
                   onClick={logout}
                   className="px-3 lg:px-4 py-2 text-sm font-medium whitespace-nowrap text-white/60 hover:text-white transition-colors"
                 >
-                  <span className="inline-block max-w-[7rem] truncate align-bottom">{user?.name?.split(" ")[0] || "Account"}</span> · Log out
+                  <span className="inline-block max-w-[4rem] lg:max-w-[7rem] truncate align-bottom">{user?.name?.split(" ")[0] || "Account"}</span> · Log out
                 </button>
               </>
             ) : (
@@ -97,10 +99,13 @@ const KenlibsNav = () => {
             )}
           </div>
 
+          {/* Phones: dark-mode switch next to the menu button. */}
+          <div className="sm:hidden flex items-center gap-1 -mr-1.5">
+          <ThemeToggle />
           {/* Mobile toggle */}
           <button
             onClick={() => setIsMobileOpen((open) => !open)}
-            className="sm:hidden w-11 h-11 -mr-1.5 rounded-xl flex items-center justify-center text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-white hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
             aria-label="Toggle menu"
             aria-expanded={isMobileOpen}
           >
@@ -118,6 +123,7 @@ const KenlibsNav = () => {
               {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </motion.span>
           </button>
+          </div>
         </div>
       </div>
 
@@ -144,6 +150,7 @@ const KenlibsNav = () => {
             <LifeBuoy className="w-4 h-4" />
             Support
           </Link>
+          <ThemeToggle showLabel className="!justify-start px-4 text-sm" />
           {isAuthenticated ? (
             <>
               <Link

@@ -359,6 +359,14 @@ const parseProgressUpdate = (body, chapters) => {
     if (Object.keys(update).length === 0) {
         return { error: 'Nothing to save.' };
     }
+    // Keep chapter number and chapter id describing the same chapter: a
+    // save with only one of them fills in the other (otherwise a stale id
+    // would win when the reader resolves "id first").
+    if ('lastChapterIndex' in update && !('lastChapterId' in update) && chapters[update.lastChapterIndex]) {
+        update.lastChapterId = String(chapters[update.lastChapterIndex]._id);
+    } else if ('lastChapterId' in update && !('lastChapterIndex' in update)) {
+        update.lastChapterIndex = chapters.findIndex((c) => String(c._id) === update.lastChapterId);
+    }
     return { update, positionAt };
 };
 

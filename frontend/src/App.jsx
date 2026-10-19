@@ -5,6 +5,7 @@ import ReaderRoute from "./components/auth/ReaderRoute";
 import KenlibsPage from "./pages/KenlibsPage";
 import OfflineBanner from "./components/shared/OfflineBanner";
 import PasskeyPromptHost from "./components/auth/PasskeyPromptHost";
+import ThemeController from "./components/ThemeController";
 import KenlibsThemeLayout from "./components/kenlibs/KenlibsThemeLayout";
 import lazyWithRetry from "./utils/lazyWithRetry";
 
@@ -42,6 +43,7 @@ const KenlibsTermsPage = lazyWithRetry(() => import("./pages/KenlibsTermsPage"))
 const KenlibsPrivacyPage = lazyWithRetry(() => import("./pages/KenlibsPrivacyPage"));
 const KenlibsRefundPolicyPage = lazyWithRetry(() => import("./pages/KenlibsRefundPolicyPage"));
 const KenlibsSupportPage = lazyWithRetry(() => import("./pages/KenlibsSupportPage"));
+const NotFoundPage = lazyWithRetry(() => import("./pages/NotFoundPage"));
 const AdminUsersPage = lazyWithRetry(() => import("./pages/AdminUsersPage"));
 const AdminAnalyticsPage = lazyWithRetry(() => import("./pages/AdminAnalyticsPage"));
 const AdminReviewsPage = lazyWithRetry(() => import("./pages/AdminReviewsPage"));
@@ -60,6 +62,7 @@ const App = () => {
     <div>
       <OfflineBanner />
       <PasskeyPromptHost />
+      <ThemeController />
       <Suspense fallback={<PageFallback />}>
       <Routes>
         {/* "/" is the app's entry point for a logged-out visitor — redirects
@@ -119,6 +122,8 @@ const App = () => {
             path="/kenlibs/read/:bookId"
             element={<ReaderRoute><KenlibsReadPage /></ReaderRoute>}
           />
+          {/* Any URL nothing else matches (React Router ranks "*" last). */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
 
           {/* admin-only route (creator surface — see KENLIBS-ARCHITECTURE.md) */}

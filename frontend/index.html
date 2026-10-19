@@ -13,6 +13,23 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09262e" />
+    <!-- Theme before first paint (no white flash in dark mode): same rules
+         as src/utils/theme.js (kept in sync by utils/theme.test.js). Dark
+         only on reader-facing routes; admin always light. -->
+    <script>
+      (function () {
+        try {
+          var reader = !/^\/(?:login|signup|forgot-password|reset-password|dashboard|profile|editor|view-book|admin)(?:\/|$)/.test(location.pathname);
+          var pref = localStorage.getItem("kenlibs_theme");
+          var dark = reader && (pref === "dark" || (pref !== "light" && matchMedia("(prefers-color-scheme: dark)").matches));
+          var root = document.documentElement;
+          if (reader) root.setAttribute("data-theme", dark ? "dark" : "light");
+          root.style.colorScheme = dark ? "dark" : "light";
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", !reader ? "#ffffff" : dark ? "#061a1f" : "#09262e");
+        } catch (e) {}
+      })();
+    </script>
     <!-- The only preloaded font: the storefront hero headline (the page's
          largest text, so it shouldn't swap late). Every other face in
          src/fonts.css loads on demand with font-display: swap. -->

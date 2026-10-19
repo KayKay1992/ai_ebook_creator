@@ -751,6 +751,35 @@ rate-limited (240 per 10 minutes per reader) and merged across devices
 opens at the newer of the two, scrolls back to the saved spot, and saves on
 chapter change, after a pause in scrolling and when the page is left.
 
+**Dark mode**
+Readers choose Light, Dark or System (default; follows the device and
+changes with it) on their Profile page (Appearance) or with the sun/moon
+button in the Kenlibs nav, phone header and mobile menu. The choice is
+kept per browser (localStorage) and applies to every reader-facing page,
+the reader included. Admin pages are never themed: the dark attribute is
+only set on /, /kenlibs/* and /read/* (admin screenshots are pixel-identical
+with a dark preference). A small inline script in index.html applies the
+theme before the first paint, so there is no white flash, and sets the
+browser bar colour (green header; deeper green in dark) and color-scheme
+(native controls, scrollbars). The installed app's theme and splash colour
+are now the brand green.
+Palette (dark): page #171412, cards #221e1b, text #f3efe9 (16:1), muted
+#a8a097 (6.4–7.1:1), placeholder/icons #8f877e (4.7:1), orange text #f08f58
+(6.9–7.7:1), orange buttons #b8502a with white text (5.0:1; 3.3:1+ against
+the page as a control colour), status chips on dark tints 8.4–11.8:1,
+highlight colours re-tuned so text on them stays 7.2:1+. Chapter images are
+dimmed slightly in dark mode; covers never are.
+Light mode on reader pages now meets AA as well (same scoping: reader pages
+carry data-theme="light", admin none): muted gray-500 #5f6672 (5.25:1 on
+cream), gray-400 notes #656c78 (4.8:1), orange #b34d28 for text and buttons
+(4.75:1 on cream, white on it 5.24:1), "Owned" badge #047857 (5.48:1). The
+logo keeps the exact brand orange. An automated audit of every visible
+text element on the reader pages finds no AA failures in either theme.
+The audiobook seek bar is a themed native range slider (keyboard and
+screen-reader support kept, 44px touch height).
+Unknown URLs show a branded, themed 404 page ("Page not found", Search
+books / Home); theme rules treat every non-admin path as reader-facing.
+
 ---
 
 ## 9. Open decisions worth confirming before Step 23
