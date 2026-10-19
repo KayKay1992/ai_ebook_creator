@@ -50,6 +50,8 @@ const AdminReviewsPage = lazyWithRetry(() => import("./pages/AdminReviewsPage"))
 const AdminErrorsPage = lazyWithRetry(() => import("./pages/AdminErrorsPage"));
 const AdminPaymentSettingsPage = lazyWithRetry(() => import("./pages/AdminPaymentSettingsPage"));
 const AdminClientBooksPage = lazyWithRetry(() => import("./pages/AdminClientBooksPage"));
+const AdminImportPage = lazyWithRetry(() => import("./pages/AdminImportPage"));
+const AdminRoyaltiesPage = lazyWithRetry(() => import("./pages/AdminRoyaltiesPage"));
 
 const PageFallback = () => (
   <div className="min-h-screen flex items-center justify-center" role="status" aria-label="Loading">
@@ -140,6 +142,8 @@ const App = () => {
           <Route path='/admin/errors' element={<AdminRoute><AdminErrorsPage /></AdminRoute>} />
           <Route path='/admin/payment-settings' element={<AdminRoute><AdminPaymentSettingsPage /></AdminRoute>} />
           <Route path='/admin/client-books' element={<AdminRoute><AdminClientBooksPage /></AdminRoute>} />
+          <Route path='/admin/import' element={<AdminRoute><AdminImportPage /></AdminRoute>} />
+          <Route path='/admin/royalties' element={<AdminRoute><AdminRoyaltiesPage /></AdminRoute>} />
       </Routes>
       </Suspense>
     </div>

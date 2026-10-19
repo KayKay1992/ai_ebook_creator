@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
+const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, unpublishBook, updateBookRights, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
 const { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice, uploadChapterAudioFile } = require('../controller/audioController');
 const {
     getTranslationsOverview,
@@ -83,6 +83,9 @@ router.route('/chapter-image/:id')
 
 router.route('/:id/publish')
     .put(togglePublishStatus);
+// Takedown ("Unpublish immediately") and rights/royalty details.
+router.post('/:id/unpublish', unpublishBook);
+router.put('/:id/rights', updateBookRights);
 
 router.route('/cover-design/front-image/:id')
     .put(uploadCoverDesignImage, updateCoverDesignFrontImage);

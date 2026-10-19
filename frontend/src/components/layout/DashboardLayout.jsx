@@ -18,6 +18,8 @@ import {
   Library,
   Receipt,
   Settings2,
+  FileUp,
+  HandCoins,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -37,6 +39,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/admin/bundles", label: "Bundles", icon: Package },
       { to: "/admin/client-books", label: "Client Books", icon: Briefcase },
+      { to: "/admin/import", label: "Import a book", icon: FileUp },
     ],
   },
   {
@@ -46,6 +49,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/admin/purchases", label: "Purchases", icon: ShieldCheck, badgeKey: "pending" },
       { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { to: "/admin/royalties", label: "Royalties", icon: HandCoins },
       { to: "/admin/reviews", label: "Reviews", icon: MessageSquareText },
       { to: "/admin/payment-settings", label: "Payment Settings", icon: Wallet },
     ],

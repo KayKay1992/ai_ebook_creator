@@ -329,6 +329,40 @@ const bookSchema = new mongoose.Schema({
         paidDate: { type: Date, default: null },
         notes: { type: String, default: '' },
     },
+    // Rights and royalties for books by other authors (admin-only, never in
+    // any public or reader response: every public/reader query selects an
+    // explicit field list, and tests/bookImport.test.js proves it). The
+    // displayed author is `author` above. Absent = "own" work, so existing
+    // books need no migration. Edited only via PUT /api/books/:id/rights;
+    // the general book update strips this. Publishing a non-own book needs
+    // an explicit rights confirmation (togglePublishStatus).
+    rights: {
+        type: { type: String, enum: ['own', 'licensed', 'public_domain'], default: 'own' },
+        holderName: { type: String, default: '', maxlength: 200 },
+        holderContact: { type: String, default: '', maxlength: 300 },
+        // Licence terms; for public domain, why the work is public domain.
+        licenceNotes: { type: String, default: '', maxlength: 4000 },
+        licenceReference: { type: String, default: '', maxlength: 200 },
+        licenceExpiresAt: { type: Date, default: null },
+        territory: { type: String, default: '', maxlength: 500 },
+        // Share of CASH revenue (amount − creditApplied) owed to the holder.
+        royaltyPercent: { type: Number, default: 0, min: 0, max: 100 },
+        // Set when the admin ticks "I have the rights or written permission
+        // to sell this book" while publishing.
+        confirmedAt: { type: Date, default: null },
+        confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        // Takedown: when/who unpublished it and an optional private note.
+        takedownNote: { type: String, default: '', maxlength: 2000 },
+        unpublishedAt: { type: Date, default: null },
+        unpublishedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
+    // Set when the book was created by "Import a book" (the uploaded file
+    // itself is never stored).
+    importedFrom: {
+        format: { type: String, default: '' },
+        fileName: { type: String, default: '' },
+        importedAt: { type: Date, default: null },
+    },
 },
     {
         timestamps: true

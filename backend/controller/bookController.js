@@ -2,6 +2,7 @@ const Book = require('../models/Book');
 const { PREVIEW_CONTENT_MAX_LENGTH, CHAPTER_SUMMARY_MAX_LENGTH } = Book;
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const generateShareId = require('../utils/shareId');
+const { publishGuard, parseRightsInput } = require('../utils/bookRights');
 const { buildVoiceProfileInstruction } = require('../utils/voiceProfile');
 const { deleteAudioAsset } = require('../utils/audioStorage');
 const { partPublicIds } = require('../utils/narrationPipeline');
@@ -98,6 +99,15 @@ const updateBook = async (req, res) => {
         // Narration state belongs to the audio endpoints and the background
         // job; a whole-book PUT from the editor must never overwrite it.
         delete updates.audio;
+        // Publishing goes through PUT /:id/publish (with the rights guard),
+        // rights through PUT /:id/rights; ownership and import history
+        // never change here. The editor sends the whole book back on every
+        // save, so these are dropped rather than rejected.
+        delete updates.status;
+        delete updates.shareId;
+        delete updates.rights;
+        delete updates.importedFrom;
+        delete updates.userId;
 
         if (updates.previewContent !== undefined) {
             if (typeof updates.previewContent !== 'string') {
@@ -316,7 +326,21 @@ const togglePublishStatus = async (req, res) => {
 
     if (book.status === "published") {
       book.status = "draft";
+      book.set("rights.unpublishedAt", new Date());
+      book.set("rights.unpublishedBy", req.user._id);
+      if (typeof req.body?.takedownNote === "string") book.set("rights.takedownNote", req.body.takedownNote.trim().slice(0, 2000));
     } else {
+      // Books by other authors need the rights fields and an explicit
+      // confirmation ("I have the rights or written permission to sell
+      // this book") every time they're published.
+      const guard = publishGuard(book.rights || {}, { confirmed: req.body?.confirmRights === true });
+      if (!guard.ok) {
+        return res.status(400).json({ code: "rights_required", message: "Before publishing, complete the rights details.", missing: guard.missing });
+      }
+      if ((book.rights?.type || "own") !== "own") {
+        book.set("rights.confirmedAt", new Date());
+        book.set("rights.confirmedBy", req.user._id);
+      }
       book.status = "published";
       if (!book.shareId) {
         book.shareId = generateShareId();
@@ -332,6 +356,52 @@ const togglePublishStatus = async (req, res) => {
   }
 };
 
+//@desc    Unpublish immediately (takedown). Always ends unpublished, so
+//         a double click can't republish. Stops the storefront page, the
+//         public preview and the share link at once; readers who already
+//         bought the book keep reading it (access is by purchase).
+//@route   POST /api/books/:id/unpublish  { takedownNote? }
+//@access  Private/Admin
+const unpublishBook = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+    if (book.userId.toString() !== req.user._id.toString()) return res.status(401).json({ message: "Unauthorized" });
+    book.status = "draft";
+    book.set("rights.unpublishedAt", new Date());
+    book.set("rights.unpublishedBy", req.user._id);
+    if (typeof req.body?.takedownNote === "string") book.set("rights.takedownNote", req.body.takedownNote.trim().slice(0, 2000));
+    const updatedBook = await book.save();
+    res.status(200).json(updatedBook);
+  } catch (error) {
+    res.locals.error = error;
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+//@desc    Rights, attribution and royalty details (admin-only fields).
+//@route   PUT /api/books/:id/rights  { type, holderName, holderContact,
+//         licenceNotes, licenceReference, licenceExpiresAt, territory,
+//         royaltyPercent }
+//@access  Private/Admin
+const updateBookRights = async (req, res) => {
+  try {
+    const book = await Book.findById(req.params.id);
+    if (!book) return res.status(404).json({ message: "Book not found" });
+    if (book.userId.toString() !== req.user._id.toString()) return res.status(401).json({ message: "Unauthorized" });
+    const parsed = parseRightsInput(req.body || {});
+    if (parsed.error) return res.status(400).json({ message: parsed.error });
+    for (const [key, value] of Object.entries(parsed.rights)) book.set(`rights.${key}`, value);
+    // Changing to "own work" while published is fine; changing away from it
+    // doesn't unpublish, but the next publish needs the confirmation.
+    const updated = await book.save();
+    res.status(200).json({ rights: updated.rights, status: updated.status });
+  } catch (error) {
+    res.locals.error = error;
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 module.exports = {
     createBook,
     getBooks,
@@ -341,6 +411,8 @@ module.exports = {
     updateBookCover,
     uploadChapterImage,
     togglePublishStatus,
+    unpublishBook,
+    updateBookRights,
     updateCoverDesignFrontImage,
     updateCoverDesignAuthorPhoto,
     updateRender3DFrontImage,

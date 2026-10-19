@@ -462,24 +462,33 @@ const EditorPage = () => {
     }
   };
 
-  const handleTogglePublish = async () => {
+  // Publish (with the rights confirmation for books by other authors) or
+  // "Unpublish immediately" (with an optional private takedown note).
+  // Returns true on success so the dialog can close.
+  const handleTogglePublish = async ({ confirmRights = false, takedownNote } = {}) => {
     setIsTogglingPublish(true);
     try {
-      const response = await axiosInstance.put(
-        `${API_PATHS.BOOKS.TOGGLE_PUBLISH}/${bookId}/publish`
-      );
-      applyServerFields(response.data, ["status", "shareId"]);
+      const response =
+        book.status === "published"
+          ? await axiosInstance.post(API_PATHS.BOOKS.UNPUBLISH(bookId), takedownNote ? { takedownNote } : {})
+          : await axiosInstance.put(`${API_PATHS.BOOKS.TOGGLE_PUBLISH}/${bookId}/publish`, confirmRights ? { confirmRights: true } : {});
+      applyServerFields(response.data, ["status", "shareId", "rights"]);
       toast.success(
         response.data.status === "published"
           ? "Book published! Anyone with the link can now read it."
-          : "Book unpublished. The share link no longer works."
+          : "Book unpublished. Its store page and share link stopped working; existing buyers can still read it."
       );
+      return true;
     } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to update publish status"));
+      const missing = error.response?.data?.missing;
+      toast.error(missing?.length ? `Before publishing: ${missing.join(", ")}.` : getErrorMessage(error, "Failed to update publish status"));
+      return false;
     } finally {
       setIsTogglingPublish(false);
     }
   };
+
+  const handleRightsSaved = (rights) => applyServerFields({ rights }, ["rights"]);
 
   const handleGenerateChapterContent = async (index) => {
     const chapter = book.chapters[index];
@@ -735,8 +744,8 @@ const EditorPage = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-200">
-          <div className="flex items-center justify-between px-4 lg:px-8 h-16">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-3 px-4 lg:px-8 h-16">
+            <div className="flex items-center gap-4 min-w-0">
               <button
                 onClick={() => setIsSidebarOpen(true)}
                 className="md:hidden w-10 h-10 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-100"
@@ -748,8 +757,8 @@ const EditorPage = () => {
               </h1>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center bg-gray-100 p-1 rounded-2xl">
+            {/* Tabs (scroll sideways when they don't fit, rather than widening the page) */}
+            <div className="flex items-center bg-gray-100 p-1 rounded-2xl min-w-0 overflow-x-auto [scrollbar-width:none] [&>button]:shrink-0 [&>button]:whitespace-nowrap">
               <button
                 onClick={() => setActiveTab("editor")}
                 className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium transition-all ${
@@ -810,7 +819,7 @@ const EditorPage = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-shrink-0">
               <Dropdown
                 trigger={
                   <Button variant="secondary" className="flex items-center gap-2">
@@ -904,6 +913,7 @@ const EditorPage = () => {
                 isUploading={isUploading}
                 fileInputRef={fileInputRef}
                 onTogglePublish={handleTogglePublish}
+                onRightsSaved={handleRightsSaved}
                 isTogglingPublish={isTogglingPublish}
               />
             ) : activeTab === "audiobook" ? (

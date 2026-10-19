@@ -655,14 +655,73 @@ and /api/admin/attention). Definitions:
   deleted item. Take a backup first.
 - "Needs attention" row: pending purchase requests (and how long the
   oldest has waited), unresolved errors, audio and translation chapters
-  that failed or are waiting for quota. Not affected by the date range.
+  that failed or are waiting for quota, and licences of books by other
+  authors that have expired or expire within 30 days. Not affected by the
+  date range.
 - One Naira format everywhere (utils/kenlibsPricing.js formatNaira, and
   backend utils/sendEmail.js): thousands separators, decimals only when
   there are any (₦5,000, ₦1,500.50).
 - Admin nav groups (components/layout/DashboardLayout.jsx): Catalog
-  (Bundles, Client Books), Sales (Purchases, Analytics, Reviews, Payment
-  Settings), System (Users, Errors) as menus from lg up; below lg, the
+  (Bundles, Client Books, Import a book), Sales (Purchases, Analytics,
+  Royalties, Reviews, Payment Settings), System (Users, Errors) as menus from lg up; below lg, the
   slide-out sidebar lists the same groups as headings.
+
+**Books by other authors: import, rights, royalties, takedown**
+Admin-only. Readers only ever see the author's name (the existing
+`Book.author` field: "by <author>" on cards, the book page, checkout, the
+purchase decision email and the link preview).
+- Import (/admin/import, pages/AdminImportPage.jsx; POST
+  /api/admin/import/parse then /commit, controller/importController.js):
+  .docx, .epub, .md, .txt and PDFs with selectable text, up to
+  IMPORT_MAX_FILE_MB (25). The file type is checked from its bytes (and must
+  match the extension); executables, old .doc, gzip/rar/7z are refused. The
+  file is parsed in memory and thrown away: never stored, never public.
+  Every format becomes HTML or Markdown and goes through one whitelist
+  converter (utils/import/htmlToMarkdown.js): no scripts, iframes, forms,
+  SVG, raw HTML or javascript: links survive; text is escaped. Zip bombs:
+  entry count, declared and actual unpacked size, per-entry size, path
+  depth and unsafe paths are capped (utils/import/zipSafe.js). PDFs are read
+  by unpdf in a worker thread with a memory cap and a 30s timeout; scanned
+  PDFs (no text) are refused, and PDF imports are text only. Images
+  (PNG/JPEG/GIF/WebP, checked by signature, count and size caps) stay in
+  the draft as `kenlibs-import:<key>` placeholders and are uploaded to
+  Cloudinary only on save, only if still used. Rate limits per admin:
+  parse 30/hour, commit 60/hour.
+- Review screen: title, author, description, cover (the one found in the
+  file, or upload one), rights type, holder and royalty %; chapters can be
+  renamed, merged (the next title becomes a heading), split before any
+  paragraph, reordered and deleted (utils/importDraft.js, unit-tested).
+  Saving always creates a draft and opens the editor.
+- Rights (`Book.rights`, admin-only, PUT /api/books/:id/rights,
+  components/editor/RightsPanel.jsx): type own (default; existing books need
+  no migration) / licensed / public domain, holder name and contact,
+  licence notes, reference, expiry, territory, royalty % (0-100) of cash
+  revenue, plus who confirmed / unpublished and when. `updateBook` strips
+  `rights`, `status` and `importedFrom`, so the autosave can't touch them.
+- Publish guard (backend utils/bookRights.js publishGuard, mirrored in
+  frontend utils/bookRights.js): a non-own book needs `confirmRights: true`
+  (the "I have the rights or written permission to sell this book" tick in
+  components/editor/PublishControls.jsx) plus licence notes; licensed also
+  needs the holder's name; public domain needs the note on why. Otherwise
+  400 `code: "rights_required"` with `missing`. confirmedAt/By are recorded.
+  An expired licence only shows a warning (editor and Needs attention);
+  nothing is unpublished automatically.
+- Takedown: "Unpublish immediately" (POST /api/books/:id/unpublish,
+  optional private takedownNote). The store page, public preview, share
+  link and checkout stop at once; readers who already bought it keep
+  access (hasBookAccess is unchanged).
+- Royalties (/admin/royalties, GET /api/admin/royalties,
+  controller/royaltyController.js): per book and per author for a date
+  range: units, cash revenue (the Analytics definition: amount minus store
+  credit, on the approval day, Lagos; hideTest respected), royalty % and
+  owed. A bundle's cash is shared between its books by list price. Owed
+  uses each book's current %. Authors are grouped by name
+  (case-insensitive). "Mark as paid" records a RoyaltyPayment (POST/DELETE
+  /api/admin/royalties/payments); balance = owed all time minus paid all
+  time. CSV download (formula injection neutralised). Nothing is paid out
+  from the app.
+- Never public: rights, royalty and import data are in no public
+  whitelist; tests/bookImport.test.js checks the public endpoints.
 
 **Passkeys (fingerprint / Face ID / screen lock sign-in)**
 An addition to email+password, for readers and admins (WebAuthn,

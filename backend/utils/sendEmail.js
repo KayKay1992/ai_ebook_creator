@@ -365,10 +365,14 @@ const sendPurchaseDecisionEmail = async ({
     itemType,
     itemId,
     itemTitle,
+    itemAuthor = '',
     adminNote = '',
 }) => {
     const typeWord = itemType === 'bundle' ? 'bundle' : 'book';
     const title = itemTitle || `your ${typeWord}`;
+    // Author attribution in the body (subjects stay title-only).
+    const byText = itemTitle && itemAuthor ? ` by ${itemAuthor}` : '';
+    const byHtml = byText ? ` by ${escapeHtml(itemAuthor)}` : '';
     const note = String(adminNote || '').trim();
     const myBooksLink = frontendUrl('/kenlibs/my-books');
     const greeting = `Hi ${readerName || 'there'},`;
@@ -388,24 +392,24 @@ const sendPurchaseDecisionEmail = async ({
         buttonLabel = itemType === 'book' && itemId ? 'Start reading' : 'Go to your Library';
         subject = `Your purchase is approved: ${title}`;
         heading = 'Your purchase is approved';
-        introText = `Good news! Your payment for "${title}" has been confirmed, and the ${typeWord} is now in your library.`;
-        introHtml = `Good news! Your payment for <strong>${escapeHtml(title)}</strong> has been confirmed, and the ${typeWord} is now in your library.`;
+        introText = `Good news! Your payment for "${title}"${byText} has been confirmed, and the ${typeWord} is now in your library.`;
+        introHtml = `Good news! Your payment for <strong>${escapeHtml(title)}</strong>${byHtml} has been confirmed, and the ${typeWord} is now in your library.`;
         noteLabel = 'Note from Kenlibs';
     } else if (decision === 'rejected') {
         link = myBooksLink;
         buttonLabel = 'Fix and resubmit';
         subject = `Your purchase request was not approved: ${title}`;
         heading = 'Your purchase request was not approved';
-        introText = `We couldn't approve your purchase request for "${title}". You can upload new payment evidence from your Library and resubmit it.`;
-        introHtml = `We couldn't approve your purchase request for <strong>${escapeHtml(title)}</strong>. You can upload new payment evidence from your Library and resubmit it.`;
+        introText = `We couldn't approve your purchase request for "${title}"${byText}. You can upload new payment evidence from your Library and resubmit it.`;
+        introHtml = `We couldn't approve your purchase request for <strong>${escapeHtml(title)}</strong>${byHtml}. You can upload new payment evidence from your Library and resubmit it.`;
         noteLabel = 'Reason';
     } else if (decision === 'revoked') {
         link = myBooksLink;
         buttonLabel = 'Go to your Library';
         subject = `Your access has changed: ${title}`;
         heading = 'Your access has changed';
-        introText = `Your access to "${title}" has been removed by the Kenlibs team. This can happen when a payment is reversed or needs another look. If you have questions, please contact Kenlibs support.`;
-        introHtml = `Your access to <strong>${escapeHtml(title)}</strong> has been removed by the Kenlibs team. This can happen when a payment is reversed or needs another look. If you have questions, please contact Kenlibs support.`;
+        introText = `Your access to "${title}"${byText} has been removed by the Kenlibs team. This can happen when a payment is reversed or needs another look. If you have questions, please contact Kenlibs support.`;
+        introHtml = `Your access to <strong>${escapeHtml(title)}</strong>${byHtml} has been removed by the Kenlibs team. This can happen when a payment is reversed or needs another look. If you have questions, please contact Kenlibs support.`;
         noteLabel = 'Note from Kenlibs';
     } else {
         throw new Error(`[sendPurchaseDecisionEmail] Unknown decision '${decision}'`);

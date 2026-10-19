@@ -23,6 +23,8 @@ import ExportTemplatePicker from "./ExportTemplatePicker";
 import CoverPreview from "../cards/CoverPreview";
 import TonePicker from "../shared/TonePicker";
 import ChapterSummariesPanel from "./ChapterSummariesPanel";
+import PublishControls from "./PublishControls";
+import RightsPanel from "./RightsPanel";
 
 // Mirrors backend/models/Book.js's PREVIEW_CONTENT_MAX_LENGTH (no shared
 // code between the apps — keep the two in sync by hand).
@@ -42,6 +44,7 @@ const BookDetailsTab = ({
   fileInputRef,
   onTogglePublish,
   isTogglingPublish,
+  onRightsSaved,
 }) => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
@@ -238,13 +241,7 @@ const BookDetailsTab = ({
             </p>
           </div>
 
-          <Button
-            onClick={onTogglePublish}
-            loading={isTogglingPublish}
-            variant={isPublished ? "secondary" : "primary"}
-          >
-            {isPublished ? "Unpublish" : "Publish Book"}
-          </Button>
+          <PublishControls book={book} onTogglePublish={onTogglePublish} isTogglingPublish={isTogglingPublish} />
         </div>
 
         {isPublished && shareUrl && (
@@ -271,6 +268,9 @@ const BookDetailsTab = ({
           </div>
         )}
       </div>
+
+      {/* ===== Rights & royalties (admin-only) ===== */}
+      <RightsPanel key={book._id} book={book} onRightsSaved={onRightsSaved} />
 
       {/* ===== Kenlibs Listing ===== */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8">

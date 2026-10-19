@@ -17,6 +17,7 @@ import {
   Minus,
   AlertTriangle,
   FlaskConical,
+  Scale,
 } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
@@ -114,7 +115,7 @@ const AttentionItem = ({ to, icon: Icon, label, detail, active }) => (
 
 const NeedsAttention = ({ attention }) => {
   if (!attention) return null;
-  const { pendingPurchases, unresolvedErrors, failedAudio, failedTranslations } = attention;
+  const { pendingPurchases, unresolvedErrors, failedAudio, failedTranslations, licences } = attention;
   const jobBook = (summary) => summary.books[0]?.bookId;
   return (
     <section aria-labelledby="attention-heading">
@@ -150,6 +151,15 @@ const NeedsAttention = ({ attention }) => {
           label={`${failedTranslations.count} translation${failedTranslations.count === 1 ? "" : "s"} failed or waiting`}
           detail={failedTranslations.books.length ? failedTranslations.books.map((b) => `${b.title} (${b.languages.join(", ")})`).join(", ") : "No translation problems"}
         />
+        {licences && (
+          <AttentionItem
+            to={licences.books[0] ? `/editor/${licences.books[0].bookId}` : "/dashboard"}
+            icon={Scale}
+            active={licences.count > 0}
+            label={`${licences.count} licence${licences.count === 1 ? "" : "s"} expired or expiring`}
+            detail={licences.books.length ? licences.books.map((b) => `${b.title} (${b.status === "expired" ? "expired" : "expiring"}${b.published ? ", published" : ""})`).join(", ") : "No licence problems"}
+          />
+        )}
       </div>
     </section>
   );

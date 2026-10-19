@@ -35,6 +35,8 @@ const MAX_RANGE_DAYS = 3660;
 const DEFAULT_TEST_MIN_PRICE = 100;
 const RECENT_SALES = 8;
 
+const { licenceStatus, LICENCE_EXPIRY_WARNING_DAYS } = require('../utils/bookRights');
+
 const NOT_ADMIN = { role: { $ne: 'admin' } }; // matches a missing role too
 
 // Real approval time: the first "approved" event in reviewHistory, else the
@@ -368,6 +370,19 @@ const getAnalytics = async (req, res) => {
 //         a date range or the test-data filter.
 //@route   GET /api/admin/attention
 //@access  Private/Admin
+// Books by other authors whose licence has expired or expires within
+// LICENCE_EXPIRY_WARNING_DAYS. Shown only; nothing is unpublished
+// automatically.
+const licenceAttention = async () => {
+    const soon = new Date(Date.now() + LICENCE_EXPIRY_WARNING_DAYS * 86400000);
+    const books = await Book.find({ 'rights.type': { $in: ['licensed', 'public_domain'] }, 'rights.licenceExpiresAt': { $ne: null, $lte: soon } })
+        .select('title status rights.licenceExpiresAt rights.type')
+        .sort({ 'rights.licenceExpiresAt': 1 })
+        .lean();
+    const rows = books.map((b) => ({ bookId: String(b._id), title: b.title, published: b.status === 'published', expiresAt: b.rights.licenceExpiresAt, status: licenceStatus(b.rights) }));
+    return { count: rows.length, expired: rows.filter((r) => r.status === 'expired').length, books: rows.slice(0, 5) };
+};
+
 const getAttention = async (req, res) => {
     try {
         const [pendingCount, oldestPending, unresolvedErrors, audioIssues, translationIssues] = await Promise.all([
@@ -399,6 +414,7 @@ const getAttention = async (req, res) => {
             unresolvedErrors,
             failedAudio: summarize(audioIssues),
             failedTranslations: summarize(translationIssues),
+            licences: await licenceAttention(),
         });
     } catch (error) {
         res.locals.error = error;
@@ -406,4 +422,9 @@ const getAttention = async (req, res) => {
     }
 };
 
-module.exports = { getAnalytics, getAttention };
+// Shared with the royalties report (royaltyController.js), so both use the
+// same cash-revenue definition, date range and test-data filter.
+const excludedTestAccounts = async (testFilter) =>
+    testFilter.hidden ? (await User.find({ $or: [{ role: 'admin' }, { isTestAccount: true }] }).select('_id').lean()).map((u) => u._id) : [];
+
+module.exports = { getAnalytics, getAttention, parseRange, parseTestFilter, excludedTestAccounts, WITH_APPROVED_AT, CASH, REVENUE_STATUS };

@@ -129,7 +129,7 @@ router.get("/kenlibs/book/:id", async (req, res) => {
     res.set("Cache-Control", "public, max-age=600");
     res.send(
       renderCrawlerHtml({
-        title: `${book.title} — Kenlibs`,
+        title: book.author ? `${book.title} by ${book.author} — Kenlibs` : `${book.title} — Kenlibs`,
         description:
           teaserHook || blurb || `by ${book.author || "Unknown Author"} — read it on Kenlibs.`,
         image,

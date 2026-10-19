@@ -145,6 +145,7 @@ const notifyReaderOfDecision = (enriched) => {
                 itemType: enriched.itemType,
                 itemId: enriched.item?.toString(),
                 itemTitle: enriched.itemTitle,
+                itemAuthor: enriched.itemAuthor || '',
                 adminNote: enriched.adminNote,
             })
         )

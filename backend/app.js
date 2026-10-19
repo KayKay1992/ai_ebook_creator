@@ -11,6 +11,8 @@ const bundleRoutes = require('./routes/bundleRoute');
 const purchaseRoutes = require('./routes/purchaseRoute');
 const kenlibsRoutes = require('./routes/kenlibsRoute');
 const adminRoutes = require('./routes/adminRoute');
+const importRoutes = require('./routes/importRoute');
+const royaltyRoutes = require('./routes/royaltyRoute');
 const referralRoutes = require('./routes/referralRoute');
 const ogPreviewRoutes = require('./routes/ogPreviewRoute');
 const errorRoutes = require('./routes/errorRoute');
@@ -134,6 +136,9 @@ app.use('/api/public', publicRoutes);
 app.use('/api/bundles', bundleRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/kenlibs', kenlibsRoutes);
+// Admin: "Import a book" and the royalties report (more specific first).
+app.use('/api/admin/import', importRoutes);
+app.use('/api/admin/royalties', royaltyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/referrals', referralRoutes);
 app.use('/api/errors', errorRoutes);
