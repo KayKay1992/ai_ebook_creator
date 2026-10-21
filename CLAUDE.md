@@ -25,7 +25,7 @@ Run each app from its own directory (`backend/` or `frontend/`) — there is no 
 - `npm run build` — production build
 - `npm run lint` — ESLint (flat config, `eslint.config.js`)
 - `npm run preview` — preview a production build
-- `npm test` — Node's built-in test runner (`node --test "src/**/*.test.js"`) for the few pure, DOM-free modules (`utils/annotationAnchor.js`, `utils/speechText.js`, `utils/analyticsSeries.js`, `utils/kenlibsPricing.js`, `utils/errorNoise.js` + `utils/registerServiceWorker.js`, `utils/passkeyErrors.js` + `utils/passkeySupport.js`, `utils/rateLimit.js`, `utils/kenlibsTabBar.js`, `utils/library.js` + `utils/readingProgress.js`, `utils/theme.js` + `utils/themeStore.js`, `utils/importDraft.js` + `utils/bookRights.js` + `utils/chapterKinds.js`). No component tests, no extra dependency.
+- `npm test` — Node's built-in test runner (`node --test "src/**/*.test.js"`) for the few pure, DOM-free modules (`utils/annotationAnchor.js`, `utils/speechText.js`, `utils/analyticsSeries.js`, `utils/kenlibsPricing.js`, `utils/errorNoise.js` + `utils/registerServiceWorker.js`, `utils/passkeyErrors.js` + `utils/passkeySupport.js`, `utils/rateLimit.js`, `utils/kenlibsTabBar.js`, `utils/library.js` + `utils/readingProgress.js`, `utils/theme.js` + `utils/themeStore.js`, `utils/importDraft.js` + `utils/bookRights.js` + `utils/chapterKinds.js`, `utils/dropdownToggle.js`). No component tests, no extra dependency.
 
 ## Environment
 

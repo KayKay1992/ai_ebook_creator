@@ -26,6 +26,7 @@ import { useAuth } from "../../context/AuthContext";
 import axiosInstance from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import ProfileDropdown from "./ProfileDropdown";
+import { toggleHandler } from "../../utils/dropdownToggle";
 
 // Admin destinations, grouped so the header never has to fit (and wrap)
 // eight separate links: Catalog / Sales / System are menus on lg+ screens
@@ -168,6 +169,8 @@ const DashboardLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  // Safe without an event: the menu's own items call it to close the menu.
+  const toggleProfileDropdown = toggleHandler(setProfileDropdownOpen);
   const [pendingCount, setPendingCount] = useState(0);
   // Mobile slide-out sidebar (Step 51) — same sm: breakpoint and toggle
   // convention as KenlibsNav's own mobile menu, for consistency, though the
@@ -264,10 +267,7 @@ const DashboardLayout = ({ children }) => {
               <div ref={dropdownRef}>
                 <ProfileDropdown
                   isOpen={profileDropdownOpen}
-                  onToggle={(e) => {
-                    e.stopPropagation();
-                    setProfileDropdownOpen(!profileDropdownOpen);
-                  }}
+                  onToggle={toggleProfileDropdown}
                   avatar={user?.avatar || ""}
                   companyName={user?.name || ""}
                   email={user?.email || ""}
