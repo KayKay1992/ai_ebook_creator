@@ -98,6 +98,8 @@ const BookCard = ({ book, onDelete }) => {
               e.stopPropagation();
               onDelete(book._id);
             }}
+            aria-label={`Delete “${book.title}”`}
+            title="Delete book"
             className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-xl flex items-center justify-center text-gray-700 hover:bg-red-500 hover:text-white shadow-md transition-all"
           >
             <Trash2 className="w-4 h-4" />

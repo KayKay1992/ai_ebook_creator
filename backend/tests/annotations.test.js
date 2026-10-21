@@ -211,7 +211,7 @@ describe('cleanup', () => {
         const reader2 = await createUser({ role: 'reader' });
         await createPurchaseRequest({ reader: reader2, itemType: 'book', item: book._id, status: 'approved' });
         await api(reader2, book).create(highlight(chapterId));
-        expect((await request(app).delete(`/api/books/${book._id}`).set(auth(admin))).status).toBe(200);
+        expect((await request(app).delete(`/api/books/${book._id}`).set(auth(admin)).send({ confirmTitle: book.title, confirmPublished: true, acknowledgeBuyers: true })).status).toBe(200);
         expect(await ReaderAnnotation.countDocuments()).toBe(0);
     });
 });

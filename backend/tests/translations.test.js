@@ -382,7 +382,7 @@ describe('review and publishing', () => {
         await waitForIdle();
 
         expect(await BookTranslation.countDocuments({ bookId: book._id })).toBe(1);
-        expect((await request(app).delete(`/api/books/${book._id}`).set(auth(admin))).status).toBe(200);
+        expect((await request(app).delete(`/api/books/${book._id}`).set(auth(admin)).send({ confirmTitle: book.title, confirmPublished: true, acknowledgeBuyers: true })).status).toBe(200);
         expect(await BookTranslation.countDocuments({ bookId: book._id })).toBe(0);
     });
 });

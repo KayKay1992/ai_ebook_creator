@@ -8,6 +8,8 @@ const { deleteAudioAsset } = require('../utils/audioStorage');
 const { partPublicIds } = require('../utils/narrationPipeline');
 const BookTranslation = require('../models/BookTranslation');
 const ReaderAnnotation = require('../models/ReaderAnnotation');
+const AdminEvent = require('../models/AdminEvent');
+const { deletionImpact, confirmationProblem, needsBuyerAcknowledgement } = require('../utils/bookDeletion');
 
 //@desc    Create a new book
 //@route   POST /api/books
@@ -159,6 +161,28 @@ const updateBook = async (req, res) => {
 //@desc    Delete a book by ID
 //@route   DELETE /api/books/:id
 //@access  Private
+//@desc    What deleting a book would affect (for the confirmation dialogs)
+//@route   GET /api/books/:id/delete-impact
+//@access  Private/Admin (owner)
+const getDeleteImpact = async (req, res) => {
+    try {
+        const book = await Book.findById(req.params.id).select('userId title author status chapters._id');
+        if (!book) return res.status(404).json({ message: 'Book not found' });
+        if (book.userId.toString() !== req.user._id.toString()) return res.status(401).json({ message: 'Unauthorized' });
+        const impact = await deletionImpact(book);
+        res.status(200).json({ ...impact, needsBuyerAcknowledgement: needsBuyerAcknowledgement(impact) });
+    } catch (error) {
+        res.locals.error = error;
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// DELETE /api/books/:id  body { confirmTitle, confirmPublished?, acknowledgeBuyers? }
+// Refused with 400 + code unless confirmed (utils/bookDeletion.js).
+// Deletes the book (its chapters and summaries are inside it), its
+// translations, readers' highlights/bookmarks and its narration files on
+// Cloudinary. Purchase requests, reading progress, ratings, royalty
+// payments, bundle membership and cover/chapter images are left as they are.
 const deleteBook = async (req, res) => {
     try {
         const book = await Book.findById(req.params.id);
@@ -168,6 +192,24 @@ const deleteBook = async (req, res) => {
         if (book.userId.toString() !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
+        // Confirmed on the server (utils/bookDeletion.js): the typed title,
+        // and for a published or bought book the explicit flags.
+        const impact = await deletionImpact(book);
+        const problem = confirmationProblem(impact, req.body || {});
+        if (problem) return res.status(400).json(problem);
+        // Audit record first: if it can't be written, nothing is deleted.
+        await AdminEvent.create({
+            actorId: req.user._id,
+            type: 'book_deleted',
+            bookId: book._id,
+            title: impact.title.slice(0, 300),
+            author: impact.author.slice(0, 200),
+            status: impact.status,
+            chapterCount: impact.chapterCount,
+            buyerCount: impact.buyers.total,
+            pendingCount: impact.pendingCount,
+            bundleTitles: impact.bundles.map((b) => b.title),
+        });
         const audioEntries = book.audio?.chapters || [];
         // Chapter files plus saved parts of unfinished narration runs.
         const audioPublicIds = [...audioEntries.map((entry) => entry.publicId), ...partPublicIds(audioEntries)].filter(Boolean);
@@ -411,6 +453,7 @@ module.exports = {
     getBookById,
     updateBook,
     deleteBook,
+    getDeleteImpact,
     updateBookCover,
     uploadChapterImage,
     togglePublishStatus,

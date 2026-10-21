@@ -435,7 +435,7 @@ describe('cleanup', () => {
         const publicIds = (await Book.findById(book._id)).audio.chapters.map((e) => e.publicId).filter(Boolean);
         expect(publicIds).toHaveLength(2);
 
-        const res = await request(app).delete(`/api/books/${book._id}`).set(auth(admin));
+        const res = await request(app).delete(`/api/books/${book._id}`).set(auth(admin)).send({ confirmTitle: book.title, confirmPublished: true, acknowledgeBuyers: true });
         expect(res.status).toBe(200);
         await new Promise((resolve) => setTimeout(resolve, 20));
         const destroyed = cloudinary.uploader.destroy.mock.calls.map(([id]) => id);

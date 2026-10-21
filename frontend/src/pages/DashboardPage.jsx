@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Plus, Book, Trash2, X } from "lucide-react";
+import { Plus, Book } from "lucide-react";
 
 import DashboardLayout from "../components/layout/DashboardLayout";
 import Button from "../components/ui/Button";
@@ -11,48 +11,7 @@ import { API_PATHS } from "../utils/apiPaths";
 import BookCard from "../components/cards/BookCard";
 import CreateBookModal from "../components/modals/CreateBookModal";
 import BookCardSkeleton from "../components/skeletons/BookCardSkeleton";
-
-// Confirmation Modal
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      ></div>
-
-      <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mb-6">
-          <Trash2 className="w-7 h-7 text-red-500" />
-        </div>
-
-        <h3 className="text-2xl font-bold text-gray-900 mb-3">{title}</h3>
-        <p className="text-gray-600 mb-8">{message}</p>
-
-        <div className="flex gap-4">
-          <Button variant="secondary" className="flex-1" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            className="flex-1 bg-red-600 hover:bg-red-700"
-            onClick={onConfirm}
-          >
-            Delete eBook
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
+import DeleteBookDialog from "../components/dashboard/DeleteBookDialog";
 
 const DashboardPage = () => {
   const [books, setBooks] = useState([]);
@@ -78,19 +37,17 @@ const DashboardPage = () => {
     fetchBooks();
   }, []);
 
-  const handleDeleteBook = async () => {
-    if (!bookToDelete) return;
-    try {
-      await axiosInstance.delete(
-        `${API_PATHS.BOOKS.DELETE_BOOK}/${bookToDelete}`,
-      );
-      setBooks(books.filter((book) => book._id !== bookToDelete));
-      toast.success("Book deleted successfully");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Error deleting book");
-    } finally {
-      setBookToDelete(null);
-    }
+  // The dialog asks for two or three confirmations and does the request
+  // (components/dashboard/DeleteBookDialog.jsx).
+  const handleBookDeleted = (bookId) => {
+    setBooks((prev) => prev.filter((book) => book._id !== bookId));
+    setBookToDelete(null);
+    toast.success("Book deleted");
+  };
+  const handleBookUnpublished = (updated) => {
+    setBooks((prev) => prev.map((book) => (book._id === updated._id ? { ...book, status: updated.status } : book)));
+    setBookToDelete(null);
+    toast.success("Unpublished: it's off the store, and buyers keep it in their Library.");
   };
 
   const handleCreateBookClick = () => {
@@ -157,20 +114,22 @@ const DashboardPage = () => {
               <BookCard
                 key={book._id}
                 book={book}
-                onDelete={() => setBookToDelete(book._id)}
+                onDelete={() => setBookToDelete(book)}
               />
             ))}
           </div>
         )}
 
         {/* Delete Confirmation Modal */}
-        <ConfirmationModal
-          isOpen={!!bookToDelete}
-          onClose={() => setBookToDelete(null)}
-          onConfirm={handleDeleteBook}
-          title="Delete this eBook?"
-          message="This action cannot be undone. The book and all its content will be permanently deleted."
-        />
+        {bookToDelete && (
+          <DeleteBookDialog
+            key={bookToDelete._id}
+            book={bookToDelete}
+            onClose={() => setBookToDelete(null)}
+            onDeleted={handleBookDeleted}
+            onUnpublished={handleBookUnpublished}
+          />
+        )}
 
         {/* Create Book Modal */}
         <CreateBookModal

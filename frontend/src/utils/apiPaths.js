@@ -31,6 +31,7 @@ export const API_PATHS = {
     TOGGLE_PUBLISH: "/api/books",
     RIGHTS: (id) => `/api/books/${id}/rights`,
     UNPUBLISH: (id) => `/api/books/${id}/unpublish`,
+    DELETE_IMPACT: (id) => `/api/books/${id}/delete-impact`,
     UPLOAD_COVER_DESIGN_FRONT_IMAGE: "/api/books/cover-design/front-image",
     UPLOAD_COVER_DESIGN_AUTHOR_PHOTO: "/api/books/cover-design/author-photo",
     UPLOAD_RENDER3D_FRONT_IMAGE: "/api/books/cover-design/render3d-front",

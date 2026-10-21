@@ -733,6 +733,19 @@ purchase decision email and the link preview).
   optional private takedownNote). The store page, public preview, share
   link and checkout stop at once; readers who already bought it keep
   access (hasBookAccess is unchanged).
+- Deleting a book (any book, not only imported ones) is the opposite:
+  buyers lose it from their Library. So it is confirmed two or three
+  times in the dashboard (a draft nobody bought: warning, then type the
+  title; a published or bought book: warning with buyer, pending and
+  bundle counts, then "Readers will lose this book" offering "Unpublish
+  instead", then type the title) and again on the server:
+  DELETE /api/books/:id needs `confirmTitle`, plus `confirmPublished: true`
+  for a published book and `acknowledgeBuyers: true` for a published or
+  bought one, or it answers 400 with a code. Every deletion leaves an
+  AdminEvent audit record (who, when, title, status, buyer count, bundles).
+  A backup is the only way back (`npm run backup` first). Purchase history,
+  reading progress, ratings and royalty payments are kept; images stay on
+  Cloudinary; narration files are deleted.
 - Royalties (/admin/royalties, GET /api/admin/royalties,
   controller/royaltyController.js): per book and per author for a date
   range: units, cash revenue (the Analytics definition: amount minus store

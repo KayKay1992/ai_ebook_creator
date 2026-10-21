@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getBooks, createBook, getBookById, updateBook, deleteBook, updateBookCover, uploadChapterImage, togglePublishStatus, unpublishBook, updateBookRights, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
+const { getBooks, createBook, getBookById, updateBook, deleteBook, getDeleteImpact, updateBookCover, uploadChapterImage, togglePublishStatus, unpublishBook, updateBookRights, updateCoverDesignFrontImage, updateCoverDesignAuthorPhoto, updateRender3DFrontImage, updateRender3DBackImage } = require('../controller/bookController');
 const { getAudioStatus, generateAudio, deleteChapterAudio, previewVoice, uploadChapterAudioFile } = require('../controller/audioController');
 const {
     getTranslationsOverview,
@@ -31,10 +31,26 @@ router.route('/')
     .get(getBooks)
     .post(createBook);
 
+// Deleting needs the typed title and, for published or bought books,
+// explicit flags (utils/bookDeletion.js). Rate-limited per admin.
+const perAdminHour = (max) =>
+    rateLimit({
+        windowMs: 60 * 60 * 1000,
+        max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: (req) => req.user._id.toString(),
+        handler: (req, res) => res.status(429).json({ code: 'rate_limited', message: 'Too many deletions in an hour. Try again later.' }),
+    });
+const deleteBookLimiter = perAdminHour(30);
+const deleteImpactLimiter = perAdminHour(300);
+
+router.get('/:id/delete-impact', deleteImpactLimiter, getDeleteImpact);
+
 router.route('/:id')
     .get(getBookById)
     .put(updateBook)
-    .delete(deleteBook);
+    .delete(deleteBookLimiter, deleteBook);
 
 // AI audiobook narration (admin-only like the rest of this router; the
 // controller checks ownership). Generation and previews call Gemini TTS, so
