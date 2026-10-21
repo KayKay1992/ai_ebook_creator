@@ -1,5 +1,5 @@
 const Book = require('../models/Book');
-const { PREVIEW_CONTENT_MAX_LENGTH, CHAPTER_SUMMARY_MAX_LENGTH } = Book;
+const { PREVIEW_CONTENT_MAX_LENGTH, CHAPTER_SUMMARY_MAX_LENGTH, CHAPTER_KINDS } = Book;
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
 const generateShareId = require('../utils/shareId');
 const { publishGuard, parseRightsInput } = require('../utils/bookRights');
@@ -123,6 +123,9 @@ const updateBook = async (req, res) => {
         // update below skips schema validators).
         if (Array.isArray(updates.chapters)) {
             for (const [index, chapter] of updates.chapters.entries()) {
+                if (chapter && chapter.kind !== undefined && !CHAPTER_KINDS.includes(chapter.kind)) {
+                    return res.status(400).json({ message: `Chapter ${index + 1}'s kind must be one of: ${CHAPTER_KINDS.join(', ')}.` });
+                }
                 if (!chapter || chapter.summary === undefined || chapter.summary === null) continue;
                 if (typeof chapter.summary !== 'string') {
                     return res.status(400).json({ message: `Chapter ${index + 1}'s summary must be text.` });

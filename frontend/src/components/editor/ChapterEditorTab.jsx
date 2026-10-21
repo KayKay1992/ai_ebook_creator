@@ -4,6 +4,7 @@ import Button from "../ui/Button";
 import InputField from "../ui/inputField";
 import SimpleMDEditor from "./SimpleMDEditor";
 import MarkdownContent from "../shared/MarkdownContent";
+import { CHAPTER_KIND_OPTIONS, chapterNumbers, fallbackTitle } from "../../utils/chapterKinds";
 
 const ChapterEditorTab = ({
   book,
@@ -74,9 +75,25 @@ const ChapterEditorTab = ({
           <p className="text-gray-500 mt-1">
             Editing:{" "}
             <span className="font-medium text-accent-hover">
-              {currentChapter.title || `Chapter ${selectedChapterIndex + 1}`}
+              {currentChapter.title || fallbackTitle(currentChapter, chapterNumbers(book.chapters)[selectedChapterIndex])}
             </span>
           </p>
+          {/* Front/back matter and parts get no chapter number for readers. */}
+          <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-600">
+            Shown to readers as
+            <select
+              name="kind"
+              value={currentChapter.kind || "chapter"}
+              onChange={onChapterChange}
+              className="bg-white border border-gray-200 rounded-xl px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              {CHAPTER_KIND_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">

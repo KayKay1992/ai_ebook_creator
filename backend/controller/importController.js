@@ -1,4 +1,5 @@
 const Book = require('../models/Book');
+const { CHAPTER_KINDS } = Book;
 const { parseUpload } = require('../utils/import/parseBook');
 const { ImportError } = require('../utils/import/fileType');
 const { importLimits } = require('../utils/import/limits');
@@ -39,6 +40,17 @@ const parseImport = async (req, res) => {
 
 const PLACEHOLDER = /!\[([^\]]*)\]\(kenlibs-import:([\w-]+)\)/g;
 
+// Chapter pictures are delivered optimised: the best format and quality
+// for each browser (f_auto,q_auto), never wider than IMPORT_IMAGE_MAX_WIDTH
+// (c_limit, never upscaled). The stored original is untouched.
+const optimisedImageUrl = (secureUrl, maxWidth) => {
+    const url = String(secureUrl || '');
+    if (!url.includes('/image/upload/') || url.includes('/image/upload/f_auto')) return url;
+    return url.replace('/image/upload/', `/image/upload/f_auto,q_auto,c_limit,w_${maxWidth}/`);
+};
+// Alt text stays plain words, so every reader-side image pattern matches.
+const cleanAlt = (alt) => String(alt || '').replace(/[[\]()\\*_`<>#|!~]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+
 //@route   POST /api/admin/import/commit
 //   { title, author, description, chapters: [{ title, content }],
 //     images: { key: dataUri }, coverKey, format, fileName, rights? }
@@ -61,7 +73,8 @@ const commitImport = async (req, res) => {
                 return res.status(400).json({ message: `Chapter ${index + 1} is not valid.` });
             }
             totalChars += chapter.content.length;
-            chapters.push({ title: chapter.title.trim().slice(0, 300) || `Chapter ${index + 1}`, content: chapter.content });
+            if (chapter.kind !== undefined && !CHAPTER_KINDS.includes(chapter.kind)) return res.status(400).json({ message: `Chapter ${index + 1} is not valid.` });
+            chapters.push({ title: chapter.title.trim().slice(0, 300) || `Chapter ${index + 1}`, content: chapter.content, kind: chapter.kind || 'chapter' });
         }
         if (totalChars > limits.maxTotalChars) return res.status(400).json({ message: 'The book is too long to import in one go.' });
 
@@ -89,14 +102,15 @@ const commitImport = async (req, res) => {
             const buffer = decodeImageDataUri(images[key], limits);
             imageBytes += buffer.length;
             if (imageBytes > limits.maxTotalImageBytes) return res.status(400).json({ message: 'The images in this import are too large.' });
-            urls[key] = (await uploadBufferToCloudinary(buffer, 'ebook-creator/chapters')).secure_url;
+            urls[key] = optimisedImageUrl((await uploadBufferToCloudinary(buffer, 'ebook-creator/chapters')).secure_url, limits.imageMaxWidth);
         }
         let coverImage = '';
         if (coverKey) coverImage = (await uploadBufferToCloudinary(decodeImageDataUri(images[coverKey], limits), 'ebook-creator/covers')).secure_url;
 
         const finalChapters = chapters.map((chapter) => ({
             title: chapter.title,
-            content: chapter.content.replace(PLACEHOLDER, (all, alt, key) => (urls[key] ? `![${alt}](${urls[key]})` : '')).replace(/\n{3,}/g, '\n\n').trim(),
+            kind: chapter.kind,
+            content: chapter.content.replace(PLACEHOLDER, (all, alt, key) => (urls[key] ? `![${cleanAlt(alt)}](${urls[key]})` : '')).replace(/\n{3,}/g, '\n\n').trim(),
         }));
 
         const book = await Book.create({
@@ -120,4 +134,4 @@ const commitImport = async (req, res) => {
     }
 };
 
-module.exports = { parseImport, commitImport };
+module.exports = { parseImport, commitImport, optimisedImageUrl };

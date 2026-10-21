@@ -682,16 +682,39 @@ purchase decision email and the link preview).
   entry count, declared and actual unpacked size, per-entry size, path
   depth and unsafe paths are capped (utils/import/zipSafe.js). PDFs are read
   by unpdf in a worker thread with a memory cap and a 30s timeout; scanned
-  PDFs (no text) are refused, and PDF imports are text only. Images
-  (PNG/JPEG/GIF/WebP, checked by signature, count and size caps) stay in
-  the draft as `kenlibs-import:<key>` placeholders and are uploaded to
-  Cloudinary only on save, only if still used. Rate limits per admin:
-  parse 30/hour, commit 60/hour.
-- Review screen: title, author, description, cover (the one found in the
-  file, or upload one), rights type, holder and royalty %; chapters can be
-  renamed, merged (the next title becomes a heading), split before any
-  paragraph, reordered and deleted (utils/importDraft.js, unit-tested).
-  Saving always creates a draft and opens the editor.
+  PDFs (no text) are refused. PDFs keep their pictures: the worker reads
+  positioned text and the pictures drawn on each page, and
+  utils/import/pdfLayout.js rebuilds headings (bigger type), paragraphs,
+  picture positions, and removes running headers, footers and page
+  numbers. Pictures (PNG/JPEG/GIF/WebP, checked by signature and a readable
+  header; damaged ones and SVG left out; the same picture twice stored
+  once; IMPORT_MAX_IMAGES / IMPORT_MAX_IMAGE_MB / IMPORT_MAX_TOTAL_IMAGE_MB)
+  stay in the draft as `kenlibs-import:<key>` placeholders, with their alt
+  text or caption, and are uploaded to Cloudinary (ebook-creator/chapters)
+  only on save, only if still used, delivered as f_auto,q_auto at most
+  IMPORT_IMAGE_MAX_WIDTH wide. Rate limits per admin: parse 30/hour,
+  commit 60/hour.
+- Chapters (utils/import/chapters.js): structure first (EPUB contents,
+  Word Heading 1, Markdown #), then chapter lines ("Chapter 1", "CHAPTER
+  ONE", "Chapter 3: Title", numbers one to fifty and roman, sequential
+  "1. Title"), then a printed table of contents; PDFs try the printed
+  contents first. A printed contents list is removed from the text and used
+  to check the titles. Front and back matter (Dedication, Foreword,
+  Preface, Introduction, Acknowledgements, Prologue, Epilogue, Conclusion,
+  Afterword, About the author, Appendix …) keep their names and are stored
+  as `chapters[].kind` 'front' / 'back' (parts: 'part'); only 'chapter' is
+  numbered in the reader ("Preface", never "Chapter 1: Preface"). One very
+  long chapter is never accepted silently.
+- Review screen: a summary line ("12 chapters, 3 front/back matter
+  sections, 18 images, 4 warnings"), warnings, notes on what was left out,
+  title, author, description, cover (a cover found in the file is offered,
+  never set automatically, or upload one), rights type, holder and royalty
+  %; each section shows title, kind, words, pictures and first lines and
+  can be renamed, re-kinded, merged with the previous or next, split before
+  any paragraph or by a pattern (a line prefix or /regex/), reordered,
+  deleted, and have its pictures switched off (utils/importDraft.js,
+  unit-tested). Saving always creates a draft and opens the editor; the
+  editor can change a chapter's kind ("Shown to readers as").
 - Rights (`Book.rights`, admin-only, PUT /api/books/:id/rights,
   components/editor/RightsPanel.jsx): type own (default; existing books need
   no migration) / licensed / public domain, holder name and contact,

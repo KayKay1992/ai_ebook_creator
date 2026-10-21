@@ -841,7 +841,8 @@ const generateChapterSummary = async (req, res) => {
     if (!chapter) {
       return res.status(404).json({ message: "Chapter not found in this book." });
     }
-    const content = String(chapter.content || "").trim();
+    // Pictures (e.g. from an imported book) are not text to summarise.
+    const content = String(chapter.content || "").replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\n{3,}/g, "\n\n").trim();
     if (!content) {
       return res.status(400).json({ message: "This chapter has no text to summarise yet." });
     }

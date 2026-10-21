@@ -5,23 +5,30 @@ const { DOMParser } = require('@xmldom/xmldom');
 const { detectFormat, ImportError } = require('./fileType');
 const { readZip, detectZipFormat } = require('./zipSafe');
 const { htmlToBlocks, stripDoctype } = require('./htmlToMarkdown');
-const { splitIntoChapters, wordCount } = require('./chapters');
-const { createImageStore } = require('./images');
+const { splitIntoChapters, imageCount } = require('./chapters');
+const { createImageStore, skippedImageWarnings } = require('./images');
 const { extractPdfText } = require('./pdfText');
+const { layoutPdf } = require('./pdfLayout');
+const { parseChapterLine, tidyTitle } = require('./sectionNames');
 const { importLimits } = require('./limits');
 
 // "Import a book": parses an uploaded .docx / .epub / .pdf / .md / .txt
 // (already in memory; the original file is never stored) into a draft for
 // the review screen:
-//   { format, title, author, description, chapters: [{ title, content,
-//     wordCount }], images: { key: { contentType, bytes, dataUri } },
-//     coverKey, warnings: [] }
-// Chapter content is Markdown; images are `kenlibs-import:<key>`
-// placeholders until the book is saved (importController.commitImport).
+//   { format, title, author, description, chapters: [{ title, kind,
+//     content, wordCount, imageCount }], images: { key: { contentType,
+//     bytes, width, height, dataUri } }, coverKey, warnings: [], notes: [],
+//     needsSplit, method }
+// Every format becomes a list of blocks (htmlToMarkdown.js, pdfLayout.js)
+// that utils/import/chapters.js splits into chapters. Chapter content is
+// Markdown; pictures are `kenlibs-import:<key>` placeholders until the book
+// is saved (importController.commitImport). `kind` is 'chapter' (numbered),
+// 'front' / 'back' (front and back matter) or 'part'.
 
 const quiet = { warning() {}, error() {}, fatalError() {} };
 const parseXml = (text) => new DOMParser({ errorHandler: quiet }).parseFromString(stripDoctype(text), 'application/xml');
 const byLocalName = (node, name) => Array.from(node.getElementsByTagName('*')).filter((el) => (el.localName || el.nodeName) === name || el.nodeName.endsWith(`:${name}`));
+const childrenNamed = (node, name) => Array.from(node.childNodes || []).filter((el) => el.nodeType === 1 && ((el.localName || el.nodeName) === name || el.nodeName.endsWith(`:${name}`)));
 const firstText = (node, name) => (byLocalName(node, name)[0]?.textContent || '').replace(/\s+/g, ' ').trim();
 const stripTags = (html) => String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
 const fileTitle = (fileName) => String(fileName || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().slice(0, 200) || 'Untitled book';
@@ -40,23 +47,39 @@ const parseDocx = async (buffer, limits, imageStore) => {
         title = firstText(doc, 'title');
         author = firstText(doc, 'creator');
     }
+    let externalImages = 0;
     const result = await mammoth.convertToHtml(
         { buffer },
         {
-            // Images become placeholders; external/linked images are dropped.
+            // Embedded pictures become placeholders (with their alt text);
+            // linked (external) pictures are never fetched.
             convertImage: mammoth.images.imgElement((image) =>
-                image.read().then((data) => {
-                    const key = imageStore.add(Buffer.from(data));
-                    return { src: key ? `kenlibs-import:${key}` : '' };
-                })
+                image.read().then(
+                    (data) => {
+                        const key = imageStore.add(Buffer.from(data));
+                        return { src: key ? `kenlibs-import:${key}` : '', alt: image.altText || '' };
+                    },
+                    () => {
+                        externalImages++;
+                        return { src: '' };
+                    }
+                )
             ),
             ignoreEmptyParagraphs: true,
-            // Word's quote styles become block quotes.
-            styleMap: ["p[style-name='Quote'] => blockquote > p:fresh", "p[style-name='Intense Quote'] => blockquote > p:fresh", 'p.Quote => blockquote > p:fresh', 'p.IntenseQuote => blockquote > p:fresh'],
+            styleMap: [
+                // Word's quote styles become block quotes, captions captions.
+                "p[style-name='Quote'] => blockquote > p:fresh",
+                "p[style-name='Intense Quote'] => blockquote > p:fresh",
+                'p.Quote => blockquote > p:fresh',
+                'p.IntenseQuote => blockquote > p:fresh',
+                "p[style-name='Caption'] => figcaption:fresh",
+                'p.Caption => figcaption:fresh',
+            ],
         }
     );
     const blocks = htmlToBlocks(result.value, { resolveImage: (src) => (src.startsWith('kenlibs-import:') ? src.slice(15) : '') });
-    return { blocks, title, author, description: '', coverKey: null, warnings: [] };
+    const warnings = externalImages ? [`${externalImages} linked picture${externalImages === 1 ? ' was' : 's were'} left out (only pictures saved inside the file are imported).`] : [];
+    return { blocks, title, author, description: '', coverKey: null, warnings, notes: [] };
 };
 
 // ---------- .epub ----------
@@ -72,12 +95,21 @@ const parseEpub = async (buffer, limits, imageStore) => {
     if (!opfText) throw new ImportError('The .epub is missing its package file.');
     const opf = parseXml(opfText);
     const base = path.dirname(rootPath);
-    const resolve = (from, href) => {
-        const clean = decodeURIComponent(String(href || '').split('#')[0]);
-        if (!clean || /^[a-z]+:/i.test(clean)) return null;
-        const joined = path.normalize(path.join(from === '.' ? '' : from, clean));
-        return joined.startsWith('..') ? null : joined.replace(/^\.\//, '');
+    // → { file, anchor } inside the archive, or null for anything outside it.
+    const resolveRef = (from, href) => {
+        const [rawFile, rawAnchor] = String(href || '').split('#');
+        let file;
+        try {
+            file = decodeURIComponent(rawFile);
+        } catch {
+            return null;
+        }
+        if (/^[a-z]+:/i.test(file)) return null;
+        const joined = file ? path.normalize(path.join(from === '.' ? '' : from, file)) : null;
+        if (!joined || joined.startsWith('..')) return null;
+        return { file: joined.replace(/^\.\//, ''), anchor: rawAnchor || '' };
     };
+    const resolve = (from, href) => resolveRef(from, href)?.file || null;
 
     const manifest = new Map();
     for (const item of byLocalName(opf, 'item')) {
@@ -91,31 +123,53 @@ const parseEpub = async (buffer, limits, imageStore) => {
     const author = byLocalName(opf, 'creator').map((c) => c.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ');
     const description = stripTags(firstText(opf, 'description')).slice(0, 2000);
 
-    // Table of contents: EPUB 3 nav, else EPUB 2 NCX. file → first label.
-    const tocLabels = new Map();
+    // Table of contents (EPUB 3 nav, else EPUB 2 NCX) → ordered entries
+    // { file, anchor, label, depth, hasChildren }.
+    const entries = [];
     const navItem = [...manifest.values()].find((m) => m.properties.split(/\s+/).includes('nav'));
     if (navItem && read(navItem.href)) {
         const nav = parseXml(read(navItem.href));
-        for (const a of byLocalName(nav, 'a')) {
-            const file = resolve(path.dirname(navItem.href), a.getAttribute('href'));
-            const label = a.textContent.replace(/\s+/g, ' ').trim();
-            if (file && label && !tocLabels.has(file)) tocLabels.set(file, label);
-        }
+        const navs = byLocalName(nav, 'nav');
+        const tocNav = navs.find((n) => /\btoc\b/.test(n.getAttribute('epub:type') || n.getAttribute('type') || '')) || navs[0];
+        const walk = (ol, depth) => {
+            for (const li of childrenNamed(ol, 'li')) {
+                const a = childrenNamed(li, 'a')[0] || childrenNamed(li, 'span')[0];
+                const nested = childrenNamed(li, 'ol')[0];
+                const ref = a && resolveRef(path.dirname(navItem.href), a.getAttribute('href'));
+                const label = a ? a.textContent.replace(/\s+/g, ' ').trim() : '';
+                if (label) entries.push({ file: ref?.file || null, anchor: ref?.anchor || '', label, depth, hasChildren: Boolean(nested) });
+                if (nested) walk(nested, depth + 1);
+            }
+        };
+        const top = tocNav && childrenNamed(tocNav, 'ol')[0];
+        if (top) walk(top, 0);
     } else {
         const tocId = byLocalName(opf, 'spine')[0]?.getAttribute('toc');
         const ncxItem = manifest.get(tocId) || [...manifest.values()].find((m) => m.type === 'application/x-dtbncx+xml');
         if (ncxItem && read(ncxItem.href)) {
             const ncx = parseXml(read(ncxItem.href));
-            for (const point of byLocalName(ncx, 'navPoint')) {
-                const label = firstText(point, 'text');
-                const src = byLocalName(point, 'content')[0]?.getAttribute('src');
-                const file = resolve(path.dirname(ncxItem.href), src);
-                if (file && label && !tocLabels.has(file)) tocLabels.set(file, label);
-            }
+            const walk = (node, depth) => {
+                for (const point of childrenNamed(node, 'navPoint')) {
+                    const label = (byLocalName(childrenNamed(point, 'navLabel')[0] || point, 'text')[0]?.textContent || '').replace(/\s+/g, ' ').trim();
+                    const ref = resolveRef(path.dirname(ncxItem.href), childrenNamed(point, 'content')[0]?.getAttribute('src'));
+                    const nested = childrenNamed(point, 'navPoint').length > 0;
+                    if (label) entries.push({ file: ref?.file || null, anchor: ref?.anchor || '', label, depth, hasChildren: nested });
+                    walk(point, depth + 1);
+                }
+            };
+            const navMap = byLocalName(ncx, 'navMap')[0];
+            if (navMap) walk(navMap, 0);
         }
     }
+    // Chapters are the top level of the contents; when every top-level
+    // entry holds others (Part One › Chapter 1 …), the next level down, with
+    // the parts as dividers.
+    const topLevel = entries.filter((e) => e.depth === 0);
+    const useDepth = topLevel.length && topLevel.every((e) => e.hasChildren || parseChapterLine(e.label)?.kind === 'part') && entries.some((e) => e.depth === 1) ? 1 : 0;
+    const splitEntries = entries.filter((e) => e.file && e.depth <= useDepth);
 
-    // Cover image (EPUB 3 property or EPUB 2 <meta name="cover">).
+    // Cover image (EPUB 3 property or EPUB 2 <meta name="cover">). Offered
+    // on the review screen, never set automatically.
     let coverKey = null;
     const coverMetaId = byLocalName(opf, 'meta').find((m) => m.getAttribute('name') === 'cover')?.getAttribute('content');
     const coverItem = [...manifest.values()].find((m) => m.properties.split(/\s+/).includes('cover-image')) || manifest.get(coverMetaId);
@@ -123,10 +177,10 @@ const parseEpub = async (buffer, limits, imageStore) => {
         coverKey = imageStore.add(zip.files.get(coverItem.href));
     }
 
-    // Spine order; one chapter per document (TOC label, else its first heading).
-    const chapters = [];
+    const blocks = [];
     const warnings = [];
-    let order = 0;
+    const notes = [];
+    let seenText = false;
     for (const ref of byLocalName(opf, 'itemref')) {
         if (ref.getAttribute('linear') === 'no') continue;
         const item = manifest.get(ref.getAttribute('idref'));
@@ -134,27 +188,43 @@ const parseEpub = async (buffer, limits, imageStore) => {
         const source = read(item.href);
         if (!source) continue;
         const dir = path.dirname(item.href);
-        const blocks = htmlToBlocks(source, {
+        const here = splitEntries.filter((e) => e.file === item.href);
+        const anchors = new Set(here.map((e) => e.anchor).filter(Boolean));
+        const docBlocks = htmlToBlocks(source, {
             xhtml: true,
+            anchors,
             resolveImage: (src) => {
                 const file = resolve(dir, src);
                 if (!file || !IMAGE_EXT.test(file) || !zip.files.get(file)) return '';
-                if (coverItem && file === coverItem.href) return coverKey || '';
+                if (coverItem && file === coverItem.href) return ''; // the cover is offered separately
                 return imageStore.add(zip.files.get(file)) || '';
             },
         });
-        const textBlocks = blocks.filter((b) => b.kind !== 'image');
-        if (!textBlocks.length) continue; // cover page, image-only page
-        order++;
-        const firstHeading = blocks.find((b) => b.kind === 'heading');
-        const chapterTitle = tocLabels.get(item.href) || firstHeading?.text || `Chapter ${order}`;
-        // Drop a leading heading that just repeats the chapter title.
-        const body = blocks[0]?.kind === 'heading' && blocks[0].text.toLowerCase() === chapterTitle.toLowerCase() ? blocks.slice(1) : blocks;
-        const content = body.map((b) => b.markdown).join('\n\n').trim();
-        chapters.push({ title: chapterTitle.slice(0, 300), content, wordCount: wordCount(content) });
+        const hasText = docBlocks.some((b) => b.kind === 'heading' || b.kind === 'block');
+        // A cover page (picture only) before any text.
+        if (!hasText && !seenText) continue;
+        if (hasText) seenText = true;
+        const marker = (entry) => ({ kind: 'split', title: entry.label, part: entry.depth < useDepth });
+        const placed = new Set();
+        const out = docBlocks.flatMap((b) => {
+            if (b.kind !== 'anchor') return [b];
+            const entry = here.find((e) => e.anchor === b.id && !placed.has(e));
+            if (!entry) return [];
+            placed.add(entry);
+            return [marker(entry)];
+        });
+        // Entries for the file itself (or whose anchor wasn't found) start it.
+        const atStart = here.filter((e) => !placed.has(e)).slice(0, 1);
+        if (!atStart.length && !here.length && docBlocks[0]?.kind === 'heading' && !splitEntries.length) {
+            // No table of contents at all: each file that starts with a
+            // heading is a chapter.
+            atStart.push({ label: docBlocks[0].text, depth: 0 });
+        }
+        // (A first heading that repeats the title is dropped by chapters.js.)
+        blocks.push(...atStart.map(marker), ...out);
     }
-    if (!chapters.length) warnings.push('No readable chapters were found in this .epub.');
-    return { chapters, title, author, description, coverKey, warnings };
+    if (!blocks.some((b) => b.kind === 'block' || b.kind === 'heading')) warnings.push('No readable chapters were found in this .epub.');
+    return { blocks, title, author, description, coverKey, warnings, notes };
 };
 
 // ---------- .md / .txt ----------
@@ -168,8 +238,8 @@ const parseMarkdown = (buffer) => {
             return '';
         },
     });
-    const warnings = externalImages ? [`${externalImages} image link${externalImages === 1 ? ' was' : 's were'} left out of the Markdown (upload images in the editor instead).`] : [];
-    return { blocks, title: '', author: '', description: '', coverKey: null, warnings };
+    const warnings = externalImages ? [`${externalImages} picture link${externalImages === 1 ? ' was' : 's were'} left out of the Markdown (pictures next to a Markdown file and web addresses aren't imported; add them in the editor).`] : [];
+    return { blocks, title: '', author: '', description: '', coverKey: null, warnings, notes: [] };
 };
 
 const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -178,14 +248,13 @@ const paragraphsToHtml = (paragraphs) => paragraphs.map((p) => `<p>${escapeHtml(
 const parseText = (buffer) => {
     const text = new TextDecoder('utf-8').decode(buffer).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
     const paragraphs = text.split(/\n\s*\n/).map((p) => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
-    return { blocks: htmlToBlocks(paragraphsToHtml(paragraphs)), title: '', author: '', description: '', coverKey: null, warnings: [] };
+    return { blocks: htmlToBlocks(paragraphsToHtml(paragraphs)), title: '', author: '', description: '', coverKey: null, warnings: [], notes: [] };
 };
 
-// ---------- .pdf (text only) ----------
-const parsePdf = async (buffer) => {
-    const { totalPages, pages, title, author } = await extractPdfText(buffer);
-    const allText = pages.join('\n');
-    const chars = allText.replace(/\s/g, '').length;
+// ---------- .pdf ----------
+const parsePdf = async (buffer, limits, imageStore) => {
+    const { totalPages, pages, title, author, imageFailures, imageLimitReached } = await extractPdfText(buffer, { maxImages: limits.maxImages });
+    const chars = pages.reduce((sum, p) => sum + p.items.reduce((s, i) => s + String(i[0]).replace(/\s/g, '').length, 0), 0);
     const warnings = [];
     if (chars < 50) {
         throw new ImportError('This PDF has almost no text. It looks scanned (pictures of pages); run it through OCR first or use a .docx/.epub.');
@@ -194,27 +263,14 @@ const parsePdf = async (buffer) => {
         warnings.push(`This PDF has very little text for ${totalPages} page${totalPages === 1 ? '' : 's'}. It may be partly scanned; check the chapters carefully.`);
     }
     if (pages.length < totalPages) warnings.push(`Only the first ${pages.length} pages were read.`);
-    // Lines → paragraphs: a line that ends a sentence and is clearly shorter
-    // than the page's usual line length ends its paragraph.
-    const paragraphs = [];
-    for (const page of pages) {
-        const lines = page.split('\n').map((l) => l.trim()).filter(Boolean);
-        const lengths = lines.map((l) => l.length).sort((a, b) => a - b);
-        const typical = lengths[Math.floor(lengths.length * 0.75)] || 0;
-        let current = '';
-        for (const line of lines) {
-            if (/^\d{1,4}$/.test(line)) continue; // page numbers
-            current = current ? `${current} ${line}` : line;
-            const shortLine = line.length < typical * 0.7;
-            if ((shortLine && /[.!?:"”’)]$/.test(line)) || (shortLine && line.length <= 80 && /^(chapter|part)\b/i.test(line))) {
-                paragraphs.push(current);
-                current = '';
-            }
-        }
-        if (current) paragraphs.push(current);
-    }
-    warnings.push('PDF import keeps text only: check paragraph breaks, and add images in the editor.');
-    return { blocks: htmlToBlocks(paragraphsToHtml(paragraphs)), title, author, description: '', coverKey: null, warnings };
+    const { blocks, coverKey, notes } = layoutPdf(pages, { addImage: (png) => imageStore.add(Buffer.from(png)) });
+    if (imageFailures) warnings.push(`${imageFailures} picture${imageFailures === 1 ? '' : 's'} in this PDF couldn't be read and ${imageFailures === 1 ? 'was' : 'were'} left out. If pictures are missing, import the .docx or .epub instead.`);
+    if (imageLimitReached) warnings.push(`Only the first ${limits.maxImages} pictures in the PDF were read.`);
+    notes.push('PDF: headings, paragraphs and picture positions were rebuilt from the page layout. Check paragraph breaks and that every picture is in the right place.');
+    // PDF authors are often the software or a user name ("Usertz"): only a
+    // real-looking name is kept.
+    const realAuthor = /^[\p{L}][\p{L}.'’-]*(\s+[\p{L}][\p{L}.'’-]*)+$/u.test(author) ? author : '';
+    return { blocks, title, author: realAuthor, description: '', coverKey, warnings, notes };
 };
 
 // ---------- entry point ----------
@@ -227,34 +283,37 @@ const parseUpload = async (buffer, fileName, limits = importLimits()) => {
         const ext = String(fileName).toLowerCase().endsWith('.epub') ? 'epub' : 'docx';
         format = ext;
         parsed = ext === 'epub' ? await parseEpub(buffer, limits, imageStore) : await parseDocx(buffer, limits, imageStore);
-    } else if (format === 'pdf') parsed = await parsePdf(buffer);
+    } else if (format === 'pdf') parsed = await parsePdf(buffer, limits, imageStore);
     else if (format === 'markdown') parsed = parseMarkdown(buffer);
     else parsed = parseText(buffer);
 
-    let chapters = parsed.chapters;
-    let titleCandidate = '';
-    if (!chapters) {
-        const split = splitIntoChapters(parsed.blocks, { defaultTitle: 'Chapter 1' });
-        chapters = split.chapters;
-        titleCandidate = split.titleCandidate;
-    }
+    const split = splitIntoChapters(parsed.blocks, { bookTitle: parsed.title, guessedHeadings: format === 'pdf', longChapterWords: limits.longChapterWords });
+    const chapters = split.chapters;
     if (!chapters.length) throw new ImportError('No text was found in the file.');
     if (chapters.length > limits.maxChapters) throw new ImportError(`The file has more than ${limits.maxChapters} chapters; split it into smaller books.`);
     const totalChars = chapters.reduce((sum, c) => sum + c.content.length, 0);
     if (totalChars > limits.maxTotalChars) throw new ImportError('The book is too long to import in one go.');
 
     const { images, skipped } = imageStore.result();
-    const warnings = [...parsed.warnings];
-    if (skipped) warnings.push(`${skipped} image${skipped === 1 ? ' was' : 's were'} left out (unsupported type, or too large).`);
+    // Only pictures still in the text (or the cover) are sent to the review screen.
+    const used = new Set(chapters.flatMap((c) => [...c.content.matchAll(/kenlibs-import:([\w-]+)/g)].map((m) => m[1])));
+    if (parsed.coverKey) used.add(parsed.coverKey);
+    const keptImages = Object.fromEntries(Object.entries(images).filter(([key]) => used.has(key)));
+    const warnings = [...split.warnings, ...parsed.warnings, ...skippedImageWarnings(skipped, limits)];
     return {
         format,
-        title: (parsed.title || titleCandidate || fileTitle(fileName)).slice(0, 300),
+        title: tidyTitle(parsed.title || split.titleCandidate || fileTitle(fileName)).slice(0, 300),
         author: (parsed.author || '').slice(0, 200),
         description: parsed.description || '',
         chapters,
-        images,
+        images: keptImages,
         coverKey: parsed.coverKey || null,
         warnings,
+        notes: [...parsed.notes, ...split.notes],
+        needsSplit: split.needsSplit,
+        longChapterWords: limits.longChapterWords,
+        method: split.method,
+        imageCount: chapters.reduce((sum, c) => sum + imageCount(c.content), 0),
     };
 };
 

@@ -73,7 +73,7 @@ describe('parsing each format', () => {
         expect(draft).toMatchObject({ format: 'pdf', title: 'Notes from Kano', author: 'Musa Ibrahim' });
         expect(draft.chapters.map((c) => c.title)).toEqual(['Chapter 1', 'Chapter 2']);
         expect(draft.chapters[0].content).toContain('The caravan moved slowly');
-        expect(draft.warnings.join(' ')).toMatch(/text only/);
+        expect(draft.notes.join(' ')).toMatch(/page layout/);
     });
 
     it('.pdf that looks scanned is rejected with a clear message', async () => {
@@ -86,11 +86,230 @@ describe('parsing each format', () => {
         expect(md.chapters.map((c) => c.title)).toEqual(['Start', 'End']);
         expect(md.chapters[0].content).toContain('Hello *you* \\<b onclick="x()"\\>raw\\</b\\>');
         expect(md.chapters[0].content).not.toContain('tracker.example');
-        expect(md.warnings.join(' ')).toMatch(/image link was left out/);
+        expect(md.warnings.join(' ')).toMatch(/picture link was left out/);
         const txt = await parseUpload(Buffer.from('Chapter 1\n\nIt was a long day.\n\nChapter 2\n\nNight fell.'), 'story.txt');
         expect(txt.chapters.map((c) => [c.title, c.content])).toEqual([['Chapter 1', 'It was a long day.'], ['Chapter 2', 'Night fell.']]);
         const plain = await parseUpload(Buffer.from('Just one paragraph of text.'), 'one.txt');
         expect(plain.chapters).toHaveLength(1);
+    });
+});
+
+describe('chapter detection', () => {
+    const { wordToNumber, romanToNumber, parseChapterLine, namedSection, tidyTitle } = require('../utils/import/sectionNames');
+    const { splitIntoChapters } = require('../utils/import/chapters');
+    const block = (markdown) => ({ kind: 'block', markdown });
+
+    it('chapter lines, numbers one to fifty, named sections', () => {
+        const words = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+        words.forEach((w, i) => expect(wordToNumber(w)).toBe(i + 1));
+        expect(wordToNumber('twenty-one')).toBe(21);
+        expect(wordToNumber('Thirty Five')).toBe(35);
+        expect(wordToNumber('forty-nine')).toBe(49);
+        expect(wordToNumber('fifty')).toBe(50);
+        expect(wordToNumber('fifty-one')).toBeNull();
+        expect(romanToNumber('xiv')).toBe(14);
+        expect(romanToNumber('civil')).toBeNull();
+        expect(parseChapterLine('Chapter 1')).toEqual({ kind: 'chapter', number: 1, title: '' });
+        expect(parseChapterLine('CHAPTER TWELVE')).toMatchObject({ kind: 'chapter', number: 12 });
+        expect(parseChapterLine('Chapter Twenty-Three: The Road Home')).toEqual({ kind: 'chapter', number: 23, title: 'The Road Home' });
+        expect(parseChapterLine('Chapter 3 - Rain')).toMatchObject({ number: 3, title: 'Rain' });
+        expect(parseChapterLine('Chapter XIV')).toMatchObject({ number: 14 });
+        expect(parseChapterLine('Part One')).toMatchObject({ kind: 'part', number: 1 });
+        expect(parseChapterLine('Part II: The City')).toMatchObject({ kind: 'part', number: 2, title: 'The City' });
+        // Sentences are not chapter lines.
+        expect(parseChapterLine('Chapter 3 was the hardest to write.')).toBeNull();
+        expect(parseChapterLine('Chapter 3: it rained. Then it stopped.')).toBeNull();
+        for (const [line, name] of [['Preface', 'Preface'], ['THE PREFACE', 'Preface'], ['Foreword', 'Foreword'], ['Acknowledgements', 'Acknowledgements'], ['Acknowledgments', 'Acknowledgements'], ['Introduction: Why Money Matters', 'Introduction'], ['About the Author', 'About the author'], ['Appendix B', 'Appendix'], ['The Epilogue', 'Epilogue'], ['Dedication', 'Dedication'], ['Afterword', 'Afterword'], ['Conclusion', 'Conclusion'], ['Prologue', 'Prologue']]) {
+            expect(namedSection(line)?.name).toBe(name);
+        }
+        expect(namedSection('The preface to this edition was written later and says a lot.')).toBeNull();
+        expect(tidyTitle('CHAPTER TWO: The River')).toBe('Chapter Two: The River');
+        expect(tidyTitle('THE MAN WHO DESIRED GOLD')).toBe('The Man Who Desired Gold');
+        expect(tidyTitle('iPhone Diaries')).toBe('iPhone Diaries');
+    });
+
+    it('.docx with real Heading 1s: named front/back matter keep their names, pictures stay in place (alt text, duplicates stored once, damaged ones left out)', async () => {
+        const draft = await parseUpload(await fixtures.makeHeadingsDocx(), 'structured.docx');
+        expect(draft.method).toBe('headings');
+        expect(draft.chapters.map((c) => [c.title, c.kind])).toEqual([
+            ['Preface', 'front'],
+            ['Chapter 1: Dawn', 'chapter'],
+            ['Chapter 2: Noon', 'chapter'],
+            ['Epilogue', 'back'],
+            ['About the Author', 'back'],
+        ]);
+        const [, one, two] = draft.chapters;
+        const paras = one.content.split('\n\n');
+        const at = paras.findIndex((p) => p.startsWith('!['));
+        expect(paras[at]).toMatch(/^!\[A sunrise over Lagos\]\(kenlibs-import:img1\)$/);
+        expect(paras[at - 1]).toMatch(/^Before the picture/);
+        expect(paras[at + 1]).toMatch(/^After the picture/);
+        expect(one.content).toContain('## A quiet street');
+        expect(one.imageCount).toBe(1); // the damaged one is gone
+        expect(two.content).toContain('(kenlibs-import:img1)'); // same picture, same key
+        expect(Object.keys(draft.images)).toEqual(['img1']);
+        expect(draft.images.img1).toMatchObject({ contentType: 'image/png', width: 40, height: 30 });
+        expect(draft.warnings.join(' ')).toMatch(/1 picture was left out: .*damaged/);
+        expect(draft.imageCount).toBe(2);
+    });
+
+    it('.docx with no heading styles: "Chapter One" in bold paragraphs, a table of contents to drop, a Part divider and named sections', async () => {
+        const draft = await parseUpload(await fixtures.makePatternDocx(), 'patterns.docx');
+        expect(draft.method).toBe('patterns');
+        expect(draft.chapters.map((c) => [c.title, c.kind])).toEqual([
+            ['Preface', 'front'],
+            ['Chapter One: The Market', 'chapter'], // the title on the next line joins it
+            ['Chapter Two: The River', 'chapter'],
+            ['Chapter Three', 'chapter'],
+            ['Acknowledgments', 'back'],
+            ['About the Author', 'back'],
+        ]);
+        // The printed contents are gone, not imported as a chapter.
+        expect(draft.chapters.some((c) => /\.\.\.\.|Contents/.test(c.content))).toBe(false);
+        expect(draft.notes.join(' ')).toMatch(/table of contents/);
+        // "Part One" is a divider: kept as a line at the top of the next chapter.
+        expect(draft.chapters[1].content.startsWith('*Part One*')).toBe(true);
+        // "Chapter 3" and "Epilogue" inside a paragraph are just words.
+        expect(draft.chapters[1].content).toContain('Chapter 3 was mentioned here in passing');
+        expect(draft.notes.join(' ')).toMatch(/Left out the start of the file/);
+    });
+
+    it('regression: a book with 12 pattern-style chapters never collapses into one', async () => {
+        for (const options of [{ chapters: 12, toc: false }, { chapters: 12, style: 'digits' }]) {
+            const draft = await parseUpload(await fixtures.makePatternDocx(options), 'twelve.docx');
+            const chapters = draft.chapters.filter((c) => c.kind === 'chapter');
+            expect(chapters).toHaveLength(12);
+            expect(draft.needsSplit).toBe(false);
+        }
+        const text = Array.from({ length: 12 }, (_, i) => `CHAPTER ${i + 1}\n\n${fixtures.prose(900)}`).join('\n\n');
+        const txt = await parseUpload(Buffer.from(text), 'twelve.txt');
+        expect(txt.chapters.map((c) => c.title)).toEqual(Array.from({ length: 12 }, (_, i) => `Chapter ${i + 1}`));
+    });
+
+    it('"1. Title" lines only count as chapters in a clean sequence with text between them', () => {
+        const long = fixtures.prose(150);
+        const numbered = splitIntoChapters([block('1\\. The Start'), block(long), block('2\\. The Middle'), block(long), block('3\\. The End'), block(long)]);
+        expect(numbered.chapters.map((c) => c.title)).toEqual(['1. The Start', '2. The Middle', '3. The End']);
+        // A numbered list of rules (no text between) is not a set of chapters.
+        const list = splitIntoChapters([block('1\\. Save'), block('2\\. Spend less'), block('3\\. Invest'), block(long)]);
+        expect(list.chapters).toHaveLength(1);
+        // Out of order: not a sequence.
+        const shuffled = splitIntoChapters([block('2\\. B'), block(long), block('1\\. A'), block(long), block('4\\. D'), block(long)]);
+        expect(shuffled.chapters).toHaveLength(1);
+    });
+
+    it('a printed table of contents decides the chapters when there are no headings or patterns', () => {
+        const text = fixtures.prose(60);
+        const result = splitIntoChapters([
+            block('Contents'),
+            block('Foreword ix'),
+            block('The Man Who Wanted Gold 1'),
+            block('The Clay Tablets 9'),
+            block('Foreword'),
+            block(text),
+            block('The Man Who Wanted Gold'),
+            block(text),
+            block('The Clay Tablets'),
+            block(text),
+        ]);
+        expect(result.method).toBe('contents');
+        expect(result.chapters.map((c) => [c.title, c.kind])).toEqual([
+            ['Foreword', 'front'],
+            ['The Man Who Wanted Gold', 'chapter'],
+            ['The Clay Tablets', 'chapter'],
+        ]);
+    });
+
+    it('one long chapter is never accepted silently', async () => {
+        const draft = await parseUpload(Buffer.from(fixtures.prose(9000)), 'wall-of-text.txt');
+        expect(draft.chapters).toHaveLength(1);
+        expect(draft.needsSplit).toBe(true);
+        expect(draft.warnings[0]).toMatch(/Only one chapter was found, and it is 9,000 words long/);
+        const short = await parseUpload(Buffer.from(fixtures.prose(300)), 'short.txt');
+        expect(short.needsSplit).toBe(false);
+    });
+
+    it('.epub: contents entries (also anchors inside one file) become chapters; cover offered, not placed; captions kept; SVG and damaged pictures left out', async () => {
+        const draft = await parseUpload(await fixtures.makeRichEpub(), 'lagos.epub');
+        expect(draft.method).toBe('contents');
+        expect(draft.chapters.map((c) => [c.title, c.kind])).toEqual([
+            ['Dedication', 'front'],
+            ['Chapter 1: Arrival', 'chapter'],
+            ['Chapter 2: The Bridge', 'chapter'],
+            ['Afterword', 'back'],
+        ]);
+        const one = draft.chapters[1];
+        expect(one.content).not.toMatch(/^#/); // the repeated title heading is dropped
+        const paras = one.content.split('\n\n');
+        const at = paras.findIndex((p) => p.startsWith('!['));
+        expect(paras[at]).toMatch(/^!\[The Third Mainland Bridge\]\(kenlibs-import:img\d+\)$/);
+        expect(paras[at + 1]).toBe('*The Third Mainland Bridge*');
+        expect(paras[at - 1]).toMatch(/^The bus came in at night/);
+        expect(one.imageCount).toBe(1);
+        expect(draft.chapters.map((c) => c.content).join(' ')).not.toMatch(/svg|logo|bad/);
+        expect(draft.coverKey).toBeTruthy();
+        expect(draft.chapters.some((c) => c.content.includes(draft.coverKey + ')'))).toBe(false);
+        expect(draft.images[draft.coverKey]).toMatchObject({ width: 60, height: 90 });
+        expect(draft.warnings.join(' ')).toMatch(/damaged/);
+    });
+
+    it('.pdf: big type becomes chapters, the running header goes, the picture stays between its paragraphs', async () => {
+        const draft = await parseUpload(await fixtures.makeLayoutPdf(), 'tales.pdf');
+        expect(draft.chapters.map((c) => [c.title, c.kind])).toEqual([
+            ['The First Tale', 'chapter'],
+            ['The Second Tale', 'chapter'],
+        ]);
+        const all = draft.chapters.map((c) => c.content).join('\n\n');
+        expect(all).not.toContain('THE TEST TALES');
+        const paras = draft.chapters[0].content.split('\n\n');
+        const at = paras.findIndex((p) => p.startsWith('!['));
+        expect(at).toBeGreaterThan(0);
+        expect(paras[at - 1]).toMatch(/^It began at the market/);
+        expect(paras[at + 1]).toMatch(/^After the picture/);
+        const key = paras[at].match(/kenlibs-import:(img\d+)/)[1];
+        expect(draft.images[key]).toMatchObject({ contentType: 'image/png', width: 120, height: 60 });
+    });
+
+    it('PDF layout: headers/footers removed, hyphenated line ends joined, paragraphs across pages, cover page offered', () => {
+        const { layoutPdf } = require('../utils/import/pdfLayout');
+        const line = (s, x, y, size = 11, w = 260) => [s, x, y, w, size, 'f'];
+        const filler = (y0, n, x = 50) => Array.from({ length: n }, (_, i) => line('The traders counted their goods and told old stories again', i === 0 ? x + 10 : x, y0 - i * 13));
+        let added = 0;
+        const pages = [
+            { width: 380, height: 540, items: [], images: [{ top: 500, bottom: 40, left: 0, right: 380, width: 600, height: 850, png: Buffer.from('cover') }] },
+            { width: 380, height: 540, items: [line('The First Tale', 90, 450, 20, 150), ...filler(400, 3), line('they paid in fi-', 50, 361), line('nancial terms and the day went', 50, 348), line('9', 180, 30, 11, 6)], images: [] },
+            { width: 380, height: 540, items: [line('10 THE TEST TALES', 50, 512, 11, 120), line('on until the evening came at last', 50, 492), ...filler(479, 3)], images: [] },
+            { width: 380, height: 540, items: [line('The First Tale 11', 150, 512, 11, 120), ...filler(492, 4)], images: [] },
+        ];
+        const { blocks, coverKey, notes } = layoutPdf(pages, { addImage: () => `img${++added}` });
+        expect(coverKey).toBe('img1');
+        expect(blocks[0]).toMatchObject({ kind: 'heading', text: 'The First Tale' });
+        const text = blocks.filter((b) => b.kind === 'block').map((b) => b.markdown);
+        expect(text.join(' ')).toContain('in financial terms');
+        // The paragraph continues on the next page; no header, no page numbers.
+        expect(text.join(' ')).toContain('the day went on until the evening');
+        expect(text.join(' ')).not.toMatch(/TEST TALES|First Tale 11|\b9\b/);
+        expect(notes.join(' ')).toMatch(/offered as the cover/);
+    });
+
+    it('imported pictures never break the reader-side text builders', () => {
+        const { markdownToNarration } = require('../utils/narrationText');
+        const { splitBlocks, isTranslatable } = require('../utils/translationText');
+        const content = 'Before.\n\n![A sunrise over Lagos](https://res.cloudinary.com/x/image/upload/f_auto,q_auto,c_limit,w_1600/v1/ebook-creator/chapters/a.png)\n\n*A sunrise over Lagos*\n\nAfter.';
+        const spoken = markdownToNarration(content);
+        expect(spoken).not.toMatch(/cloudinary|f_auto|!\[/);
+        expect(spoken).toContain('Before.');
+        const imageBlock = splitBlocks(content).find((b) => b.startsWith('!['));
+        expect(isTranslatable(imageBlock)).toBe(false);
+    });
+
+    it('picture limits: oversized and over-the-count pictures are left out with a warning', async () => {
+        const tiny = { ...importLimits(), maxImageBytes: 20 };
+        const draft = await parseUpload(await fixtures.makeHeadingsDocx(), 'big.docx', tiny);
+        expect(Object.keys(draft.images)).toHaveLength(0);
+        expect(draft.warnings.join(' ')).toMatch(/larger than/);
+        const few = await parseUpload(await fixtures.makeRichEpub(), 'few.epub', { ...importLimits(), maxImages: 1 });
+        expect(few.warnings.join(' ')).toMatch(/allows 1 pictures/);
     });
 });
 
@@ -167,7 +386,8 @@ describe('import API', () => {
         expect(book.status).toBe('draft');
         expect(book.author).toBe('Ade Bello');
         expect(book.chapters).toHaveLength(1);
-        expect(book.chapters[0].content).toMatch(/!\[Dust\]\(https:\/\/res\.cloudinary\.com\/fake\/image\/upload\/ebook-creator\/chapters\/upload-\d+\.png\)/);
+        // Delivered optimised (f_auto,q_auto, at most IMPORT_IMAGE_MAX_WIDTH wide).
+        expect(book.chapters[0].content).toMatch(/!\[Dust\]\(https:\/\/res\.cloudinary\.com\/fake\/image\/upload\/f_auto,q_auto,c_limit,w_1600\/ebook-creator\/chapters\/upload-\d+\.png\)/);
         expect(book.chapters[0].content).not.toContain('kenlibs-import:');
         expect(book.coverImage).toMatch(/ebook-creator\/covers\//);
         expect(book.rights).toMatchObject({ type: 'licensed', holderName: 'Ade Bello', royaltyPercent: 15, confirmedAt: null });
@@ -202,6 +422,45 @@ describe('import API', () => {
             images: { img1: `data:image/png;base64,${Buffer.from('<svg onload=alert(1)>').toString('base64')}` },
         });
         expect(forged.status).toBe(400);
+        expect((await post({ title: 'T', author: 'A', chapters: [{ title: 'x', content: 'y', kind: 'appendix' }] })).status).toBe(400);
+    });
+
+    it('front/back matter keeps its kind through commit, the editor and the reader; no chapter number in the share preview', async () => {
+        const admin = await createUser({ role: 'admin' });
+        const parsed = await request(app).post('/api/admin/import/parse').set(auth(admin)).attach('file', await fixtures.makeHeadingsDocx(), 'structured.docx');
+        expect(parsed.status).toBe(200);
+        expect(parsed.body.chapters.map((c) => c.kind)).toEqual(['front', 'chapter', 'chapter', 'back', 'back']);
+        const commit = await request(app)
+            .post('/api/admin/import/commit')
+            .set(auth(admin))
+            .send({ ...parsed.body, chapters: parsed.body.chapters.map(({ title, content, kind }) => ({ title, content, kind })) });
+        expect(commit.status).toBe(201);
+        const book = await Book.findById(commit.body._id).lean();
+        expect(book.chapters.map((c) => [c.title, c.kind])).toEqual([
+            ['Preface', 'front'],
+            ['Chapter 1: Dawn', 'chapter'],
+            ['Chapter 2: Noon', 'chapter'],
+            ['Epilogue', 'back'],
+            ['About the Author', 'back'],
+        ]);
+        // The same picture twice: uploaded once, used in both chapters.
+        const urls = book.chapters.flatMap((c) => [...c.content.matchAll(/\]\((https:[^)]+)\)/g)].map((m) => m[1]));
+        expect(urls).toHaveLength(2);
+        expect(new Set(urls).size).toBe(1);
+        expect(book.chapters[1].content).toContain('![A sunrise over Lagos](https://');
+        // The editor can change a kind, but only to a known one.
+        const chapters = book.chapters.map((c) => ({ ...c, _id: String(c._id) }));
+        const bad = await request(app).put(`/api/books/${book._id}`).set(auth(admin)).send({ chapters: chapters.map((c, i) => (i === 0 ? { ...c, kind: 'cover' } : c)) });
+        expect(bad.status).toBe(400);
+        const ok = await request(app).put(`/api/books/${book._id}`).set(auth(admin)).send({ chapters: chapters.map((c, i) => (i === 4 ? { ...c, kind: 'chapter' } : c)) });
+        expect(ok.status).toBe(200);
+        expect(ok.body.chapters.map((c) => c.kind)).toEqual(['front', 'chapter', 'chapter', 'back', 'chapter']);
+    });
+
+    it('picture caps come from the environment, within safe bounds', () => {
+        const limits = importLimits({ IMPORT_MAX_IMAGES: '10', IMPORT_MAX_IMAGE_MB: '2', IMPORT_MAX_TOTAL_IMAGE_MB: '500', IMPORT_IMAGE_MAX_WIDTH: '1200', IMPORT_LONG_CHAPTER_WORDS: '5000' });
+        expect(limits).toMatchObject({ maxImages: 10, maxImageBytes: 2 * 1024 * 1024, maxTotalImageBytes: 35 * 1024 * 1024, imageMaxWidth: 1200, longChapterWords: 5000 });
+        expect(importLimits({})).toMatchObject({ maxImages: 150, maxImageBytes: 8 * 1024 * 1024, maxTotalImageBytes: 30 * 1024 * 1024, imageMaxWidth: 1600, longChapterWords: 8000 });
     });
 
     it('parse is rate-limited per admin', async () => {

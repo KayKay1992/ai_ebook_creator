@@ -9,6 +9,7 @@ import {
   BookOpen,
   Wand2,
 } from "lucide-react";
+import { chapterNumbers, fallbackTitle } from "../../utils/chapterKinds";
 import {
   DndContext,
   closestCenter,
@@ -29,9 +30,12 @@ import Modal from "../ui/Modal";
 
 const MAX_GENERATE_MORE_CHAPTERS = 10;
 
+const KIND_TAGS = { front: "Front", back: "Back", part: "Part" };
+
 const SortableItem = ({
   chapter,
   index,
+  number,
   onSelectChapter,
   onDeleteChapter,
   selectedChapterIndex,
@@ -91,15 +95,20 @@ const SortableItem = ({
                 : "bg-gray-100 text-gray-600"
             }`}
           >
-            {index + 1}
+            {number ?? <span aria-hidden="true">•</span>}
           </span>
           <span
             className={`truncate text-sm font-serif font-medium ${
               isSelected ? "text-accent-900" : "text-gray-700"
             }`}
           >
-            {chapter.title || `Chapter ${index + 1}`}
+            {chapter.title || fallbackTitle(chapter, number)}
           </span>
+          {KIND_TAGS[chapter.kind] && (
+            <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 rounded-md px-1.5 py-0.5">
+              {KIND_TAGS[chapter.kind]}
+            </span>
+          )}
         </div>
       </button>
 
@@ -175,6 +184,7 @@ const ChapterSidebar = ({
     useSensor(KeyboardSensor)
   );
 
+  const numbers = chapterNumbers(book.chapters);
   const chapterIds = book.chapters.map(
     (chapter, index) => chapter._id || `new-${index}`
   );
@@ -240,6 +250,7 @@ const ChapterSidebar = ({
                   key={chapter._id || `new-${index}`}
                   chapter={chapter}
                   index={index}
+                  number={numbers[index]}
                   onSelectChapter={onSelectChapter}
                   onDeleteChapter={onDeleteChapter}
                   selectedChapterIndex={selectedChapterIndex}

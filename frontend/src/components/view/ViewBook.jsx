@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Menu } from "lucide-react";
 import ViewChapterSidebar from "./ViewChapterSidebar";
 import MarkdownContent from "../shared/MarkdownContent";
+import { chapterNumbers, fallbackTitle } from "../../utils/chapterKinds";
 
 // Duration of each half of the chapter crossfade (fade-out, then fade-in),
 // in ms — kept in sync with the CSS transition-duration class below.
@@ -127,7 +128,7 @@ const ViewBook = forwardRef(function ViewBook(
   const chapterContent = selectedChapter ? (
     <>
       <h1 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-10 leading-tight">
-        {selectedChapter.title || `Chapter ${selectedChapterIndex + 1}`}
+        {selectedChapter.title || fallbackTitle(selectedChapter, chapterNumbers(chapters)[selectedChapterIndex])}
       </h1>
 
       {renderChapterContent ? (

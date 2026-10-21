@@ -6,6 +6,11 @@ const mongoose = require('mongoose');
 const PREVIEW_CONTENT_MAX_LENGTH = 2000;
 // Same story for chapter summaries (3-5 sentences fit comfortably).
 const CHAPTER_SUMMARY_MAX_LENGTH = 1200;
+// What a chapter is: a numbered chapter, or front/back matter and part
+// dividers, which keep their own title and get no chapter number in the
+// reader (Preface, not "Chapter 1: Preface"). Set by "Import a book" and
+// the editor; enforced in updateBook (findByIdAndUpdate skips validators).
+const CHAPTER_KINDS = ['chapter', 'front', 'back', 'part'];
 
 // Mirrors utils/tts.js's DEFAULT_VOICE (not imported, to keep the model free
 // of the TTS client).
@@ -92,6 +97,11 @@ const chapterSchema = new mongoose.Schema({
     content: {
         type: String,
         default: ''
+    },
+    kind: {
+        type: String,
+        enum: CHAPTER_KINDS,
+        default: 'chapter'
     },
     // Reader-facing "Chapter recap" (3-5 sentences), drafted by AI via
     // POST /api/ai/chapter-summary or written by hand, and only ever saved
@@ -378,3 +388,4 @@ bookSchema.index({ status: 1, createdAt: -1 });
 module.exports = mongoose.model('Book', bookSchema);
 module.exports.PREVIEW_CONTENT_MAX_LENGTH = PREVIEW_CONTENT_MAX_LENGTH;
 module.exports.CHAPTER_SUMMARY_MAX_LENGTH = CHAPTER_SUMMARY_MAX_LENGTH;
+module.exports.CHAPTER_KINDS = CHAPTER_KINDS;

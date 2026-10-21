@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, X, ChevronDown, Lock } from "lucide-react";
 import CoverPreview from "../cards/CoverPreview";
+import { chapterNumbers, fallbackTitle } from "../../utils/chapterKinds";
 
 const ViewChapterSidebar = ({
   book,
@@ -14,6 +15,8 @@ const ViewChapterSidebar = ({
 }) => {
   const navigate = useNavigate();
   const chapters = book?.chapters || [];
+  // Front/back matter and parts get no number (Preface, not "Chapter 1").
+  const numbers = chapterNumbers(chapters);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const blurb = book?.coverDesign?.back?.blurb?.trim();
   const authorBio = book?.coverDesign?.back?.authorBio?.trim();
@@ -135,6 +138,7 @@ const ViewChapterSidebar = ({
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             {chapters.map((chapter, index) => {
               const isActive = selectedChapterIndex === index;
+              const number = numbers[index];
 
               return (
                 <button
@@ -159,7 +163,7 @@ const ViewChapterSidebar = ({
                           : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
                       }`}
                     >
-                      {index + 1}
+                      {number ?? <span aria-hidden="true">•</span>}
                     </span>
 
                     <div className="min-w-0">
@@ -167,14 +171,14 @@ const ViewChapterSidebar = ({
                         className={`text-sm font-serif font-medium truncate leading-snug
                         ${isActive ? "text-accent-900" : "text-gray-800"}`}
                       >
-                        {chapter.title || `Chapter ${index + 1}`}
+                        {chapter.title || fallbackTitle(chapter, number)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                        Chapter {index + 1}
+                        {number ? `Chapter ${number}` : null}
                         {/* Only the public share-link preview marks chapters locked. */}
                         {chapter.locked && (
                           <>
-                            <span aria-hidden="true">·</span>
+                            {number ? <span aria-hidden="true">·</span> : null}
                             <Lock className="w-3 h-3" />
                             <span>Locked</span>
                           </>

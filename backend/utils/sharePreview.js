@@ -56,7 +56,8 @@ const previewExcerpt = (markdown = '', maxChars = PREVIEW_CHARS) => {
 const buildSharePreview = (book) => {
     const previewChapters = getSharePreviewChapters();
     const chapters = (book.chapters || []).map((chapter, index) => {
-        const base = { _id: chapter._id, title: chapter.title || '' };
+        // kind: so front/back matter isn't numbered in the contents.
+        const base = { _id: chapter._id, title: chapter.title || '', kind: chapter.kind || 'chapter' };
         if (index >= previewChapters) return { ...base, locked: true };
         const { content, truncated } = previewExcerpt(chapter.content || '');
         return { ...base, locked: false, content, isExcerpt: truncated };

@@ -65,8 +65,8 @@ describe('GET /api/public/books/:shareId', () => {
         expect(first.content).toContain('C1P0-MARKER');
         // Cut at a paragraph boundary: whole paragraphs only.
         expect(first.content.split('\n\n').every((p) => /^C1P\d-MARKER .*\.$/.test(p))).toBe(true);
-        expect(second).toEqual({ _id: expect.any(String), title: 'Chapter 2 Title', locked: true });
-        expect(third).toEqual({ _id: expect.any(String), title: 'Chapter 3 Title', locked: true });
+        expect(second).toEqual({ _id: expect.any(String), title: 'Chapter 2 Title', kind: 'chapter', locked: true });
+        expect(third).toEqual({ _id: expect.any(String), title: 'Chapter 3 Title', kind: 'chapter', locked: true });
 
         // The raw response never contains locked or beyond-limit text, nor
         // anything else that isn't for the public.

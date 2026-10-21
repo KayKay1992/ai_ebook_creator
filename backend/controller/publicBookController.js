@@ -22,7 +22,7 @@ const getPublicBookByShareId = async (req, res) => {
       shareId: req.params.shareId,
       status: "published",
     })
-      .select("title subtitle author coverImage coverDesign chapters._id chapters.title chapters.content")
+      .select("title subtitle author coverImage coverDesign chapters._id chapters.title chapters.kind chapters.content")
       .lean();
 
     if (!book) {

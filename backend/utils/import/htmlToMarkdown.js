@@ -20,7 +20,7 @@ const DROP = new Set([
     'select', 'textarea', 'option', 'noscript', 'template', 'head', 'title', 'meta', 'link', 'base', 'audio', 'video',
     'source', 'track', 'canvas', 'map', 'area', 'nav', 'dialog', 'portal',
 ]);
-const BLOCK_CONTAINERS = new Set(['body', 'html', 'div', 'section', 'article', 'main', 'header', 'footer', 'aside', 'figure', 'center', 'dl', 'details', 'summary']);
+const BLOCK_CONTAINERS = new Set(['body', 'html', 'div', 'section', 'article', 'main', 'header', 'footer', 'aside', 'center', 'dl', 'details', 'summary']);
 
 const quiet = { warning() {}, error() {}, fatalError() {} };
 
@@ -127,11 +127,36 @@ const blocks = (node, ctx, out) => {
         if (child.nodeType !== ELEMENT) continue;
         const tag = tagOf(child);
         if (DROP.has(tag)) continue;
+        // Where a table-of-contents entry points inside a file (EPUB).
+        if (ctx.anchors.size) {
+            const id = anchorOf(child, ctx, !BLOCK_CONTAINERS.has(tag));
+            if (id) {
+                flush();
+                out.push({ kind: 'anchor', id });
+            }
+        }
         if (/^h[1-6]$/.test(tag)) {
             flush();
             const text = collapse(inline(child, ctx)).trim();
             if (text) out.push({ kind: 'heading', level: Number(tag[1]), markdown: `${'#'.repeat(Number(tag[1]))} ${text}`, text: collapse(child.textContent || '').trim() });
-        } else if (tag === 'p' || tag === 'dt' || tag === 'dd' || tag === 'caption' || tag === 'figcaption' || tag === 'address') {
+        } else if (tag === 'figcaption') {
+            flush();
+            // A caption: plain text, in italics.
+            const text = escapeText(collapse(child.textContent || '')).trim();
+            if (text) out.push({ kind: 'block', markdown: guardBlockStart(`*${text}*`) });
+        } else if (tag === 'figure') {
+            // A picture with its caption: the caption is also the picture's
+            // alt text when it has none.
+            flush();
+            const inner = [];
+            blocks(child, ctx, inner);
+            const captionEl = Array.from(child.getElementsByTagName('figcaption'))[0];
+            const caption = captionEl ? altText(captionEl.textContent) : '';
+            for (const b of inner) {
+                if (b.kind === 'image' && caption && b.markdown.startsWith('![]')) out.push({ ...b, markdown: `![${caption}]${b.markdown.slice(3)}` });
+                else out.push(b);
+            }
+        } else if (tag === 'p' || tag === 'dt' || tag === 'dd' || tag === 'caption' || tag === 'address') {
             flush();
             const text = collapse(inline(child, ctx)).trim();
             if (text) {
@@ -180,18 +205,50 @@ const blocks = (node, ctx, out) => {
     return out;
 };
 
-// resolveImage(src, alt) → `![alt](kenlibs-import:key)` or '' to drop it.
-const htmlToBlocks = (html, { xhtml = false, resolveImage = () => '' } = {}) => {
+// The id of an element (or, for a paragraph/heading, of anything inside
+// it) that a table-of-contents entry points at; each id is used once.
+const anchorOf = (node, ctx, deep) => {
+    const own = node.getAttribute && node.getAttribute('id');
+    if (own && ctx.anchors.has(own) && !ctx.seenAnchors.has(own)) {
+        ctx.seenAnchors.add(own);
+        return own;
+    }
+    if (!deep || !node.getElementsByTagName) return null;
+    for (const el of Array.from(node.getElementsByTagName('*'))) {
+        const id = el.getAttribute('id');
+        if (id && ctx.anchors.has(id) && !ctx.seenAnchors.has(id)) {
+            ctx.seenAnchors.add(id);
+            return id;
+        }
+    }
+    return null;
+};
+
+// Alt text / captions: plain words only. Brackets, parentheses and
+// Markdown symbols are removed (not escaped) so every reader-side
+// `![...](...)` pattern (speech, narration, translation) still sees
+// the whole image.
+const altText = (text) =>
+    collapse(String(text || ''))
+        .replace(/[[\]()\\*_`<>#|!~]/g, '')
+        .trim()
+        .slice(0, 120);
+
+// resolveImage(src) → key or '' to drop the picture; images become
+// `![alt](kenlibs-import:key)`. `anchors`: ids to report as
+// { kind: 'anchor', id } blocks.
+const htmlToBlocks = (html, { xhtml = false, resolveImage = () => '', anchors = new Set() } = {}) => {
     const body = parseHtml(html, { xhtml });
     const ctx = {
+        anchors,
+        seenAnchors: new Set(),
         resolveImage: (src, alt) => {
             const key = resolveImage(String(src || ''));
             if (!key) return '';
-            const label = escapeText(collapse(String(alt || '')).trim()).slice(0, 120);
-            return `![${label}](kenlibs-import:${key})`;
+            return `![${altText(alt)}](kenlibs-import:${key})`;
         },
     };
     return blocks(body, ctx, []);
 };
 
-module.exports = { htmlToBlocks, escapeText, stripDoctype, parseHtml };
+module.exports = { htmlToBlocks, escapeText, stripDoctype, parseHtml, altText };

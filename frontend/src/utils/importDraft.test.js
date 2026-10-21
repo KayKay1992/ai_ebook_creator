@@ -8,13 +8,23 @@ import {
   mergeWithNext,
   moveChapter,
   paragraphsOf,
+  imageCount,
+  longSingleChapter,
+  mergeWithPrevious,
+  parseSplitPattern,
   renameChapter,
   reviewProblems,
+  reviewSummary,
+  setChapterKind,
+  setKeepOneChapter,
+  splitByPattern,
+  toggleChapterImages,
   splitChapter,
   toCommitPayload,
   wordCount,
 } from "./importDraft.js";
 import { csvCell, licenceState, publishMissing, royaltiesCsv } from "./bookRights.js";
+import { chapterNumbers, fallbackTitle, isNumbered } from "./chapterKinds.js";
 
 const DRAFT = {
   format: "epub",
@@ -72,13 +82,15 @@ test("problems that stop saving", () => {
   let s = createReviewState({ ...DRAFT, author: " " });
   assert.deepEqual(reviewProblems(s), ["Add the author's name."]);
   s = renameChapter(createReviewState(DRAFT), 1, "");
-  assert.deepEqual(reviewProblems(s), ["Chapter 2 needs a title."]);
+  assert.deepEqual(reviewProblems(s), ["Section 2 needs a title."]);
   assert.ok(reviewProblems(createReviewState({ ...DRAFT, chapters: [] })).includes("Keep at least one chapter."));
 });
 
 test("the save payload sends only images still in use (and the cover if kept)", () => {
   const s = createReviewState(DRAFT);
-  const payload = toCommitPayload(s, { rights: { type: "licensed", royaltyPercent: 15 } });
+  // The cover found in the file is only a suggestion: off unless chosen.
+  assert.equal(toCommitPayload(s).coverKey, null);
+  const payload = toCommitPayload(s, { useDetectedCover: true, rights: { type: "licensed", royaltyPercent: 15 } });
   assert.deepEqual(Object.keys(payload.images).sort(), ["img1", "img2"]);
   assert.equal(payload.images.img2, "data:image/png;base64,PIC");
   assert.equal(payload.coverKey, "img1");
@@ -113,4 +125,69 @@ test("CSV export escapes quotes and neutralises spreadsheet formulas", () => {
   assert.match(csv, /"Licensed One","Ade Bello","Licensed from the author or publisher","3","7900","10","790"/);
   assert.match(csv, /"Ade Bello","1","3","7900","790","0","790","400","390"/);
   assert.match(csv, /test data hidden/);
+});
+
+test("front/back matter gets no chapter number", () => {
+  const chapters = [{ kind: "front", title: "Preface" }, { kind: "chapter" }, {}, { kind: "part" }, { kind: "chapter" }, { kind: "back" }];
+  assert.deepEqual(chapterNumbers(chapters), [null, 1, 2, null, 3, null]);
+  assert.equal(isNumbered({}), true); // books saved before kinds existed
+  assert.equal(fallbackTitle({ kind: "front" }, null), "Front matter");
+  assert.equal(fallbackTitle({}, 4), "Chapter 4");
+});
+
+test("kinds, merge with the previous chapter, picture toggle, summary line", () => {
+  let s = createReviewState({
+    ...DRAFT,
+    chapters: [{ title: "Preface", kind: "front", content: "Why." }, ...DRAFT.chapters, { title: "About the author", kind: "back", content: "Bio." }],
+    warnings: ["One warning"],
+  });
+  assert.deepEqual(s.chapters.map((c) => c.kind), ["front", "chapter", "chapter", "chapter", "back"]);
+  assert.equal(imageCount(s.chapters[1].content), 1);
+  assert.equal(reviewSummary(s).line, "3 chapters, 2 front/back matter sections, 1 image, 1 warning");
+  s = setChapterKind(s, 3, "back");
+  assert.equal(setChapterKind(s, 0, "cover"), s); // unknown kinds are ignored
+  assert.equal(reviewSummary(s).line, "2 chapters, 3 front/back matter sections, 1 image, 1 warning");
+  s = mergeWithPrevious(s, 2);
+  assert.deepEqual(s.chapters.map((c) => c.title), ["Preface", "First", "Third", "About the author"]);
+  assert.match(s.chapters[1].content, /## Second\n\n> Patience/);
+  assert.equal(mergeWithPrevious(s, 0), s);
+  // Pictures off for a chapter: not counted, not sent.
+  s = toggleChapterImages(s, 1);
+  assert.equal(reviewSummary(s).images, 0);
+  const payload = toCommitPayload(s);
+  assert.doesNotMatch(payload.chapters[1].content, /kenlibs-import/);
+  assert.match(payload.chapters[1].content, /the \*dust\* came early\.\n\n## A turn/);
+  assert.deepEqual(payload.images, {});
+  assert.deepEqual(payload.chapters.map((c) => c.kind), ["front", "chapter", "back", "back"]);
+});
+
+test("split by pattern: plain markers and /regex/, the matching line becomes the title", () => {
+  const long = Array.from({ length: 12 }, (_, i) => `CHAPTER ${i + 1}\n\nThe text of chapter ${i + 1}.`).join("\n\n");
+  let s = createReviewState({ ...DRAFT, chapters: [{ title: "Chapter 1", content: `A title page line.\n\n${long}` }] });
+  const { state, count } = splitByPattern(s, 0, "chapter");
+  assert.equal(count, 12);
+  assert.equal(state.chapters.length, 13); // the text before the first match stays
+  assert.equal(state.chapters[0].content, "A title page line.");
+  assert.deepEqual(state.chapters.slice(1).map((c) => c.title), Array.from({ length: 12 }, (_, i) => `CHAPTER ${i + 1}`));
+  assert.equal(state.chapters[5].content, "The text of chapter 5.");
+  // Starting right at a match: no empty first chapter.
+  s = createReviewState({ ...DRAFT, chapters: [{ title: "All", content: long }] });
+  assert.equal(splitByPattern(s, 0, "/^chapter \\d+$/").state.chapters.length, 12);
+  assert.equal(splitByPattern(s, 0, "Nothing matches").count, 0);
+  assert.equal(splitByPattern(s, 0, "/[unclosed/").invalid, true);
+  assert.equal(parseSplitPattern(""), null);
+  // A match inside a long paragraph doesn't count.
+  assert.equal(parseSplitPattern("chapter")(`Chapter ${"x ".repeat(100)}`), false);
+});
+
+test("one long chapter must be split or explicitly kept", () => {
+  const words = "word ".repeat(9000);
+  let s = createReviewState({ ...DRAFT, chapters: [{ title: "Chapter 1", content: words }], longChapterWords: 8000 });
+  assert.ok(longSingleChapter(s));
+  assert.equal(reviewSummary(s).warnings, 1);
+  assert.ok(reviewProblems(s).some((p) => /long chapter/.test(p)));
+  s = setKeepOneChapter(s, true);
+  assert.deepEqual(reviewProblems(s), []);
+  const short = createReviewState({ ...DRAFT, chapters: [{ title: "Chapter 1", content: "word ".repeat(100) }] });
+  assert.equal(longSingleChapter(short), null);
 });
